@@ -1,0 +1,177 @@
+# Helix Editor Configuration
+# ~/.config/helix/config.toml
+# Target: Helix 25.07 (Bleeding Edge)
+
+theme = "catppuccin_mocha"
+
+[editor]
+# 基础体验
+line-number = "relative"
+cursorline = true
+cursorcolumn = false
+auto-save = true
+auto-format = true
+scrolloff = 8
+scroll-lines = 3
+mouse = true
+true-color = true
+idle-timeout = 100
+
+# 缓冲区管理
+bufferline = "multiple" # 多文件时显示标签栏
+color-modes = true      # 状态栏模式变色
+
+# Shell 环境
+shell = ["zsh", "-c"]
+
+# 格式化与换行
+text-width = 100
+default-line-ending = "lf"
+
+# ✅ 新特性: 粘性上下文 (Sticky Context)
+# 在函数/类过长时，将定义行吸附在顶部
+#[editor.sticky-context]
+#enable = true
+#indicator = true
+
+# 状态栏 (Statusline)
+[editor.statusline]
+left = ["mode", "spinner", "file-name", "read-only-indicator", "file-modification-indicator"]
+center = ["diagnostics"]
+right = ["selections", "register", "position", "file-encoding", "file-line-ending", "file-type", "version-control"]
+separator = "│"
+mode.normal = "NORMAL"
+mode.insert = "INSERT"
+mode.select = "SELECT"
+
+# LSP 行为
+[editor.lsp]
+enable = true
+display-messages = true
+display-inlay-hints = true  # 内嵌提示 (Inlay Hints)
+auto-signature-help = true
+snippets = true
+
+# 光标形状
+[editor.cursor-shape]
+insert = "bar"
+normal = "block"
+select = "underline"
+
+# 文件选择器
+[editor.file-picker]
+hidden = false
+git-ignore = true
+git-global = true
+git-exclude = true
+
+# 自动配对
+[editor.auto-pairs]
+'(' = ')'
+'{' = '}'
+'[' = ']'
+'"' = '"'
+'`' = '`'
+'<' = '>'
+
+# 搜索
+[editor.search]
+smart-case = true
+wrap-around = true
+
+# 空白字符 (默认隐藏，按需开启)
+[editor.whitespace]
+render = "none"
+
+[editor.whitespace.characters]
+space = "·"
+nbsp = "⍽"
+tab = "→"
+newline = "↵"
+
+# 缩进参考线
+[editor.indent-guides]
+render = true
+character = "│"
+skip-levels = 0
+
+# 侧边栏 (Gutters)
+[editor.gutters]
+layout = ["diagnostics", "spacer", "line-numbers", "spacer", "diff"]
+
+[editor.gutters.line-numbers]
+min-width = 3
+
+# 软换行 (Soft Wrap)
+[editor.soft-wrap]
+enable = false
+max-wrap = 20
+max-indent-retain = 40
+wrap-indicator = "↪ "
+
+# 智能 Tab (Smart Tab)
+[editor.smart-tab]
+enable = true
+supersede-menu = false
+
+# ══════════════════════════════════════════════════════════════════
+# ⌨️ Key Bindings (快捷键)
+# ══════════════════════════════════════════════════════════════════
+
+[keys.normal]
+# 系统操作
+"C-s" = ":w"
+"C-q" = ":q"
+
+# 窗口导航 (类 Tmux/Vim)
+"C-h" = "jump_view_left"
+"C-j" = "jump_view_down"
+"C-k" = "jump_view_up"
+"C-l" = "jump_view_right"
+
+# Buffer 切换
+"H" = "goto_previous_buffer"
+"L" = "goto_next_buffer"
+
+# 编辑
+"C-/" = "toggle_comments"
+"y" = "yank_to_clipboard"
+"p" = "paste_clipboard_after"
+"P" = "paste_clipboard_before"
+
+# 搜索
+"n" = "search_next"
+"N" = "search_prev"
+
+# Go 模式增强
+"g" = { l = "goto_line_end", h = "goto_line_start", d = "goto_definition", r = "goto_reference", i = "goto_implementation", t = "goto_type_definition" }
+
+# Leader 键 (Space)
+[keys.normal.space]
+f = "file_picker"
+F = "file_picker_in_current_directory"
+b = "buffer_picker"
+s = "symbol_picker"
+S = "workspace_symbol_picker"
+d = "diagnostics_picker"
+D = "workspace_diagnostics_picker"
+a = "code_action"
+r = "rename_symbol"
+h = "hover"
+"/" = "global_search"
+"?" = "command_palette"
+
+# 窗口管理子菜单
+w = { v = "vsplit", s = "hsplit", q = "wclose", o = "wonly" }
+
+# 配置
+c = ":config-open"
+C = ":config-reload"
+
+[keys.insert]
+"C-s" = ":w"
+j = { k = "normal_mode" } # jk 大法
+"C-space" = "completion"
+
+[keys.select]
+y = "yank_to_clipboard"
