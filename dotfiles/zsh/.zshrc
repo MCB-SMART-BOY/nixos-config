@@ -3,6 +3,10 @@
 # 作者: mcbnixos (NixOS 25.11 Optimized)
 # 主题: Catppuccin Mocha
 
+if [ -z "$DISPLAY" ]; then
+    export DISPLAY=:0
+fi
+
 if [ -e /etc/zshrc ]; then
     source /etc/zshrc
 fi

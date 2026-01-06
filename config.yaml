@@ -1,0 +1,550 @@
+
+
+def-subs-collection:
+  use-economy-subs: &use-economy-subs
+    - ktm
+    - one-dollar
+
+  use-vip-limited-subs: &use-vip-limited-subs
+    - ssrdog
+
+  use-vip-unlimited-subs: &use-vip-unlimited-subs []
+
+  use-ai-subs: &use-ai-subs
+    - ssrdog
+
+def-for-proxy-provider:
+  speedtest: &speedtest
+    url: "https://www.gstatic.com/generate_204"
+    expected-status: 204
+    interval: 300 # check interval in seconds
+    timeout: 5000 # timeout in milliseconds
+    tolerance: 30 # only for url-test proxy groups
+    lazy: true
+
+  sub-provider-common: &sub-provider-common
+    type: http
+    interval: 3600 # update time in seconds
+    proxy: Proxy # update via which proxy
+    size-limit: 0
+    header:
+      User-Agent:
+        - clash.meta
+      Accept:
+        - "text/yaml,application/yaml,text/plain,*/*"
+    health-check:
+        enable: true
+        <<: *speedtest
+
+proxy-providers:
+  ssrdog:
+    <<: *sub-provider-common
+    path: ./proxy-providers/ssrdog.yaml
+    url: *ssrdog-url
+    override:
+      additional-suffix: " | Limited"
+  ktm:
+    <<: *sub-provider-common
+    path: ./proxy-providers/ktm.yaml
+    url: *ktm-url
+    override:
+      additional-suffix: " | Economy"
+  one-dollar:
+    <<: *sub-provider-common
+    path: ./proxy-providers/one-dollar.yaml
+    url: *one-dollar-url
+    override:
+      additional-suffix: " | Economy"
+    exclude-filter: "倍"
+
+
+# --------------------------------------------------------------
+# Common Global Settings
+mixed-port: 7890
+mode: rule
+log-level: warning # silent, error, warning, info, debug
+allow-lan: true
+bind-address: "*"
+ipv6: true
+find-process-mode: off
+unified-delay: true
+tcp-concurrent: true
+global-client-fingerprint: chrome
+global-ua: clash.meta
+# global-ua: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+etag-support: true
+authentication:
+  - "mihomo:mihomomo"
+skip-auth-prefixes:
+- 127.0.0.1/8
+- ::1/128
+
+keep-alive-interval: 15
+keep-alive-idle: 15
+disable-keep-alive: false # set to true on mobile devices to save battery
+
+profile:
+  store-selected: true
+  store-fake-ip: true
+# --------------------------------------------------------------
+
+
+# --------------------------------------------------------------
+# Web Dashboard Settings
+external-controller: 0.0.0.0:9090
+external-ui: ui
+external-ui-url: "https://hub.gitmirror.com/https://github.com/Zephyruso/zashboard/releases/latest/download/dist.zip"
+# external-ui-url: "https://hub.gitmirror.com/https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+
+external-controller-cors:
+  allow-origins:
+    - '*'
+  allow-private-network: true
+secret: "mihomomo"
+# --------------------------------------------------------------
+
+
+def-filters:
+  hk: &filter-hk "(?i)(港|hk|hongkong|hong kong)"
+  jp: &filter-jp "(?i)(日|jp|japan)"
+  us: &filter-us "(?i)(美|us|unitedstates|united states)"
+  sg: &filter-sg "(?i)(新|sg|singapore)"
+  tw: &filter-tw "(?i)(台|tw|taiwan)"
+  ca: &filter-ca "(?i)(加|ca|canada)"
+  au: &filter-au "(?i)(澳|au|australia)"
+  kr: &filter-kr "(?i)(韩|kr|korea)"
+  de: &filter-de "(?i)(德|de|germany)"
+  fr: &filter-fr "(?i)(法|fr|france)"
+  uk: &filter-uk "(?i)(英|uk|britain)"
+  tr: &filter-tr "(?i)(土|turkey)"
+  in: &filter-in "(?i)(印|india)"
+  nl: &filter-nl "(?i)(荷|nl|netherlands)"
+  vn: &filter-vn "(?i)(越|vn|vietnam)"
+  my: &filter-my "(?i)(马|my|malaysia)"
+  th: &filter-th "(?i)(泰|thailand)"
+  ph: &filter-ph "(?i)(菲|ph|philippines)"
+
+  # Countries with Much More Nodes
+  # US, SG, JP, HK, TW
+  
+  common: &filter-common "(?i)(\
+    港|hk|hongkong|hong kong|\
+    美|us|unitedstates|united states|\
+    日|jp|japan|\
+    新|sg|singapore|\
+    台|tw|taiwan\
+    )"
+  
+  ai: &filter-ai "(?i)(\
+    美|us|unitedstates|united states|\
+    日|jp|japan|\
+    新|sg|singapore|\
+    台|tw|taiwan\
+    )"
+
+def-common-select: &common-select
+  type: select
+  proxies:
+    - Economy
+    - Unlimited
+    - Limited
+    - DIRECT
+  include-all: true
+
+proxy-groups:
+  - name: Limited
+    type: url-test
+    use: *use-vip-limited-subs
+    hidden: true
+    <<: *speedtest
+    filter: *filter-common
+    proxies:
+      - REJECT
+    # icon: *icon-global
+  - name: Unlimited
+    type: url-test
+    use: *use-vip-unlimited-subs
+    hidden: true
+    <<: *speedtest
+    filter: *filter-common
+    proxies:
+      - REJECT
+    # icon: *icon-global
+  - name: Economy
+    type: url-test
+    use: *use-economy-subs
+    hidden: true
+    <<: *speedtest
+    filter: *filter-common
+    proxies:
+      - REJECT
+    # icon: *icon-global
+
+  # AI
+  - name: AI-Auto
+    type: url-test
+    use: *use-ai-subs
+    hidden: true
+    <<: *speedtest
+    filter: *filter-ai
+    proxies:
+      - REJECT
+    # icon: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/main/icons/Bot.png"
+
+  # Github
+  - name: GitHub
+    <<: *common-select
+
+  # Docker
+  - name: Docker
+    <<: *common-select
+
+  # Youtube
+  - name: YouTube
+    <<: *common-select
+
+  # Twitter
+  - name: Twitter
+    <<: *common-select
+
+  # Google
+  - name: Google
+    <<: *common-select
+
+  # Telegram
+  - name: Telegram
+    <<: *common-select
+
+  # Proxy
+  - name: Proxy
+    <<: *common-select
+
+  - name: Match
+    <<: *common-select
+
+
+dns:
+  enable: true
+  listen: 0.0.0.0:1053
+  ipv6: false
+
+  cache-algorithm: arc
+  prefer-h3: false
+
+  use-hosts: true
+  use-system-hosts: true
+  respect-rules: false
+
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  fake-ip-filter-mode: blacklist
+  fake-ip-filter:
+    - '*.lan'
+    - '*.localdomain'
+    - '*.localhost'
+    - '*.local'
+    # - 'geosite:cn'
+    # - 'geosite:private'
+    - "rule-set:private_domain"
+    - 'msftconnecttest.com'
+    - 'msftncsi.com'
+    - 'xbox.*.microsoft.com'
+    - 'xbox.*.xboxlive.com'
+    - "stun.*"
+    - "*.stun.*"
+    - "turn.*"
+    - "*.turn.*"
+
+    - "github.com"
+
+
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  proxy-server-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  direct-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+  direct-nameserver-follow-policy: true
+  nameserver:
+    - https://cloudflare-dns.com/dns-query#RULES
+    - https://dns.google/dns-query#RULES
+  nameserver-policy:
+    "+.arpa": system
+    "rule-set:private_domain": system
+    "rule-set:cn_domain":
+      - https://doh.pub/dns-query
+      - https://dns.alidns.com/dns-query
+    # "geosite:private": 
+    #   - system
+    # "geosite:cn":
+    #   - https://doh.pub/dns-query
+    #   - https://dns.alidns.com/dns-query
+    # "geosite:gfw,geolocation-!cn":
+    #   - https://cloudflare-dns.com/dns-query#RULES
+    #   - https://dns.google/dns-query#RULES
+
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+  override-destination: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+  skip-domain:
+    - "+.apple.com"
+
+tun:
+  enable: true
+  device: utun-meta
+  stack: system
+  auto-route: true
+  auto-redirect: true
+  auto-detect-interface: true
+  strict-route: false
+  dns-hijack:
+    - any:53
+    - tcp://any:53
+  gso: true
+  gso-max-size: 65536
+  endpoint-independent-nat: true
+  route-exclude-address:
+    - 192.168.0.0/16
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 169.254.0.0/16
+
+
+# -------------------------------------------------------------------------
+# Rules based on Rule-Provider
+rule-anchor:
+  ip: &ip       { type: http, interval: 86400, behavior: ipcidr, format: mrs, proxy: Proxy }
+  domain: &domain { type: http, interval: 86400, behavior: domain, format: mrs, proxy: Proxy }
+rule-providers:
+  # = GEOIP,private
+  private_ip:
+    <<: *ip
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/private.mrs"
+    path: ./ruleset/private_ip.mrs
+
+  # = GEOIP,CN
+  cn_ip:
+    <<: *ip
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs"
+    path: ./ruleset/cn_ip.mrs
+
+  # = GEOIP,google
+  google_ip:
+    <<: *ip
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/google.mrs"
+    path: ./ruleset/google_ip.mrs
+
+  # = GEOIP,telegram
+  telegram_ip:
+    <<: *ip
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/telegram.mrs"
+    path: ./ruleset/telegram_ip.mrs
+
+  # = GEOIP,twitter
+  twitter_ip:
+    <<: *ip
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/twitter.mrs"
+    path: ./ruleset/twitter_ip.mrs
+
+  # = GEOSITE,PRIVATE
+  private_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/private.mrs"
+    path: ./ruleset/private_domain.mrs
+
+  # = GEOSITE,openai
+  openai_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/openai.mrs"
+    path: ./ruleset/openai_domain.mrs
+
+  # = GEOSITE,google-gemini
+  gemini_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google-gemini.mrs"
+    path: ./ruleset/gemini_domain.mrs
+
+  # = GEOSITE,anthropic
+  anthropic_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/anthropic.mrs"
+    path: ./ruleset/anthropic_domain.mrs
+
+  # = GEOSITE,category-ai-!cn
+  ai_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ai-!cn.mrs"
+    path: ./ruleset/ai_domain.mrs
+
+  # = GEOSITE,category-ai-chat-!cn
+  ai_chat_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/category-ai-chat-!cn.mrs"
+    path: ./ruleset/ai_chat_domain.mrs
+
+  # = GEOSITE,github
+  github_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/github.mrs"
+    path: ./ruleset/github_domain.mrs
+
+  # = GEOSITE,docker
+  docker_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/docker.mrs"
+    path: ./ruleset/docker_domain.mrs
+
+  # = GEOSITE,twitter
+  twitter_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/twitter.mrs"
+    path: ./ruleset/twitter_domain.mrs
+
+  # = GEOSITE,youtube
+  youtube_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/youtube.mrs"
+    path: ./ruleset/youtube_domain.mrs
+
+  # = GEOSITE,google
+  google_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/google.mrs"
+    path: ./ruleset/google_domain.mrs
+
+  # = GEOSITE,telegram
+  telegram_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/telegram.mrs"
+    path: ./ruleset/telegram_domain.mrs
+
+  # = GEOSITE,CN
+  cn_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs"
+    path: ./ruleset/cn_domain.mrs
+
+  # = GEOSITE,gfw
+  gfw_domain:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/gfw.mrs"
+    path: ./ruleset/gfw_domain.mrs
+
+  # = GEOSITE,geolocation-!cn
+  geolocation-!cn:
+    <<: *domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs"
+    path: ./ruleset/geolocation-!cn.mrs
+
+rules:
+  - RULE-SET,private_ip,DIRECT,no-resolve
+  - RULE-SET,private_domain,DIRECT
+
+  # AI Services
+  - RULE-SET,openai_domain,AI-Auto
+  - RULE-SET,gemini_domain,AI-Auto
+  - RULE-SET,anthropic_domain,AI-Auto
+  - RULE-SET,ai_domain,AI-Auto
+  - RULE-SET,ai_chat_domain,AI-Auto
+
+  # Common Services
+  - RULE-SET,github_domain,GitHub
+  - RULE-SET,docker_domain,Docker
+  - RULE-SET,twitter_domain,Twitter
+  - RULE-SET,youtube_domain,YouTube
+  - RULE-SET,google_domain,Google
+  - RULE-SET,telegram_domain,Telegram
+
+  # Bypass China Traffic
+  - RULE-SET,cn_domain,DIRECT
+
+  # STUN/TURN Servers
+  # - DST-PORT,3478,DIRECT
+  # - DST-PORT,5349,DIRECT
+
+  # GFW List
+  - RULE-SET,gfw_domain,Proxy
+  - RULE-SET,geolocation-!cn,Proxy
+
+  - RULE-SET,google_ip,Google,no-resolve
+  - RULE-SET,telegram_ip,Telegram,no-resolve
+  - RULE-SET,twitter_ip,Twitter,no-resolve
+
+  - RULE-SET,cn_ip,DIRECT,no-resolve
+
+  - MATCH,Match
+
+# -------------------------------------------------------------------------
+
+
+# -------------------------------------------------------------------------
+# Rules based on GeoIP and GeoSite
+
+# # --------------------------------------------------------------
+# # GEOIP and GEOSITE Settings
+# geodata-mode: true
+# geo-auto-update: true
+# geo-update-interval: 24
+# geox-url:
+#   # Github release
+#   # geoip: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
+#   # geosite: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
+#   # mmdb: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb"
+#   # asn: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/GeoLite2-ASN.mmdb"
+
+#   # jSdelivr-CF
+#   geoip: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
+#   geosite: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+#   mmdb: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb"
+#   asn: "https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/GeoLite2-ASN.mmdb"
+# # --------------------------------------------------------------
+
+
+# rules:
+#   - GEOIP,private,DIRECT,no-resolve
+#   - GEOSITE,PRIVATE,DIRECT
+
+#   # AI Services
+#   - GEOSITE,openai,AI-Select
+#   - GEOSITE,google-gemini,AI-Select
+#   - GEOSITE,anthropic,AI-Select
+#   - GEOSITE,category-ai-!cn,AI-Select
+#   - GEOSITE,category-ai-chat-!cn,AI-Select
+#   # - GEOSITE,github,AI-Select
+
+#   # Common Services
+#   - GEOSITE,github,GitHub
+#   - GEOSITE,docker,Docker
+#   - GEOSITE,twitter,Twitter
+#   - GEOSITE,youtube,YouTube
+#   - GEOSITE,google,Google
+#   - GEOSITE,telegram,Telegram
+
+#   # Bypass China Traffic
+#   - GEOSITE,CN,DIRECT
+
+#   # GFW List
+#   - GEOSITE,gfw,UnRuled
+#   - GEOSITE,geolocation-!cn,UnRuled
+
+#   - GEOIP,google,Google
+#   - GEOIP,telegram,Telegram
+#   - GEOIP,twitter,Twitter
+
+#   - GEOIP,CN,DIRECT
+
+#   - MATCH,UnRuled
+
+# -------------------------------------------------------------------------

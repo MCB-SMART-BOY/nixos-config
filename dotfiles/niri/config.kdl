@@ -82,7 +82,7 @@ layout {
 // 🖼️ Window Decorations
 // ══════════════════════════════════════════════════════════════════
 
-prefer-no-csd
+// prefer-no-csd
 
 // ══════════════════════════════════════════════════════════════════
 // ✨ Animations (优化版)
@@ -183,13 +183,17 @@ binds {
 
     // ─── 焦点移动 (Vim 风格) ───
     Mod+H { focus-column-left; }
-    Mod+J { focus-window-down; }
-    Mod+K { focus-window-up; }
+    // Mod+J { focus-window-down; }
+    // Mod+K { focus-window-up; }
+    Mod+J { focus-workspace-down; }
+    Mod+K { focus-workspace-up; }
     Mod+L { focus-column-right; }
     
     Mod+Left { focus-column-left; }
-    Mod+Down { focus-window-down; }
-    Mod+Up { focus-window-up; }
+    // Mod+Down { focus-window-down; }
+    Mod+Down { focus-workspace-down; }
+    // Mod+Up { focus-window-up; }
+    Mod+Up { focus-workspace-up; }
     Mod+Right { focus-column-right; }
 
     // ─── 窗口移动 ───
@@ -245,8 +249,8 @@ binds {
     Mod+Shift+8 { move-column-to-workspace 8; }
     Mod+Shift+9 { move-column-to-workspace 9; }
 
-    Mod+Tab { focus-workspace-down; }
-    Mod+Shift+Tab { focus-workspace-up; }
+    // Mod+Tab { focus-workspace-down; }
+    // Mod+Shift+Tab { focus-workspace-up; }
 
     // ─── 截图 (高级模式) ───
     // 依赖: grim, slurp, swappy (需在 systemPackages 中安装)
