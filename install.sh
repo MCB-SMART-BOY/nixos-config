@@ -12,9 +12,11 @@ SHOW_TRACE=false
 FORCE_SYNC=false
 HOST_FILE="${REPO_ROOT}/host.nix"
 HARDWARE_FILE="${REPO_ROOT}/hardware-configuration.nix"
+ETC_DIR="/etc/nixos"
 ASSUME_YES=false
 NO_REBUILD=false
 NO_SYNC=false
+NO_SYNC_ETC=false
 
 msg() {
   local level="$1"
@@ -46,10 +48,11 @@ usage() {
   -h, --help         显示帮助
   -y, --yes          跳过确认
   --mode <action>    nixos-rebuild 动作: switch|test|build (默认: switch)
-  --show-trace       启用 nixos-rebuild --show-trace
-  --force-sync       覆盖已有 hardware-configuration.nix
-  --no-sync          跳过硬件配置同步
-  --no-rebuild       跳过 nixos-rebuild
+ --show-trace       启用 nixos-rebuild --show-trace
+ --force-sync       覆盖已有 hardware-configuration.nix
+ --no-sync          跳过硬件配置同步
+  --no-sync-etc      不同步仓库到 /etc/nixos
+ --no-rebuild       跳过 nixos-rebuild
 EOF_USAGE
 }
 
@@ -76,6 +79,9 @@ parse_args() {
         ;;
       --no-sync)
         NO_SYNC=true
+        ;;
+      --no-sync-etc)
+        NO_SYNC_ETC=true
         ;;
       --no-rebuild)
         NO_REBUILD=true
@@ -131,7 +137,7 @@ check_env() {
   fi
 
   local needs_sudo=false
-  if [[ "${NO_SYNC}" != true || "${NO_REBUILD}" != true ]]; then
+  if [[ "${NO_SYNC}" != true || "${NO_REBUILD}" != true || "${NO_SYNC_ETC}" != true ]]; then
     needs_sudo=true
   fi
 
@@ -175,6 +181,18 @@ sync_hardware_config() {
   fi
 }
 
+sync_repo_to_etc() {
+  local target="${ETC_DIR}"
+  log "同步仓库到 ${target}"
+  sudo mkdir -p "${target}"
+  if command -v rsync >/dev/null 2>&1; then
+    sudo rsync -a --exclude '.git/' "${REPO_ROOT}/" "${target}/"
+  else
+    (cd "${REPO_ROOT}" && tar --exclude=.git -cf - .) | sudo tar -C "${target}" -xf -
+  fi
+  success "配置已同步到 ${target}"
+}
+
 rebuild_system() {
   log "重建系统 (${MODE})，目标: ${TARGET_NAME}"
   local nix_config="experimental-features = nix-command flakes"
@@ -193,13 +211,16 @@ confirm() {
   local steps=()
   if [[ "${NO_SYNC}" != true ]]; then
     if [[ "${FORCE_SYNC}" == true ]]; then
-      steps+=("sync hardware config (overwrite)")
+      steps+=("同步硬件配置（覆盖）")
     else
-      steps+=("sync hardware config")
+      steps+=("同步硬件配置")
     fi
   fi
+  if [[ "${NO_SYNC_ETC}" != true ]]; then
+    steps+=("同步配置到 ${ETC_DIR}")
+  fi
   if [[ "${NO_REBUILD}" != true ]]; then
-    steps+=("rebuild NixOS (${MODE})")
+    steps+=("重建系统 (${MODE})")
   fi
   if [[ ${#steps[@]} -eq 0 ]]; then
     error "无需执行任何操作（同时设置了 --no-sync 与 --no-rebuild）"
@@ -231,6 +252,12 @@ main() {
     sync_hardware_config
   else
     warn "跳过硬件配置同步"
+  fi
+
+  if [[ "${NO_SYNC_ETC}" != true ]]; then
+    sync_repo_to_etc
+  else
+    warn "跳过 /etc/nixos 同步"
   fi
 
   if [[ "${NO_REBUILD}" != true ]]; then

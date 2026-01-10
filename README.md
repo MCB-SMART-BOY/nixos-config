@@ -52,6 +52,7 @@ chmod +x install.sh
 sudo nixos-rebuild switch --flake .#nixos
 ```
 
+> install.sh 默认会同步仓库到 `/etc/nixos`，可用 `--no-sync-etc` 关闭。
 > 如果缺少 `hardware-configuration.nix`，构建会失败。
 
 #### install.sh 常用参数
@@ -62,6 +63,7 @@ sudo nixos-rebuild switch --flake .#nixos
 ./install.sh --show-trace            # 打印完整堆栈
 ./install.sh --force-sync            # 覆盖已有硬件配置
 ./install.sh --no-sync                # 跳过硬件配置同步
+./install.sh --no-sync-etc            # 不同步仓库到 /etc/nixos
 ./install.sh --no-rebuild             # 仅同步不重建
 ```
 

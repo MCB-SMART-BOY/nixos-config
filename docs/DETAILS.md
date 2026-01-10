@@ -31,6 +31,7 @@
 
 常用逻辑：
 - 同步 `/etc/nixos/hardware-configuration.nix` 到 `hardware-configuration.nix`
+- 同步仓库配置到 `/etc/nixos`
 - 运行 `nixos-rebuild switch --flake .#nixos`
 
 注意：
@@ -43,6 +44,7 @@
 - `--show-trace`：启用完整堆栈
 - `--force-sync`：覆盖现有硬件配置
 - `--no-sync`：跳过硬件配置同步
+- `--no-sync-etc`：不同步仓库到 `/etc/nixos`
 - `--no-rebuild`：仅同步不重建
 
 ## 常见扩展方式
