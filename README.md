@@ -69,6 +69,9 @@ cd nixos-config
 # 生成/同步硬件配置
 sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
 
+# 可选：根据实际用户/代理/TUN 调整
+$EDITOR modules/shared/vars.nix
+
 # 方式 A：脚本安装
 chmod +x install.sh
 ./install.sh nixos-dev
@@ -214,11 +217,21 @@ nsp  → nix search nixpkgs
 
 ## 🎨 自定义
 
+### 自启动服务 (systemd --user)
+
+Waybar / swaybg / swayidle / fcitx5 由 systemd user 服务管理：
+
+```bash
+systemctl --user status waybar
+systemctl --user restart waybar
+```
+
 ### 更换壁纸
 
 ```bash
-# 静态壁纸
-swaybg -i ~/.config/wallpaper.jpg
+# 静态壁纸：替换文件并重启 swaybg
+cp /path/to/wallpaper.jpg ~/.config/wallpaper.jpg
+systemctl --user restart swaybg
 
 # 动态壁纸 (GIF)
 swww init && swww img ~/Pictures/animated.gif
@@ -236,40 +249,20 @@ linux-wallpaperengine --screen-root eDP-1 <workshop_id>
 
 ### 添加更多 LSP
 
-编辑 `home/mcbnixos/modules/programs.nix`，参考已有配置添加新语言。
+编辑 `home/mcbnixos/modules/programs.nix` 添加语言配置，
+并在 `home/mcbnixos/modules/packages.nix` 中补充对应 LSP 包。
 
 ## 📺 动漫/漫画应用
 
-### Suwayomi (Mihon/Tachiyomi 桌面版)
-
-已通过 `services.suwayomi-server` 启用，启动后访问：
-```
-http://localhost:4567
-```
-
 ### Kazumi (动漫流媒体)
 
-通过 Flatpak 安装：
-```bash
-# 首次使用需添加 Flathub 仓库
-flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-
-# 安装 Kazumi
-flatpak install flathub io.github.Predidit.Kazumi
-
-# 运行
-flatpak run io.github.Predidit.Kazumi
-```
+已在 `mcb.packages.enableEntertainment = true` 时随 Home Manager 安装，
+直接运行 `kazumi` 即可。
 
 ### Mangayomi (漫画/动漫)
 
-下载 AppImage 后直接运行：
-```bash
-chmod +x Mangayomi-*.AppImage
-./Mangayomi-*.AppImage
-# 或使用 appimage-run
-appimage-run Mangayomi-*.AppImage
-```
+已在 `mcb.packages.enableEntertainment = true` 时随 Home Manager 安装，
+直接运行 `mangayomi` 即可。
 
 ## 🔧 故障排除
 
@@ -283,8 +276,15 @@ journalctl --user -u niri -f
 ### Waybar 显示异常
 
 ```bash
-# 重启 waybar
-pkill waybar && waybar &
+systemctl --user restart waybar
+systemctl --user status waybar
+```
+
+### 输入法异常
+
+```bash
+systemctl --user restart fcitx5
+systemctl --user status fcitx5
 ```
 
 ### 字体图标不显示
