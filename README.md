@@ -53,6 +53,16 @@ sudo nixos-rebuild switch --flake .#nixos-dev
 
 > 如果缺少 `hosts/<host>/hardware-configuration.nix`，构建会失败。
 
+#### install.sh 常用参数
+
+```bash
+./install.sh --yes                    # 跳过确认
+./install.sh --no-sync                # 跳过硬件配置同步
+./install.sh --no-rebuild             # 仅同步不重建
+./install.sh --host <name>            # 指定主机名
+./install.sh --init-host --host <name> # 基于模板初始化新主机
+```
+
 ### 2) 日常更新
 
 ```bash

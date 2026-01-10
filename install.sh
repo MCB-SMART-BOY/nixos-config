@@ -4,7 +4,12 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-HOST_NAME="${1:-nixos-dev}"
+DEFAULT_HOST="nixos-dev"
+HOST_NAME="${DEFAULT_HOST}"
+ASSUME_YES=false
+NO_REBUILD=false
+NO_SYNC=false
+INIT_HOST=false
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -18,6 +23,91 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() {
   echo -e "${RED}[ERROR]${NC} $1"
   exit 1
+}
+
+usage() {
+  cat <<EOF
+Usage: ./install.sh [host] [options]
+
+Options:
+  -h, --help         Show this help
+  -y, --yes          Skip confirmation prompt
+  --host <name>      Specify host name (default: ${DEFAULT_HOST})
+  --no-sync          Skip hardware-configuration sync
+  --no-rebuild       Skip nixos-rebuild
+  --init-host        Initialize hosts/<name> from hosts/${DEFAULT_HOST}/default.nix
+EOF
+}
+
+parse_args() {
+  local positional=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      -y|--yes)
+        ASSUME_YES=true
+        ;;
+      --host)
+        shift
+        [[ $# -gt 0 ]] || error "--host requires a value"
+        HOST_NAME="$1"
+        ;;
+      --no-sync)
+        NO_SYNC=true
+        ;;
+      --no-rebuild)
+        NO_REBUILD=true
+        ;;
+      --init-host)
+        INIT_HOST=true
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        error "Unknown option: $1"
+        ;;
+      *)
+        positional+=("$1")
+        ;;
+    esac
+    shift
+  done
+
+  if [[ ${#positional[@]} -gt 1 ]]; then
+    error "Too many arguments: ${positional[*]}"
+  fi
+  if [[ ${#positional[@]} -eq 1 ]]; then
+    HOST_NAME="${positional[0]}"
+  fi
+}
+
+ensure_host_dir() {
+  local host_dir="${SCRIPT_DIR}/hosts/${HOST_NAME}"
+  local host_file="${host_dir}/default.nix"
+  local template_file="${SCRIPT_DIR}/hosts/${DEFAULT_HOST}/default.nix"
+
+  if [[ -f "${host_file}" ]]; then
+    return
+  fi
+
+  if [[ "${INIT_HOST}" != true ]]; then
+    error "Host '${HOST_NAME}' not found at ${host_file} (use --init-host to create from template)"
+  fi
+
+  if [[ ! -f "${template_file}" ]]; then
+    error "Host template not found: ${template_file}"
+  fi
+
+  log "Initializing host '${HOST_NAME}' from ${template_file}"
+  mkdir -p "${host_dir}"
+  cp "${template_file}" "${host_file}"
+  success "Host '${HOST_NAME}' initialized (remember to add it in flake.nix)"
 }
 
 check_env() {
@@ -39,10 +129,7 @@ check_env() {
     error "nixos-rebuild is required but not found."
   fi
 
-  local host_file="${SCRIPT_DIR}/hosts/${HOST_NAME}/default.nix"
-  if [[ ! -f "${host_file}" ]]; then
-    error "Host '${HOST_NAME}' not found at ${host_file}"
-  fi
+  ensure_host_dir
 }
 
 sync_hardware_config() {
@@ -83,19 +170,49 @@ rebuild_system() {
   success "System rebuild complete"
 }
 
-main() {
-  echo -e "${GREEN}=== NixOS Flake Installer ===${NC}"
-  check_env
+confirm() {
+  local steps=()
+  if [[ "${NO_SYNC}" != true ]]; then
+    steps+=("sync hardware config")
+  fi
+  if [[ "${NO_REBUILD}" != true ]]; then
+    steps+=("rebuild NixOS")
+  fi
+  if [[ ${#steps[@]} -eq 0 ]]; then
+    error "Nothing to do (both --no-sync and --no-rebuild are set)"
+  fi
 
-  read -p "This will rebuild NixOS using ${HOST_NAME}. Continue? [y/N] " -n 1 -r
+  if [[ "${ASSUME_YES}" == true ]]; then
+    return
+  fi
+
+  local plan
+  plan=$(IFS=", "; echo "${steps[*]}")
+  read -r -p "This will ${plan} for ${HOST_NAME}. Continue? [y/N] " -n 1
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo "Canceled"
     exit 1
   fi
-
-  sync_hardware_config
-  rebuild_system
 }
 
-main
+main() {
+  echo -e "${GREEN}=== NixOS Flake Installer ===${NC}"
+  parse_args "$@"
+  check_env
+  confirm
+
+  if [[ "${NO_SYNC}" != true ]]; then
+    sync_hardware_config
+  else
+    warn "Skipping hardware-configuration sync"
+  fi
+
+  if [[ "${NO_REBUILD}" != true ]]; then
+    rebuild_system
+  else
+    warn "Skipping nixos-rebuild"
+  fi
+}
+
+main "$@"
