@@ -1,63 +1,34 @@
 # 🌸 NixOS Configuration
 
-一套精美的 NixOS 25.11 配置，专为 Rust 开发者打造，采用 Flake + Home Manager 组织。
+一套面向日常使用与开发的 NixOS 25.11 配置，采用 **Flake + Home Manager** 构建，结构清晰、可复用、便于扩展。
 
-## ✨ 特性
+> 适合希望用模块化方式管理系统与用户环境的人，默认走 Niri + Wayland 路线。
 
-- **窗口管理器**: [niri](https://github.com/YaLTeR/niri) - 现代化的可滚动平铺 Wayland 合成器
-- **配置方式**: Flake + Home Manager - 模块化系统与用户配置
-- **登录管理器**: greetd + tuigreet - 优雅的 TUI 登录界面
-- **Shell**: Zsh + Oh-My-Zsh + Starship prompt
-- **编辑器**: Helix - 后现代文本编辑器，完整 LSP 配置
-- **终端**: Alacritty - GPU 加速终端
-- **启动器**: Wofi - Wayland 原生启动器
-- **状态栏**: Waybar - 高度可定制状态栏
-- **通知**: Dunst - 轻量通知守护进程
-- **主题**: Catppuccin Mocha 🎨
-- **输入法**: fcitx5 + rime 中文输入
+## 📌 目录
 
-## 📁 文件结构
+- [✨ 亮点](#-亮点)
+- [🚀 快速开始](#-快速开始)
+- [🧭 结构概览](#-结构概览)
+- [⚙️ 核心配置入口](#️-核心配置入口)
+- [🧩 包组开关](#-包组开关)
+- [🖥️ 桌面与自启动](#️-桌面与自启动)
+- [🧰 日常维护](#-日常维护)
+- [⌨️ 快捷键速查](#️-快捷键速查)
+- [🎨 自定义](#-自定义)
+- [🧯 故障排除](#-故障排除)
+- [📚 参考资源](#-参考资源)
 
-```
-nixos-config/
-├── flake.nix                  # Flake 入口
-├── hosts/nixos-dev/           # 主机入口
-├── modules/nixos/             # 系统模块拆分 (default.nix 聚合)
-├── modules/shared/            # 共享常量 (用户名/代理/TUN)
-├── home/mcbnixos/             # Home Manager 用户入口
-│   ├── home.nix               # 入口模块
-│   ├── modules/               # 子模块拆分
-│   └── config/                # 应用配置文件
-├── configuration.nix          # 非 Flake 入口 (兼容)
-├── hardware-configuration.nix # 目标主机硬件配置 (需拷贝)
-├── install.sh                 # 一键部署脚本
-└── README.md
-```
+## ✨ 亮点
 
-## 🚀 一键安装
+- **窗口管理器**：niri（Wayland 平铺、平滑滚动）
+- **结构组织**：Flake + Home Manager 模块化分层
+- **Shell**：Zsh + Oh-My-Zsh + Starship
+- **编辑器**：Helix + 完整 LSP
+- **状态栏/通知**：Waybar + Dunst
+- **主题**：Catppuccin Mocha
+- **输入法**：fcitx5 + rime
 
-```bash
-# 解压
-tar -xzf nixos-config.tar.gz
-cd nixos-config
-
-# 运行安装脚本 (可选传入主机名，默认 nixos-dev)
-chmod +x install.sh
-./install.sh nixos-dev
-```
-
-也可以直接使用 flake：
-
-```bash
-sudo nixos-rebuild switch --flake .#nixos-dev
-```
-
-脚本会自动：
-1. 检查环境
-2. 将 `/etc/nixos/hardware-configuration.nix` 同步到项目
-3. 运行 flake 重建
-
-## ✅ 详细使用方法
+## 🚀 快速开始
 
 ### 1) 初次部署
 
@@ -66,95 +37,102 @@ sudo nixos-rebuild switch --flake .#nixos-dev
 git clone <your-repo-url> nixos-config
 cd nixos-config
 
-# 生成/同步硬件配置
+# 同步硬件配置（必须）
 sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
 
 # 可选：根据实际用户/代理/TUN 调整
 $EDITOR modules/shared/vars.nix
 
-# 方式 A：脚本安装
+# 使用脚本部署
 chmod +x install.sh
 ./install.sh nixos-dev
 
-# 方式 B：直接使用 flake
+# 或直接使用 flake
 sudo nixos-rebuild switch --flake .#nixos-dev
 ```
 
-如果仓库中不存在 `hardware-configuration.nix`，构建会失败，先按上面的方式同步即可。
+> 如果缺少 `hardware-configuration.nix`，构建会失败。
 
-### 2) 日常更新配置
+### 2) 日常更新
 
 ```bash
-# 修改配置文件后应用
 sudo nixos-rebuild switch --flake .#nixos-dev
-
-# 只测试不切换
-sudo nixos-rebuild test --flake .#nixos-dev
-
-# 仅构建检查
-sudo nixos-rebuild build --flake .#nixos-dev
+sudo nixos-rebuild test   --flake .#nixos-dev
+sudo nixos-rebuild build  --flake .#nixos-dev
 ```
 
-### 3) 更新依赖版本 (flake)
+### 3) 更新依赖版本
 
 ```bash
 nix flake update
 sudo nixos-rebuild switch --flake .#nixos-dev
 ```
 
-### 4) 新增主机
+## 🧭 结构概览
 
-```bash
-# 复制现有主机模板
-mkdir -p hosts/<new-host>
-cp hosts/nixos-dev/default.nix hosts/<new-host>/default.nix
-
-# 修改 hosts/<new-host>/default.nix 内的 hostName / stateVersion
-# 然后在 flake.nix 中新增 nixosConfigurations.<new-host>
+```
+nixos-config/
+├── flake.nix                  # Flake 入口
+├── flake.lock                 # 版本锁定（可复现）
+├── hosts/nixos-dev/           # 主机入口
+├── modules/nixos/             # 系统模块（default.nix 聚合）
+├── modules/shared/            # 共享常量（用户名/代理/TUN）
+├── home/mcbnixos/             # Home Manager 用户入口
+│   ├── home.nix               # 入口模块
+│   ├── modules/               # 子模块拆分
+│   └── config/                # 应用配置文件
+├── configuration.nix          # 非 Flake 兼容入口
+├── hardware-configuration.nix # 硬件配置（本地生成）
+├── install.sh                 # 一键部署脚本
+└── README.md
 ```
 
-### 5) 修改用户/桌面配置
+## ⚙️ 核心配置入口
 
-- 用户入口：`home/mcbnixos/home.nix`
-- 子模块：`home/mcbnixos/modules/*.nix`
+### 系统层（NixOS）
+
+- 入口：`modules/nixos/default.nix`
+- 网络/代理：`modules/nixos/networking.nix`、`modules/nixos/services.nix`
+- 字体/输入法/桌面：`modules/nixos/fonts.nix`、`modules/nixos/i18n.nix`、`modules/nixos/desktop.nix`
+
+### 用户层（Home Manager）
+
+- 入口：`home/mcbnixos/home.nix`
 - 应用配置：`home/mcbnixos/config/*`
+- 具体模块：`home/mcbnixos/modules/*.nix`
 
-可选包组开关位于 `home/mcbnixos/modules/packages.nix`，例如：
+### 共享常量
+
+- `modules/shared/vars.nix`：用户名、代理地址、TUN 网卡名等统一入口
+
+## 🧩 包组开关
+
+用户层包组可按需开关，位置：`home/mcbnixos/modules/packages.nix`
 
 ```nix
 mcb.packages.enableGaming = false;
 mcb.packages.enableEntertainment = false;
 ```
 
-修改后执行：
+## 🖥️ 桌面与自启动
+
+Waybar / swaybg / swayidle / fcitx5 由 **systemd --user** 管理：
 
 ```bash
-sudo nixos-rebuild switch --flake .#nixos-dev
+systemctl --user status waybar
+systemctl --user restart waybar
 ```
 
-### 6) 修改系统配置
+## 🧰 日常维护
 
-- 系统模块聚合：`modules/nixos/default.nix`
-- 各模块：`modules/nixos/*.nix`
-
-修改后执行：
-
-```bash
-sudo nixos-rebuild switch --flake .#nixos-dev
-```
-
-### 7) 非 Flake 兼容入口 (可选)
-
-本仓库提供 `configuration.nix` 兼容入口，可在传统流程中使用：
+- 新增主机：复制 `hosts/nixos-dev` 为新目录，并在 `flake.nix` 注册
+- 修改用户名：更新 `modules/shared/vars.nix` 与 `home/<user>/` 路径
+- 传统非 Flake 入口：
 
 ```bash
 sudo cp configuration.nix /etc/nixos/configuration.nix
 sudo nixos-rebuild switch
 ```
-
-### 8) 网络问题排查
-
-参见 `NETWORK_CN.md`。
 
 ## ⌨️ 快捷键速查
 
@@ -192,109 +170,44 @@ sudo nixos-rebuild switch
 | `Ctrl+/` | 切换注释 |
 | `jk` | 退出插入模式 |
 
-### Zsh 别名
-
-```bash
-# Git
-g    → git
-ga   → git add
-gc   → git commit
-gp   → git push
-gl   → git pull
-lg   → lazygit
-
-# Cargo
-c    → cargo
-cb   → cargo build
-cr   → cargo run
-ct   → cargo test
-cc   → cargo check
-
-# NixOS
-nrs  → sudo nixos-rebuild switch
-nsp  → nix search nixpkgs
-```
-
 ## 🎨 自定义
-
-### 自启动服务 (systemd --user)
-
-Waybar / swaybg / swayidle / fcitx5 由 systemd user 服务管理：
-
-```bash
-systemctl --user status waybar
-systemctl --user restart waybar
-```
 
 ### 更换壁纸
 
 ```bash
-# 静态壁纸：替换文件并重启 swaybg
 cp /path/to/wallpaper.jpg ~/.config/wallpaper.jpg
 systemctl --user restart swaybg
-
-# 动态壁纸 (GIF)
-swww init && swww img ~/Pictures/animated.gif
-
-# 视频壁纸
-mpvpaper '*' ~/Videos/wallpaper.mp4 --fork
-
-# Wallpaper Engine 壁纸 (需先在 Steam 安装 Wallpaper Engine)
-linux-wallpaperengine --screen-root eDP-1 <workshop_id>
 ```
 
-### 修改显示器设置
+### 修改显示器配置
 
-编辑 `~/.config/niri/config.kdl`，取消注释 output 部分并调整参数。
+编辑 `home/mcbnixos/config/niri/config.kdl`，调整 output 段落。
 
 ### 添加更多 LSP
 
-编辑 `home/mcbnixos/modules/programs.nix` 添加语言配置，
-并在 `home/mcbnixos/modules/packages.nix` 中补充对应 LSP 包。
+1. 在 `home/mcbnixos/modules/programs.nix` 添加语言配置
+2. 在 `home/mcbnixos/modules/packages.nix` 添加对应 LSP 包
 
-## 📺 动漫/漫画应用
+## 🧯 故障排除
 
-### Kazumi (动漫流媒体)
+- niri 无法启动：
+  ```bash
+  journalctl --user -u niri -f
+  ```
 
-已在 `mcb.packages.enableEntertainment = true` 时随 Home Manager 安装，
-直接运行 `kazumi` 即可。
+- Waybar 异常：
+  ```bash
+  systemctl --user restart waybar
+  systemctl --user status waybar
+  ```
 
-### Mangayomi (漫画/动漫)
+- 输入法异常：
+  ```bash
+  systemctl --user restart fcitx5
+  systemctl --user status fcitx5
+  ```
 
-已在 `mcb.packages.enableEntertainment = true` 时随 Home Manager 安装，
-直接运行 `mangayomi` 即可。
-
-## 🔧 故障排除
-
-### niri 无法启动
-
-```bash
-# 检查 niri 日志
-journalctl --user -u niri -f
-```
-
-### Waybar 显示异常
-
-```bash
-systemctl --user restart waybar
-systemctl --user status waybar
-```
-
-### 输入法异常
-
-```bash
-systemctl --user restart fcitx5
-systemctl --user status fcitx5
-```
-
-### 字体图标不显示
-
-确保安装了 Nerd Fonts：
-
-```bash
-# 检查字体
-fc-list | grep -i nerd
-```
+- 网络问题：参见 `NETWORK_CN.md`
 
 ## 📚 参考资源
 
@@ -305,4 +218,4 @@ fc-list | grep -i nerd
 
 ---
 
-Made with 💜 for Rust developers
+Made with ❤️ for a clean NixOS workflow
