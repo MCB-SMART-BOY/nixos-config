@@ -74,7 +74,7 @@ let
     yaml-language-server
     lua-language-server
     gopls
-    nixfmt-rfc-style
+    nixfmt
     black
     stylua
     shfmt
