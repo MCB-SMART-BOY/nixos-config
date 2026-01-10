@@ -17,6 +17,7 @@ let
     bat
     ripgrep
     fd
+    fzf
     btop
     fastfetch
     dust
@@ -38,6 +39,7 @@ let
     grim
     slurp
     swappy
+    mako
     libnotify
     swaybg
     swayidle
@@ -48,6 +50,7 @@ let
     foot
     firefox
     google-chrome
+    nautilus
     mpv
     vlc
     imv
@@ -113,6 +116,7 @@ let
 
   theming = with pkgs; [
     adwaita-icon-theme
+    gnome-themes-extra
     papirus-icon-theme
     bibata-cursors
     catppuccin-gtk
