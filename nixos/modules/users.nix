@@ -1,7 +1,7 @@
 { pkgs, ... }:
 
 let
-  vars = import ../shared/vars.nix;
+  vars = import ../../lib/vars.nix;
   user = vars.user;
 in
 {

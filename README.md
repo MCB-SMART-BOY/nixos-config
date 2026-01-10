@@ -24,7 +24,8 @@
 - **结构组织**：Flake + Home Manager 模块化分层
 - **Shell**：Zsh + Oh-My-Zsh + Starship
 - **编辑器**：Helix + 完整 LSP
-- **状态栏/通知**：Waybar + Dunst
+- **状态栏/通知**：Waybar + Mako
+- **启动器**：Fuzzel
 - **主题**：Catppuccin Mocha
 - **输入法**：fcitx5 + rime
 
@@ -41,7 +42,7 @@ cd nixos-config
 sudo cp /etc/nixos/hardware-configuration.nix ./hosts/nixos-dev/hardware-configuration.nix
 
 # 可选：根据实际用户/代理/TUN 调整
-$EDITOR modules/shared/vars.nix
+$EDITOR lib/vars.nix
 
 # 使用脚本部署
 chmod +x install.sh
@@ -87,14 +88,15 @@ nixos-config/
 ├── hosts/nixos-dev/           # 主机入口
 │   ├── default.nix
 │   └── hardware-configuration.nix
-├── modules/nixos/             # 系统模块（default.nix 聚合）
-├── modules/shared/            # 共享常量（用户名/代理/TUN）
-├── home/mcbnixos/             # Home Manager 用户入口
+├── nixos/modules/             # 系统模块（default.nix 聚合）
+├── lib/vars.nix               # 共享常量（用户名/代理/TUN）
+├── home/users/mcbnixos/        # Home Manager 用户入口
 │   ├── home.nix               # 入口模块
 │   ├── modules/               # 子模块拆分
 │   └── config/                # 应用配置文件
 ├── configuration.nix          # 非 Flake 兼容入口
-├── install.sh                 # 一键部署脚本
+├── scripts/install.sh         # 一键部署脚本（主脚本）
+├── install.sh                 # 入口包装（转发到 scripts/）
 └── README.md
 ```
 
@@ -102,23 +104,23 @@ nixos-config/
 
 ### 系统层（NixOS）
 
-- 入口：`modules/nixos/default.nix`
-- 网络/代理：`modules/nixos/networking.nix`、`modules/nixos/services.nix`
-- 字体/输入法/桌面：`modules/nixos/fonts.nix`、`modules/nixos/i18n.nix`、`modules/nixos/desktop.nix`
+- 入口：`nixos/modules/default.nix`
+- 网络/代理：`nixos/modules/networking.nix`、`nixos/modules/services.nix`
+- 字体/输入法/桌面：`nixos/modules/fonts.nix`、`nixos/modules/i18n.nix`、`nixos/modules/desktop.nix`
 
 ### 用户层（Home Manager）
 
-- 入口：`home/mcbnixos/home.nix`
-- 应用配置：`home/mcbnixos/config/*`
-- 具体模块：`home/mcbnixos/modules/*.nix`
+- 入口：`home/users/mcbnixos/home.nix`
+- 应用配置：`home/users/mcbnixos/config/*`
+- 具体模块：`home/users/mcbnixos/modules/*.nix`
 
 ### 共享常量
 
-- `modules/shared/vars.nix`：用户名、代理地址、TUN 网卡名等统一入口
+- `lib/vars.nix`：用户名、代理地址、TUN 网卡名等统一入口
 
 ## 🧩 包组开关
 
-用户层包组可按需开关，位置：`home/mcbnixos/modules/packages.nix`
+用户层包组可按需开关，位置：`home/users/mcbnixos/modules/packages.nix`
 
 ```nix
 mcb.packages.enableGaming = false;
@@ -127,17 +129,14 @@ mcb.packages.enableEntertainment = false;
 
 ## 🖥️ 桌面与自启动
 
-Waybar / swaybg / swayidle / fcitx5 由 **systemd --user** 管理：
+Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管理：
 
-```bash
-systemctl --user status waybar
-systemctl --user restart waybar
-```
+- 编辑 `home/users/mcbnixos/config/niri/config.kdl` 的 `spawn-at-startup`
 
 ## 🧰 日常维护
 
 - 新增主机：复制 `hosts/nixos-dev` 为新目录，并在 `flake.nix` 注册
-- 修改用户名：更新 `modules/shared/vars.nix` 与 `home/<user>/` 路径
+- 修改用户名：更新 `lib/vars.nix` 与 `home/users/<user>/` 路径
 - 传统非 Flake 入口：
 
 ```bash
@@ -187,17 +186,17 @@ sudo nixos-rebuild switch
 
 ```bash
 cp /path/to/wallpaper.jpg ~/.config/wallpaper.jpg
-systemctl --user restart swaybg
+pkill swaybg && swaybg -i ~/.config/wallpaper.jpg -m fill &
 ```
 
 ### 修改显示器配置
 
-编辑 `home/mcbnixos/config/niri/config.kdl`，调整 output 段落。
+编辑 `home/users/mcbnixos/config/niri/config.kdl`，调整 output 段落。
 
 ### 添加更多 LSP
 
-1. 在 `home/mcbnixos/modules/programs.nix` 添加语言配置
-2. 在 `home/mcbnixos/modules/packages.nix` 添加对应 LSP 包
+1. 在 `home/users/mcbnixos/config/helix/languages.toml` 添加语言配置
+2. 在 `home/users/mcbnixos/modules/packages.nix` 添加对应 LSP 包
 
 ## 🧯 故障排除
 
@@ -208,14 +207,12 @@ systemctl --user restart swaybg
 
 - Waybar 异常：
   ```bash
-  systemctl --user restart waybar
-  systemctl --user status waybar
+  pkill waybar && waybar &
   ```
 
 - 输入法异常：
   ```bash
-  systemctl --user restart fcitx5
-  systemctl --user status fcitx5
+  pkill fcitx5 && fcitx5 -d -r
   ```
 
 - 网络问题：参见 `NETWORK_CN.md`

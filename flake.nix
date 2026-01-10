@@ -22,7 +22,7 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.users.mcbnixos = import ./home/mcbnixos;
+            home-manager.users.mcbnixos = import ./home/users/mcbnixos;
           }
         ];
       };

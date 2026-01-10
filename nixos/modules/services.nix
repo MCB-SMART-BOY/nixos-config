@@ -1,7 +1,7 @@
 { pkgs, ... }:
 
 let
-  vars = import ../shared/vars.nix;
+  vars = import ../../lib/vars.nix;
   netCaps = [
     "CAP_NET_ADMIN"
     "CAP_NET_BIND_SERVICE"
