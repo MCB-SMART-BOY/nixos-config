@@ -39,7 +39,7 @@ git clone <your-repo-url> nixos-config
 cd nixos-config
 
 # 同步硬件配置（必须；若用 install.sh 可自动同步）
-sudo cp /etc/nixos/hardware-configuration.nix ./hosts/nixos-dev/hardware-configuration.nix
+sudo cp /etc/nixos/hardware-configuration.nix ./nixos/hosts/nixos-dev/hardware-configuration.nix
 
 # 可选：根据实际用户/代理/TUN 调整
 $EDITOR lib/vars.nix
@@ -52,7 +52,7 @@ chmod +x install.sh
 sudo nixos-rebuild switch --flake .#nixos-dev
 ```
 
-> 如果缺少 `hosts/<host>/hardware-configuration.nix`，构建会失败。
+> 如果缺少 `nixos/hosts/<host>/hardware-configuration.nix`，构建会失败。
 
 #### install.sh 常用参数
 
@@ -85,7 +85,7 @@ sudo nixos-rebuild switch --flake .#nixos-dev
 nixos-config/
 ├── flake.nix                  # Flake 入口
 ├── flake.lock                 # 版本锁定（可复现）
-├── hosts/nixos-dev/           # 主机入口
+├── nixos/hosts/nixos-dev/     # 主机入口
 │   ├── default.nix
 │   └── hardware-configuration.nix
 ├── nixos/modules/             # 系统模块（default.nix 聚合）
@@ -135,7 +135,7 @@ Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管
 
 ## 🧰 日常维护
 
-- 新增主机：复制 `hosts/nixos-dev` 为新目录，并在 `flake.nix` 注册
+- 新增主机：复制 `nixos/hosts/nixos-dev` 为新目录，并在 `flake.nix` 注册
 - 修改用户名：更新 `lib/vars.nix` 与 `home/users/<user>/` 路径
 - 传统非 Flake 入口：
 

@@ -37,7 +37,7 @@ Options:
   --host <name>      Specify host name (default: ${DEFAULT_HOST})
   --no-sync          Skip hardware-configuration sync
   --no-rebuild       Skip nixos-rebuild
-  --init-host        Initialize hosts/<name> from hosts/${DEFAULT_HOST}/default.nix
+  --init-host        Initialize nixos/hosts/<name> from nixos/hosts/${DEFAULT_HOST}/default.nix
 EOF
 }
 
@@ -90,9 +90,9 @@ parse_args() {
 }
 
 ensure_host_dir() {
-  local host_dir="${REPO_ROOT}/hosts/${HOST_NAME}"
+  local host_dir="${REPO_ROOT}/nixos/hosts/${HOST_NAME}"
   local host_file="${host_dir}/default.nix"
-  local template_file="${REPO_ROOT}/hosts/${DEFAULT_HOST}/default.nix"
+  local template_file="${REPO_ROOT}/nixos/hosts/${DEFAULT_HOST}/default.nix"
 
   if [[ -f "${host_file}" ]]; then
     return
@@ -135,7 +135,7 @@ check_env() {
 }
 
 sync_hardware_config() {
-  local host_dir="${REPO_ROOT}/hosts/${HOST_NAME}"
+  local host_dir="${REPO_ROOT}/nixos/hosts/${HOST_NAME}"
   local target="${host_dir}/hardware-configuration.nix"
 
   if [[ ! -d "${host_dir}" ]]; then
