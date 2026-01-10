@@ -1,16 +1,18 @@
 # 🌸 NixOS Configuration
 
-一套精美的 NixOS 25.11 配置，专为 Rust 开发者打造。
+一套精美的 NixOS 25.11 配置，专为 Rust 开发者打造，采用 Flake + Home Manager 组织。
 
 ## ✨ 特性
 
 - **窗口管理器**: [niri](https://github.com/YaLTeR/niri) - 现代化的可滚动平铺 Wayland 合成器
+- **配置方式**: Flake + Home Manager - 模块化系统与用户配置
 - **登录管理器**: greetd + tuigreet - 优雅的 TUI 登录界面
 - **Shell**: Zsh + Oh-My-Zsh + Starship prompt
 - **编辑器**: Helix - 后现代文本编辑器，完整 LSP 配置
 - **终端**: Alacritty - GPU 加速终端
-- **启动器**: Fuzzel - 快速应用启动器
+- **启动器**: Wofi - Wayland 原生启动器
 - **状态栏**: Waybar - 高度可定制状态栏
+- **通知**: Dunst - 轻量通知守护进程
 - **主题**: Catppuccin Mocha 🎨
 - **输入法**: fcitx5 + rime 中文输入
 
@@ -18,16 +20,17 @@
 
 ```
 nixos-config/
-├── configuration.nix     # NixOS 主配置 (单文件)
-├── dotfiles/             # 用户配置文件
-│   ├── helix/           # Helix 编辑器配置
-│   ├── niri/            # niri 窗口管理器配置  
-│   ├── zsh/             # Zsh 配置
-│   ├── starship/        # Starship prompt
-│   ├── waybar/          # 状态栏
-│   ├── alacritty/       # 终端
-│   └── fuzzel/          # 启动器
-├── install.sh           # 一键部署脚本
+├── flake.nix                  # Flake 入口
+├── hosts/nixos-dev/           # 主机入口
+├── modules/nixos/             # 系统模块拆分 (default.nix 聚合)
+├── modules/shared/            # 共享常量 (用户名/代理/TUN)
+├── home/mcbnixos/             # Home Manager 用户入口
+│   ├── home.nix               # 入口模块
+│   ├── modules/               # 子模块拆分
+│   └── config/                # 应用配置文件
+├── configuration.nix          # 非 Flake 入口 (兼容)
+├── hardware-configuration.nix # 目标主机硬件配置 (需拷贝)
+├── install.sh                 # 一键部署脚本
 └── README.md
 ```
 
@@ -38,17 +41,117 @@ nixos-config/
 tar -xzf nixos-config.tar.gz
 cd nixos-config
 
-# 运行安装脚本
+# 运行安装脚本 (可选传入主机名，默认 nixos-dev)
 chmod +x install.sh
-./install.sh
+./install.sh nixos-dev
+```
+
+也可以直接使用 flake：
+
+```bash
+sudo nixos-rebuild switch --flake .#nixos-dev
 ```
 
 脚本会自动：
 1. 检查环境
-2. 备份现有配置
-3. 部署系统和用户配置
-4. 重建 NixOS
-5. 提示重启
+2. 将 `/etc/nixos/hardware-configuration.nix` 同步到项目
+3. 运行 flake 重建
+
+## ✅ 详细使用方法
+
+### 1) 初次部署
+
+```bash
+# 克隆仓库
+git clone <your-repo-url> nixos-config
+cd nixos-config
+
+# 生成/同步硬件配置
+sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
+
+# 方式 A：脚本安装
+chmod +x install.sh
+./install.sh nixos-dev
+
+# 方式 B：直接使用 flake
+sudo nixos-rebuild switch --flake .#nixos-dev
+```
+
+如果仓库中不存在 `hardware-configuration.nix`，构建会失败，先按上面的方式同步即可。
+
+### 2) 日常更新配置
+
+```bash
+# 修改配置文件后应用
+sudo nixos-rebuild switch --flake .#nixos-dev
+
+# 只测试不切换
+sudo nixos-rebuild test --flake .#nixos-dev
+
+# 仅构建检查
+sudo nixos-rebuild build --flake .#nixos-dev
+```
+
+### 3) 更新依赖版本 (flake)
+
+```bash
+nix flake update
+sudo nixos-rebuild switch --flake .#nixos-dev
+```
+
+### 4) 新增主机
+
+```bash
+# 复制现有主机模板
+mkdir -p hosts/<new-host>
+cp hosts/nixos-dev/default.nix hosts/<new-host>/default.nix
+
+# 修改 hosts/<new-host>/default.nix 内的 hostName / stateVersion
+# 然后在 flake.nix 中新增 nixosConfigurations.<new-host>
+```
+
+### 5) 修改用户/桌面配置
+
+- 用户入口：`home/mcbnixos/home.nix`
+- 子模块：`home/mcbnixos/modules/*.nix`
+- 应用配置：`home/mcbnixos/config/*`
+
+可选包组开关位于 `home/mcbnixos/modules/packages.nix`，例如：
+
+```nix
+mcb.packages.enableGaming = false;
+mcb.packages.enableEntertainment = false;
+```
+
+修改后执行：
+
+```bash
+sudo nixos-rebuild switch --flake .#nixos-dev
+```
+
+### 6) 修改系统配置
+
+- 系统模块聚合：`modules/nixos/default.nix`
+- 各模块：`modules/nixos/*.nix`
+
+修改后执行：
+
+```bash
+sudo nixos-rebuild switch --flake .#nixos-dev
+```
+
+### 7) 非 Flake 兼容入口 (可选)
+
+本仓库提供 `configuration.nix` 兼容入口，可在传统流程中使用：
+
+```bash
+sudo cp configuration.nix /etc/nixos/configuration.nix
+sudo nixos-rebuild switch
+```
+
+### 8) 网络问题排查
+
+参见 `NETWORK_CN.md`。
 
 ## ⌨️ 快捷键速查
 
@@ -133,7 +236,7 @@ linux-wallpaperengine --screen-root eDP-1 <workshop_id>
 
 ### 添加更多 LSP
 
-编辑 `~/.config/helix/languages.toml`，参考已有配置添加新语言。
+编辑 `home/mcbnixos/modules/programs.nix`，参考已有配置添加新语言。
 
 ## 📺 动漫/漫画应用
 

@@ -21,9 +21,9 @@ export all_proxy="socks5://127.0.0.1:7890"
 sudo -E nixos-rebuild switch
 ```
 
-### 方法 B：修改 configuration.nix 永久代理
+### 方法 B：修改配置文件永久代理
 
-编辑 `/etc/nixos/configuration.nix`，取消以下注释并修改端口：
+如果使用本仓库结构，建议调整 `modules/nixos/networking.nix` 或 `modules/nixos/services.nix`；传统 `/etc/nixos` 可以直接编辑 `configuration.nix` 并修改端口：
 
 ```nix
 networking.proxy = {
