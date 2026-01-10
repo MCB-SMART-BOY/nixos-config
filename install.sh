@@ -46,17 +46,28 @@ check_env() {
 }
 
 sync_hardware_config() {
-  local target="${SCRIPT_DIR}/hardware-configuration.nix"
+  local host_dir="${SCRIPT_DIR}/hosts/${HOST_NAME}"
+  local target="${host_dir}/hardware-configuration.nix"
+
+  if [[ ! -d "${host_dir}" ]]; then
+    error "Host directory not found: ${host_dir}"
+  fi
 
   if [[ -f "$target" ]]; then
-    success "hardware-configuration.nix already exists in repo"
+    success "hardware-configuration.nix already exists for ${HOST_NAME}"
     return
   fi
 
   if [[ -f /etc/nixos/hardware-configuration.nix ]]; then
-    log "Copying /etc/nixos/hardware-configuration.nix into repo"
+    log "Copying /etc/nixos/hardware-configuration.nix into ${target}"
     sudo cp /etc/nixos/hardware-configuration.nix "$target"
     success "hardware-configuration.nix synced"
+    if command -v git >/dev/null 2>&1; then
+      if git -C "${SCRIPT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git -C "${SCRIPT_DIR}" add "$target"
+        success "hardware-configuration.nix staged for flake builds"
+      fi
+    fi
   else
     error "hardware-configuration.nix not found; run nixos-generate-config on target system"
   fi

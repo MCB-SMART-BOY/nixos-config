@@ -37,8 +37,8 @@
 git clone <your-repo-url> nixos-config
 cd nixos-config
 
-# 同步硬件配置（必须）
-sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
+# 同步硬件配置（必须；若用 install.sh 可自动同步）
+sudo cp /etc/nixos/hardware-configuration.nix ./hosts/nixos-dev/hardware-configuration.nix
 
 # 可选：根据实际用户/代理/TUN 调整
 $EDITOR modules/shared/vars.nix
@@ -51,7 +51,7 @@ chmod +x install.sh
 sudo nixos-rebuild switch --flake .#nixos-dev
 ```
 
-> 如果缺少 `hardware-configuration.nix`，构建会失败。
+> 如果缺少 `hosts/<host>/hardware-configuration.nix`，构建会失败。
 
 ### 2) 日常更新
 
@@ -75,6 +75,8 @@ nixos-config/
 ├── flake.nix                  # Flake 入口
 ├── flake.lock                 # 版本锁定（可复现）
 ├── hosts/nixos-dev/           # 主机入口
+│   ├── default.nix
+│   └── hardware-configuration.nix
 ├── modules/nixos/             # 系统模块（default.nix 聚合）
 ├── modules/shared/            # 共享常量（用户名/代理/TUN）
 ├── home/mcbnixos/             # Home Manager 用户入口
@@ -82,7 +84,6 @@ nixos-config/
 │   ├── modules/               # 子模块拆分
 │   └── config/                # 应用配置文件
 ├── configuration.nix          # 非 Flake 兼容入口
-├── hardware-configuration.nix # 硬件配置（本地生成）
 ├── install.sh                 # 一键部署脚本
 └── README.md
 ```
