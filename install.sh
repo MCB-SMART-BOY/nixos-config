@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NixOS flake install script (single host)
+# NixOS flake 部署脚本（单主机）
 
 set -euo pipefail
 
@@ -16,32 +16,40 @@ ASSUME_YES=false
 NO_REBUILD=false
 NO_SYNC=false
 
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
+msg() {
+  local level="$1"
+  local label
+  shift
+  case "${level}" in
+    INFO) label="信息" ;;
+    OK) label="完成" ;;
+    WARN) label="警告" ;;
+    ERROR) label="错误" ;;
+    *) label="${level}" ;;
+  esac
+  printf '[%s] %s\n' "${label}" "$*"
+}
 
-log() { echo -e "${BLUE}[INFO]${NC} $1"; }
-success() { echo -e "${GREEN}[OK]${NC} $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log() { msg INFO "$*"; }
+success() { msg OK "$*"; }
+warn() { msg WARN "$*"; }
 error() {
-  echo -e "${RED}[ERROR]${NC} $1"
+  msg ERROR "$*"
   exit 1
 }
 
 usage() {
   cat <<EOF_USAGE
-Usage: ${SCRIPT_NAME} [options]
+用法: ${SCRIPT_NAME} [options]
 
-Options:
-  -h, --help         Show this help
-  -y, --yes          Skip confirmation prompt
-  --mode <action>    nixos-rebuild action: switch|test|build (default: switch)
-  --show-trace       Enable nixos-rebuild --show-trace
-  --force-sync       Overwrite existing hardware-configuration.nix
-  --no-sync          Skip hardware-configuration sync
-  --no-rebuild       Skip nixos-rebuild
+选项:
+  -h, --help         显示帮助
+  -y, --yes          跳过确认
+  --mode <action>    nixos-rebuild 动作: switch|test|build (默认: switch)
+  --show-trace       启用 nixos-rebuild --show-trace
+  --force-sync       覆盖已有 hardware-configuration.nix
+  --no-sync          跳过硬件配置同步
+  --no-rebuild       跳过 nixos-rebuild
 EOF_USAGE
 }
 
@@ -57,7 +65,7 @@ parse_args() {
         ;;
       --mode)
         shift
-        [[ $# -gt 0 ]] || error "--mode requires a value"
+        [[ $# -gt 0 ]] || error "参数 --mode 需要一个值"
         MODE="$1"
         ;;
       --show-trace)
@@ -77,10 +85,10 @@ parse_args() {
         break
         ;;
       -* )
-        error "Unknown option: $1"
+        error "未知参数: $1"
         ;;
       * )
-        error "Unexpected argument: $1"
+        error "不支持的参数: $1"
         ;;
     esac
     shift
@@ -89,7 +97,7 @@ parse_args() {
 
 validate_flags() {
   if [[ "${NO_SYNC}" == true && "${FORCE_SYNC}" == true ]]; then
-    error "--force-sync cannot be used with --no-sync"
+    error "--force-sync 不能与 --no-sync 同时使用"
   fi
 }
 
@@ -102,24 +110,24 @@ validate_mode() {
     switch|test|build)
       ;;
     *)
-      error "Invalid --mode '${MODE}' (use switch|test|build)"
+      error "--mode '${MODE}' 无效（可选: switch|test|build）"
       ;;
   esac
 }
 
 check_env() {
-  log "Checking environment..."
+  log "检查环境..."
 
   if [[ "$(whoami)" == "root" ]]; then
-    error "Run this script as a normal user (it will use sudo when needed)."
+    error "请以普通用户运行（需要时会调用 sudo）。"
   fi
 
   if [[ ! -f "${REPO_ROOT}/flake.nix" ]]; then
-    error "Missing flake.nix in ${REPO_ROOT}"
+    error "未找到 flake.nix: ${REPO_ROOT}"
   fi
 
   if [[ ! -f "${HOST_FILE}" ]]; then
-    error "Missing host.nix in ${REPO_ROOT}"
+    error "未找到 host.nix: ${REPO_ROOT}"
   fi
 
   local needs_sudo=false
@@ -128,15 +136,15 @@ check_env() {
   fi
 
   if [[ "${needs_sudo}" == true ]] && ! command -v sudo >/dev/null 2>&1; then
-    error "sudo is required but not found."
+    error "需要 sudo，但未找到该命令。"
   fi
 
   if [[ "${NO_REBUILD}" != true ]] && ! command -v nixos-rebuild >/dev/null 2>&1; then
-    error "nixos-rebuild is required but not found."
+    error "需要 nixos-rebuild，但未找到该命令。"
   fi
 
   if [[ "${NO_SYNC}" == true && "${NO_REBUILD}" != true && ! -f "${HARDWARE_FILE}" ]]; then
-    warn "hardware-configuration.nix is missing; rebuild will likely fail without sync"
+    warn "缺少 hardware-configuration.nix；跳过同步可能导致构建失败"
   fi
 }
 
@@ -144,31 +152,31 @@ sync_hardware_config() {
   local target="${HARDWARE_FILE}"
 
   if [[ -f "${target}" && "${FORCE_SYNC}" != true ]]; then
-    success "hardware-configuration.nix already exists"
+    success "hardware-configuration.nix 已存在"
     return
   fi
 
   if [[ -f "${target}" && "${FORCE_SYNC}" == true ]]; then
-    warn "Overwriting existing hardware-configuration.nix"
+    warn "将覆盖已有 hardware-configuration.nix"
   fi
 
   if [[ -f /etc/nixos/hardware-configuration.nix ]]; then
-    log "Copying /etc/nixos/hardware-configuration.nix into ${target}"
+    log "同步 /etc/nixos/hardware-configuration.nix -> ${target}"
     sudo cp /etc/nixos/hardware-configuration.nix "${target}"
-    success "hardware-configuration.nix synced"
+    success "hardware-configuration.nix 已同步"
     if command -v git >/dev/null 2>&1; then
       if git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         git -C "${REPO_ROOT}" add "${target}"
-        success "hardware-configuration.nix staged for flake builds"
+        success "hardware-configuration.nix 已暂存"
       fi
     fi
   else
-    error "hardware-configuration.nix not found; run nixos-generate-config on target system"
+    error "未找到 /etc/nixos/hardware-configuration.nix；请在目标机运行 nixos-generate-config"
   fi
 }
 
 rebuild_system() {
-  log "Rebuilding system (${MODE}) with flake: ${TARGET_NAME}"
+  log "重建系统 (${MODE})，目标: ${TARGET_NAME}"
   local nix_config="experimental-features = nix-command flakes"
   local rebuild_args=("${MODE}")
   if [[ -n "${NIX_CONFIG:-}" ]]; then
@@ -178,7 +186,7 @@ rebuild_system() {
     rebuild_args+=("--show-trace")
   fi
   sudo -E env NIX_CONFIG="${nix_config}" nixos-rebuild "${rebuild_args[@]}" --flake "${REPO_ROOT}#${TARGET_NAME}"
-  success "System rebuild complete"
+  success "系统重建完成"
 }
 
 confirm() {
@@ -194,7 +202,7 @@ confirm() {
     steps+=("rebuild NixOS (${MODE})")
   fi
   if [[ ${#steps[@]} -eq 0 ]]; then
-    error "Nothing to do (both --no-sync and --no-rebuild are set)"
+    error "无需执行任何操作（同时设置了 --no-sync 与 --no-rebuild）"
   fi
 
   if [[ "${ASSUME_YES}" == true ]]; then
@@ -203,16 +211,16 @@ confirm() {
 
   local plan
   plan=$(IFS=", "; echo "${steps[*]}")
-  read -r -p "This will ${plan} for ${TARGET_NAME}. Continue? [y/N] " -n 1
+  read -r -p "将执行 ${plan}，目标 ${TARGET_NAME}。是否继续? [y/N] " -n 1
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Canceled"
+    warn "已取消"
     exit 1
   fi
 }
 
 main() {
-  echo -e "${GREEN}=== NixOS Flake Installer ===${NC}"
+  printf '==> %s\n' "NixOS Flake 安装器"
   parse_args "$@"
   validate_flags
   validate_mode
@@ -222,13 +230,13 @@ main() {
   if [[ "${NO_SYNC}" != true ]]; then
     sync_hardware_config
   else
-    warn "Skipping hardware-configuration sync"
+    warn "跳过硬件配置同步"
   fi
 
   if [[ "${NO_REBUILD}" != true ]]; then
     rebuild_system
   else
-    warn "Skipping nixos-rebuild"
+    warn "跳过 nixos-rebuild"
   fi
 }
 
