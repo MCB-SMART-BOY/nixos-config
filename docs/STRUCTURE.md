@@ -15,7 +15,7 @@
 ├── docs/
 ├── modules/
 ├── home/
-└── install.sh
+└── scripts/
 ```
 
 ## 目录职责
@@ -30,7 +30,9 @@
   - `home/modules/`：用户模块拆分
   - `home/config/`：应用配置文件（由 Home Manager 链接到 ~/.config）
 
-- `install.sh`：部署脚本
+- `scripts/`：部署脚本目录
+  - `scripts/install.sh`：本地部署脚本
+  - `scripts/install_from_github.sh`：云端同步部署脚本
 
 ## 关键入口
 

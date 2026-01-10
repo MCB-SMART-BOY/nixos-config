@@ -38,34 +38,46 @@
 git clone <your-repo-url> nixos-config
 cd nixos-config
 
-# 同步硬件配置（必须；若用 install.sh 可自动同步）
+# 同步硬件配置（必须；若用 scripts/install.sh 可自动同步）
 sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
 
 # 可选：根据实际用户/代理/TUN 调整
 $EDITOR host.nix
 
 # 使用脚本部署
-chmod +x install.sh
-./install.sh
+chmod +x scripts/install.sh
+./scripts/install.sh
 
 # 或直接使用 flake
 sudo nixos-rebuild switch --flake .#nixos
 ```
 
-> install.sh 默认会同步仓库到 `/etc/nixos`，可用 `--no-sync-etc` 关闭。
+> scripts/install.sh 默认会同步仓库到 `/etc/nixos`，可用 `--no-sync-etc` 关闭。
 > 如果缺少 `hardware-configuration.nix`，构建会失败。
 
-#### install.sh 常用参数
+#### scripts/install.sh 常用参数
 
 ```bash
-./install.sh --yes                    # 跳过确认
-./install.sh --mode test             # 使用 nixos-rebuild test
-./install.sh --show-trace            # 打印完整堆栈
-./install.sh --force-sync            # 覆盖已有硬件配置
-./install.sh --no-sync                # 跳过硬件配置同步
-./install.sh --no-sync-etc            # 不同步仓库到 /etc/nixos
-./install.sh --no-rebuild             # 仅同步不重建
+./scripts/install.sh --yes                    # 跳过确认
+./scripts/install.sh --mode test             # 使用 nixos-rebuild test
+./scripts/install.sh --show-trace            # 打印完整堆栈
+./scripts/install.sh --force-sync            # 覆盖已有硬件配置
+./scripts/install.sh --no-sync                # 跳过硬件配置同步
+./scripts/install.sh --no-sync-etc            # 不同步仓库到 /etc/nixos
+./scripts/install.sh --no-rebuild             # 仅同步不重建
 ```
+
+#### scripts/install_from_github.sh（云端同步）
+
+```bash
+./scripts/install_from_github.sh \
+  --repo https://github.com/MCB-SMART-BOY/nixos-config.git \
+  --branch master
+```
+
+说明：
+- 默认保留本机 `/etc/nixos/hardware-configuration.nix`，如需覆盖请加 `--force-hardware`
+- 执行 `nixos-rebuild` 后会由 Home Manager 生成并链接 `~/.config` 配置
 
 ### 2) 日常更新
 
@@ -96,7 +108,9 @@ nixos-config/
 │   ├── modules/               # 子模块拆分
 │   └── config/                # 应用配置文件
 ├── configuration.nix          # 非 Flake 兼容入口
-├── install.sh                 # 一键部署脚本
+├── scripts/                   # 部署脚本
+│   ├── install.sh             # 本地部署
+│   └── install_from_github.sh # 云端同步部署
 ├── docs/                      # 说明文档
 └── README.md
 ```

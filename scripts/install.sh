@@ -4,7 +4,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${SCRIPT_DIR}"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SCRIPT_NAME="$(basename "$0")"
 TARGET_NAME="${TARGET_NAME:-nixos}"
 MODE="${MODE:-switch}"
@@ -48,11 +48,11 @@ usage() {
   -h, --help         显示帮助
   -y, --yes          跳过确认
   --mode <action>    nixos-rebuild 动作: switch|test|build (默认: switch)
- --show-trace       启用 nixos-rebuild --show-trace
- --force-sync       覆盖已有 hardware-configuration.nix
- --no-sync          跳过硬件配置同步
+  --show-trace       启用 nixos-rebuild --show-trace
+  --force-sync       覆盖已有 hardware-configuration.nix
+  --no-sync          跳过硬件配置同步
   --no-sync-etc      不同步仓库到 /etc/nixos
- --no-rebuild       跳过 nixos-rebuild
+  --no-rebuild       跳过 nixos-rebuild
 EOF_USAGE
 }
 

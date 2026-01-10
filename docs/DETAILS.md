@@ -27,15 +27,18 @@
 
 ## 部署脚本
 
-- `install.sh`：部署脚本
+- `scripts/install.sh`：本地部署脚本
+- `scripts/install_from_github.sh`：云端同步部署脚本
 
 常用逻辑：
 - 同步 `/etc/nixos/hardware-configuration.nix` 到 `hardware-configuration.nix`
 - 同步仓库配置到 `/etc/nixos`
 - 运行 `nixos-rebuild switch --flake .#nixos`
+- 重建后由 Home Manager 生成并链接 `~/.config`
 
 注意：
-- 如需修改 flake 目标名，请同步更新 `install.sh` 中的 `TARGET_NAME`
+- 如需修改 flake 目标名，请同步更新 `scripts/install.sh` 中的 `TARGET_NAME`
+- `scripts/install_from_github.sh` 默认保留本机的 `hardware-configuration.nix`
 - 可通过 `TARGET_NAME` 与 `MODE` 环境变量临时覆盖目标与模式
 
 常用参数：
