@@ -63,7 +63,7 @@ let
     openssl
     nodejs
     nodePackages.bash-language-server
-    nodePackages.pyright
+    pyright
     nodePackages.typescript-language-server
     zed-editor
     vscode-fhs

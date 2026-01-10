@@ -17,7 +17,7 @@
       ];
       theme = "robbyrussell";
     };
-    initExtra = builtins.readFile ../config/zsh/extra.zsh;
+    initContent = builtins.readFile ../config/zsh/extra.zsh;
   };
 
   programs.direnv = {
