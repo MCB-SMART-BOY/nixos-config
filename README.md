@@ -79,6 +79,13 @@ sudo nixos-rebuild switch --flake .#nixos
 - 默认保留本机 `/etc/nixos/hardware-configuration.nix`，如需覆盖请加 `--force-hardware`
 - 执行 `nixos-rebuild` 后会由 Home Manager 生成并链接 `~/.config` 配置
 
+一行下载到本地：
+
+```bash
+curl -fsSL -o install_from_github.sh https://github.com/MCB-SMART-BOY/nixos-config/releases/download/configuration-3.0/install_from_github.sh
+chmod +x install_from_github.sh
+```
+
 ### 2) 日常更新
 
 ```bash
