@@ -164,7 +164,7 @@ $character'';
       python = {
         symbol = " ";
         style = "bold yellow";
-        format = "via [\\${symbol}\\${pyenv_prefix}(\\${version} )(\\(\\${virtualenv}\\) )]($style)";
+        format = "via [$symbol$pyenv_prefix($version )($virtualenv )]($style)";
         detect_extensions = [ "py" ];
         detect_files = [ "requirements.txt" "pyproject.toml" "setup.py" "Pipfile" ];
       };
