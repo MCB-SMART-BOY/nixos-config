@@ -1,7 +1,6 @@
-{ ... }:
+{ vars, ... }:
 
 let
-  vars = import ../../lib/vars.nix;
   tunInterface = vars.tunInterface;
 in
 {

@@ -3,6 +3,6 @@
 
 {
   imports = [
-    ./nixos/hosts/nixos-dev
+    ./host.nix
   ];
 }

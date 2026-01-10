@@ -12,7 +12,5 @@
     ./services.nix
     ./virtualization.nix
     ./gaming.nix
-    ./users.nix
-    ./system-packages.nix
   ];
 }

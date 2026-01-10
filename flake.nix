@@ -14,16 +14,17 @@
       system = "x86_64-linux";
     in
     {
-      nixosConfigurations.nixos-dev = nixpkgs.lib.nixosSystem {
+      nixosConfigurations.nixos = nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
-          ./nixos/hosts/nixos-dev
+          ./host.nix
           home-manager.nixosModules.home-manager
-          {
+          ({ vars, ... }: {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
-            home-manager.users.mcbnixos = import ./home/users/mcbnixos;
-          }
+            home-manager.extraSpecialArgs = { inherit vars; };
+            home-manager.users.${vars.user} = import ./home/home.nix;
+          })
         ];
       };
 

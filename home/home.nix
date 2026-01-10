@@ -1,7 +1,6 @@
-{ ... }:
+{ vars, ... }:
 
 let
-  vars = import ../../../lib/vars.nix;
   user = vars.user;
 in
 {

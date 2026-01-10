@@ -39,44 +39,45 @@ git clone <your-repo-url> nixos-config
 cd nixos-config
 
 # 同步硬件配置（必须；若用 install.sh 可自动同步）
-sudo cp /etc/nixos/hardware-configuration.nix ./nixos/hosts/nixos-dev/hardware-configuration.nix
+sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
 
 # 可选：根据实际用户/代理/TUN 调整
-$EDITOR lib/vars.nix
+$EDITOR host.nix
 
 # 使用脚本部署
 chmod +x install.sh
-./install.sh nixos-dev
+./install.sh
 
 # 或直接使用 flake
-sudo nixos-rebuild switch --flake .#nixos-dev
+sudo nixos-rebuild switch --flake .#nixos
 ```
 
-> 如果缺少 `nixos/hosts/<host>/hardware-configuration.nix`，构建会失败。
+> 如果缺少 `hardware-configuration.nix`，构建会失败。
 
 #### install.sh 常用参数
 
 ```bash
 ./install.sh --yes                    # 跳过确认
+./install.sh --mode test             # 使用 nixos-rebuild test
+./install.sh --show-trace            # 打印完整堆栈
+./install.sh --force-sync            # 覆盖已有硬件配置
 ./install.sh --no-sync                # 跳过硬件配置同步
 ./install.sh --no-rebuild             # 仅同步不重建
-./install.sh --host <name>            # 指定主机名
-./install.sh --init-host --host <name> # 基于模板初始化新主机
 ```
 
 ### 2) 日常更新
 
 ```bash
-sudo nixos-rebuild switch --flake .#nixos-dev
-sudo nixos-rebuild test   --flake .#nixos-dev
-sudo nixos-rebuild build  --flake .#nixos-dev
+sudo nixos-rebuild switch --flake .#nixos
+sudo nixos-rebuild test   --flake .#nixos
+sudo nixos-rebuild build  --flake .#nixos
 ```
 
 ### 3) 更新依赖版本
 
 ```bash
 nix flake update
-sudo nixos-rebuild switch --flake .#nixos-dev
+sudo nixos-rebuild switch --flake .#nixos
 ```
 
 ## 🧭 结构概览
@@ -85,18 +86,16 @@ sudo nixos-rebuild switch --flake .#nixos-dev
 nixos-config/
 ├── flake.nix                  # Flake 入口
 ├── flake.lock                 # 版本锁定（可复现）
-├── nixos/hosts/nixos-dev/     # 主机入口
-│   ├── default.nix
-│   └── hardware-configuration.nix
-├── nixos/modules/             # 系统模块（default.nix 聚合）
-├── lib/vars.nix               # 共享常量（用户名/代理/TUN）
-├── home/users/mcbnixos/        # Home Manager 用户入口
+├── host.nix                   # 主机入口（单主机）
+├── hardware-configuration.nix # 硬件配置
+├── modules/                   # 系统模块（default.nix 聚合）
+├── home/                      # Home Manager 用户入口
 │   ├── home.nix               # 入口模块
 │   ├── modules/               # 子模块拆分
 │   └── config/                # 应用配置文件
 ├── configuration.nix          # 非 Flake 兼容入口
-├── scripts/install.sh         # 一键部署脚本（主脚本）
-├── install.sh                 # 入口包装（转发到 scripts/）
+├── install.sh                 # 一键部署脚本
+├── docs/                      # 说明文档
 └── README.md
 ```
 
@@ -104,23 +103,24 @@ nixos-config/
 
 ### 系统层（NixOS）
 
-- 入口：`nixos/modules/default.nix`
-- 网络/代理：`nixos/modules/networking.nix`、`nixos/modules/services.nix`
-- 字体/输入法/桌面：`nixos/modules/fonts.nix`、`nixos/modules/i18n.nix`、`nixos/modules/desktop.nix`
+- 主机入口：`host.nix`
+- 入口：`modules/default.nix`
+- 网络/代理：`modules/networking.nix`、`modules/services.nix`
+- 字体/输入法/桌面：`modules/fonts.nix`、`modules/i18n.nix`、`modules/desktop.nix`
 
 ### 用户层（Home Manager）
 
-- 入口：`home/users/mcbnixos/home.nix`
-- 应用配置：`home/users/mcbnixos/config/*`
-- 具体模块：`home/users/mcbnixos/modules/*.nix`
+- 入口：`home/home.nix`
+- 应用配置：`home/config/*`
+- 具体模块：`home/modules/*.nix`
 
-### 共享常量
+### 主机变量
 
-- `lib/vars.nix`：用户名、代理地址、TUN 网卡名等统一入口
+- `host.nix`：用户名、代理地址、TUN 网卡名等统一入口
 
 ## 🧩 包组开关
 
-用户层包组可按需开关，位置：`home/users/mcbnixos/modules/packages.nix`
+用户层包组可按需开关，位置：`home/modules/packages.nix`
 
 ```nix
 mcb.packages.enableGaming = false;
@@ -131,12 +131,12 @@ mcb.packages.enableEntertainment = false;
 
 Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管理：
 
-- 编辑 `home/users/mcbnixos/config/niri/config.kdl` 的 `spawn-at-startup`
+- 编辑 `home/config/niri/config.kdl` 的 `spawn-at-startup`
 
 ## 🧰 日常维护
 
-- 新增主机：复制 `nixos/hosts/nixos-dev` 为新目录，并在 `flake.nix` 注册
-- 修改用户名：更新 `lib/vars.nix` 与 `home/users/<user>/` 路径
+- 修改主机配置：编辑 `host.nix`
+- 修改用户名：更新 `host.nix` 与 `home/` 路径
 - 传统非 Flake 入口：
 
 ```bash
@@ -191,12 +191,12 @@ pkill swaybg && swaybg -i ~/.config/wallpaper.jpg -m fill &
 
 ### 修改显示器配置
 
-编辑 `home/users/mcbnixos/config/niri/config.kdl`，调整 output 段落。
+编辑 `home/config/niri/config.kdl`，调整 output 段落。
 
 ### 添加更多 LSP
 
-1. 在 `home/users/mcbnixos/config/helix/languages.toml` 添加语言配置
-2. 在 `home/users/mcbnixos/modules/packages.nix` 添加对应 LSP 包
+1. 在 `home/config/helix/languages.toml` 添加语言配置
+2. 在 `home/modules/packages.nix` 添加对应 LSP 包
 
 ## 🧯 故障排除
 
@@ -215,7 +215,7 @@ pkill swaybg && swaybg -i ~/.config/wallpaper.jpg -m fill &
   pkill fcitx5 && fcitx5 -d -r
   ```
 
-- 网络问题：参见 `NETWORK_CN.md`
+- 网络问题：参见 `docs/NETWORK_CN.md`
 
 ## 📚 参考资源
 
@@ -223,6 +223,12 @@ pkill swaybg && swaybg -i ~/.config/wallpaper.jpg -m fill &
 - [niri Wiki](https://github.com/YaLTeR/niri/wiki)
 - [Helix Documentation](https://docs.helix-editor.com/)
 - [Catppuccin Theme](https://catppuccin.com/)
+
+## 📄 更多文档
+
+- 结构说明：`docs/STRUCTURE.md`
+- 项目细节：`docs/DETAILS.md`
+- 国内网络：`docs/NETWORK_CN.md`
 
 ---
 
