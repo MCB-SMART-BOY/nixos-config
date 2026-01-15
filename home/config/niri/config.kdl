@@ -134,7 +134,7 @@ screenshot-path "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
 // ══════════════════════════════════════════════════════════════════
 
 spawn-at-startup "waybar"
-spawn-at-startup "swaybg" "-i" "~/.config/wallpaper.jpg" "-m" "fill"
+spawn-at-startup "sh" "-c" "$HOME/.local/bin/wallpaper-random"
 spawn-at-startup "mako"
 spawn-at-startup "fcitx5" "-d" "-r" // -r 替换现有实例
 spawn-at-startup "swayidle" "-w"

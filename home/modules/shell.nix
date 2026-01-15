@@ -30,6 +30,11 @@
     enableZshIntegration = false;
   };
 
+  programs.tmux = {
+    enable = true;
+    extraConfig = builtins.readFile ../config/tmux/tmux.conf;
+  };
+
   programs.starship = {
     enable = true;
     enableZshIntegration = false;

@@ -1,4 +1,4 @@
-{ pkgs, vars, ... }:
+{ pkgs, vars, lib, ... }:
 
 let
   netCaps = [
@@ -64,7 +64,7 @@ in
     };
   };
 
-  systemd.services.nix-daemon.environment = {
+  systemd.services.nix-daemon.environment = lib.mkIf (proxyUrl != "") {
     https_proxy = proxyUrl;
     http_proxy = proxyUrl;
   };

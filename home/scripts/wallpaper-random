@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+wallpaper_dir="${HOME}/Pictures/Wallpapers"
+
+if [[ ! -d "${wallpaper_dir}" ]]; then
+  exit 0
+fi
+
+mapfile -d '' wallpapers < <(
+  find "${wallpaper_dir}" -maxdepth 1 -type f \
+    \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
+)
+
+if [[ ${#wallpapers[@]} -eq 0 ]]; then
+  exit 0
+fi
+
+choice="${wallpapers[RANDOM % ${#wallpapers[@]}]}"
+
+if command -v pkill >/dev/null 2>&1; then
+  pkill swaybg >/dev/null 2>&1 || true
+fi
+
+exec swaybg -i "${choice}" -m fill

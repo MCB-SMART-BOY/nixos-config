@@ -7,13 +7,15 @@
 - 用户入口：`home/home.nix`
 - 典型模块：
   - `home/modules/base.nix`：环境变量与 PATH
-  - `home/modules/packages.nix`：包组控制开关（`mcb.packages.*`）
+  - `home/modules/packages.nix`：包组控制开关（`mcb.packages.*`，含 `enableGeekTools`）
   - `home/modules/programs.nix`：Alacritty/Helix 等程序配置接入
   - `home/modules/desktop.nix`：niri/fuzzel/mako/waybar/swaylock/gtk 配置接入
-  - `home/modules/shell.nix`：zsh/direnv/zoxide/starship 接入
+  - `home/modules/shell.nix`：zsh/direnv/zoxide/starship/tmux 接入
   - `home/modules/git.nix`：git 基础配置
 
 配置文件分离在 `home/config/`，由 `xdg.configFile` 统一链接到 `~/.config`。
+壁纸资源位于 `home/assets/wallpapers`，会链接到 `~/Pictures/Wallpapers`。
+随机壁纸脚本位于 `home/scripts/wallpaper-random`，会安装到 `~/.local/bin/wallpaper-random`。
 
 ## NixOS 体系
 
@@ -24,6 +26,7 @@
   - `user`：用户名
   - `proxyUrl`：系统代理默认地址
   - `tunInterface`：TUN 网卡名（与相关服务配置一致）
+  - `proxyUrl` 为空时不启用系统代理与本地 DNS
 
 ## 部署脚本
 
@@ -40,6 +43,7 @@
 - 如需修改 flake 目标名，请同步更新 `scripts/install.sh` 中的 `TARGET_NAME`
 - `scripts/install_from_github.sh` 默认保留本机的 `hardware-configuration.nix`
 - 可通过 `TARGET_NAME` 与 `MODE` 环境变量临时覆盖目标与模式
+ - `configuration.nix` 会联网拉取 Home Manager（首次构建需要网络）
 
 常用参数：
 - `-y/--yes`：跳过确认

@@ -29,6 +29,8 @@
   - `home/home.nix`：Home Manager 用户入口
   - `home/modules/`：用户模块拆分
   - `home/config/`：应用配置文件（由 Home Manager 链接到 ~/.config）
+  - `home/assets/`：资源文件（例如壁纸）
+  - `home/scripts/`：用户侧脚本（例如随机壁纸）
 
 - `scripts/`：部署脚本目录
   - `scripts/install.sh`：本地部署脚本

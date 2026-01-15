@@ -10,6 +10,16 @@
   xdg.configFile."gtk-3.0/settings.ini".source = ../config/gtk-3.0/settings.ini;
   xdg.configFile."gtk-4.0/settings.ini".source = ../config/gtk-4.0/settings.ini;
 
+  home.file."Pictures/Wallpapers" = {
+    source = ../assets/wallpapers;
+    recursive = true;
+  };
+
+  home.file.".local/bin/wallpaper-random" = {
+    source = ../scripts/wallpaper-random;
+    executable = true;
+  };
+
   programs.swaylock.enable = true;
   programs.fuzzel.enable = true;
   programs.waybar.enable = true;

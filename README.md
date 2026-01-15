@@ -113,7 +113,9 @@ nixos-config/
 ├── home/                      # Home Manager 用户入口
 │   ├── home.nix               # 入口模块
 │   ├── modules/               # 子模块拆分
-│   └── config/                # 应用配置文件
+│   ├── config/                # 应用配置文件
+│   ├── assets/                # 资源文件（壁纸等）
+│   └── scripts/               # 用户侧脚本
 ├── configuration.nix          # 非 Flake 兼容入口
 ├── scripts/                   # 部署脚本
 │   ├── install.sh             # 本地部署
@@ -148,24 +150,43 @@ nixos-config/
 ```nix
 mcb.packages.enableGaming = false;
 mcb.packages.enableEntertainment = false;
+mcb.packages.enableGeekTools = false;
 ```
+
+开关说明（按功能分组）：
+- enableNetwork：代理/网络工具
+- enableShellTools：终端与基础 CLI 工具
+- enableWaylandTools：Wayland 桌面组件
+- enableBrowsersAndMedia：浏览器/媒体/文件管理
+- enableDev：开发工具链与 LSP
+- enableChat：社交聊天
+- enableEmulation：Wine/兼容层
+- enableEntertainment：影音/阅读
+- enableGaming：游戏相关
+- enableSystemTools：系统维护工具
+- enableTheming：主题与外观
+- enableXorgCompat：Xwayland 兼容
+- enableGeekTools：调试/诊断/极客工具
 
 ## 🖥️ 桌面与自启动
 
 Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管理：
 
 - 编辑 `home/config/niri/config.kdl` 的 `spawn-at-startup`
+- 壁纸由 `wallpaper-random` 登录时随机设置（目录：`~/Pictures/Wallpapers`）
 
 ## 🧰 日常维护
 
 - 修改主机配置：编辑 `host.nix`
 - 修改用户名：更新 `host.nix` 与 `home/` 路径
+- 跨机器部署：调整 `host.nix` 中 `vars.user`、`vars.proxyUrl`、`vars.tunInterface`，并同步硬件配置
 - 传统非 Flake 入口：
 
 ```bash
 sudo cp configuration.nix /etc/nixos/configuration.nix
 sudo nixos-rebuild switch
 ```
+> `configuration.nix` 会联网拉取 Home Manager（首次构建需要网络）
 
 ## ⌨️ 快捷键速查
 
@@ -207,10 +228,13 @@ sudo nixos-rebuild switch
 
 ### 更换壁纸
 
+默认在登录时从 `~/Pictures/Wallpapers` 随机选择一张。
+
 ```bash
-cp /path/to/wallpaper.jpg ~/.config/wallpaper.jpg
-pkill swaybg && swaybg -i ~/.config/wallpaper.jpg -m fill &
+wallpaper-random
 ```
+
+要纳入仓库管理的壁纸，请放入 `home/assets/wallpapers` 后重建。
 
 ### 修改显示器配置
 
