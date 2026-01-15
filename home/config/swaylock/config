@@ -32,6 +32,13 @@ indicator-radius=100
 indicator-thickness=7
 font=JetBrainsMono Nerd Font
 show-failed-attempts
-daemonize
+daemonize # 后台运行，避免阻塞 Niri
 ignore-empty-password
 
+# 时间与日期（更直观）
+clock
+timestr=%H:%M
+datestr=%Y-%m-%d %a
+
+# 显示当前键盘布局（多语言环境更友好）
+show-keyboard-layout

@@ -134,7 +134,10 @@ screenshot-path "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
 // ══════════════════════════════════════════════════════════════════
 
 spawn-at-startup "waybar"
+// 随机壁纸脚本（由 Home Manager 提供）
 spawn-at-startup "sh" "-c" "$HOME/.local/bin/wallpaper-random"
+// NetworkManager 托盘（可在 Waybar 托盘显示）
+spawn-at-startup "nm-applet"
 spawn-at-startup "mako"
 spawn-at-startup "fcitx5" "-d" "-r" // -r 替换现有实例
 spawn-at-startup "swayidle" "-w"

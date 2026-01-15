@@ -18,10 +18,15 @@ padding=15
 anchor=top-right
 
 # 行为
+# 通知格式：标题 + 正文（Pango）
+format=<b>%s</b>\n%b
 default-timeout=5000
 ignore-timeout=0
 max-visible=5
 layer=overlay
+sort=-time # 最新通知优先显示
+max-history=20 # 历史记录上限
+group-by=app-name # 按应用聚合，减少刷屏
 
 # 图标
 icons=1
@@ -44,4 +49,3 @@ border-color=#cba6f7
 background-color=#1e1e2e
 border-color=#f38ba8
 default-timeout=0
-

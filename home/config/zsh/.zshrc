@@ -77,6 +77,14 @@ setopt INTERACTIVE_COMMENTS      # 允许在交互式命令行输入注释 (# �
 setopt NO_BEEP                   # 关闭烦人的蜂鸣声
 setopt EXTENDED_GLOB             # 启用扩展通配符 (如 ^git 排除文件)
 setopt GLOB_DOTS                 # 通配符包含隐藏文件
+setopt COMPLETE_IN_WORD          # 在单词中间补全
+setopt AUTO_MENU                 # 多结果时自动进入菜单
+setopt NO_FLOW_CONTROL           # 禁用 Ctrl-S/Ctrl-Q 卡住终端
+
+# 补全样式 (Completion Styles)
+zstyle ':completion:*' menu select
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
+zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
 
 # ══════════════════════════════════════════════════════════════════
 # 5. 🚀 现代工具无感替换 (Modern Replacements)

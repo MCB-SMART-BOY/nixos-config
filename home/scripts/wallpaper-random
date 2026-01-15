@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
+# Random wallpaper setter for swaybg.
+
 set -euo pipefail
 
+# Wallpaper directory managed by Home Manager.
 wallpaper_dir="${HOME}/Pictures/Wallpapers"
 
 if [[ ! -d "${wallpaper_dir}" ]]; then
   exit 0
 fi
 
+# Collect supported image files.
 mapfile -d '' wallpapers < <(
   find "${wallpaper_dir}" -maxdepth 1 -type f \
     \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
@@ -16,8 +20,10 @@ if [[ ${#wallpapers[@]} -eq 0 ]]; then
   exit 0
 fi
 
+# Pick a random wallpaper.
 choice="${wallpapers[RANDOM % ${#wallpapers[@]}]}"
 
+# Restart swaybg to apply the new wallpaper.
 if command -v pkill >/dev/null 2>&1; then
   pkill swaybg >/dev/null 2>&1 || true
 fi

@@ -1,4 +1,8 @@
+// Waybar Configuration
+// ~/.config/waybar/config
+// JSONC (comments supported by Waybar)
 {
+    // Global layout
     "layer": "top",
     "position": "top",
     "height": 36,
@@ -6,6 +10,8 @@
     "margin-top": 8,
     "margin-left": 12,
     "margin-right": 12,
+
+    // Module order
     "modules-left": [
         "custom/logo",
         "niri/workspaces"
@@ -17,15 +23,21 @@
         "tray",
         "network",
         "pulseaudio",
+        "cpu",
+        "memory",
         "backlight",
         "battery",
         "custom/power"
     ],
+
+    // Logo launcher
     "custom/logo": {
         "format": " ",
         "tooltip": false,
         "on-click": "fuzzel"
     },
+
+    // Niri workspaces with Chinese numerals
     "niri/workspaces": {
         "format": "{icon}",
         "format-icons": {
@@ -42,6 +54,8 @@
         },
         "on-click": "activate"
     },
+
+    // Clock with calendar tooltip
     "clock": {
         "format": "{:%H:%M}",
         "format-alt": "{:%Y-%m-%d %A}",
@@ -65,18 +79,26 @@
             "on-scroll-down": "shift_down"
         }
     },
+
+    // System tray
     "tray": {
         "icon-size": 16,
         "spacing": 8
     },
+
+    // Network indicator (click to edit connections)
     "network": {
         "format-wifi": "󰤨 ",
         "format-ethernet": "󰈀 ",
         "format-disconnected": "󰤭 ",
         "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
         "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
+        // Simple status for offline state
+        "tooltip-format-disconnected": "disconnected",
         "on-click": "nm-connection-editor"
     },
+
+    // Audio volume (PipeWire/Pulse)
     "pulseaudio": {
         "format": "{icon} {volume}%",
         "format-muted": "󰝟 ",
@@ -88,9 +110,27 @@
             ]
         },
         "on-click": "pavucontrol",
+        // Right click to toggle mute
+        "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
         "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
         "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
     },
+
+    // CPU usage
+    "cpu": {
+        "format": " {usage}%",
+        "tooltip": false,
+        "interval": 2
+    },
+
+    // Memory usage
+    "memory": {
+        "format": "󰍛 {percentage}%",
+        "tooltip-format": "RAM {used} / {total} (avail {available})",
+        "interval": 2
+    },
+
+    // Backlight control
     "backlight": {
         "format": "{icon} {percent}%",
         "format-icons": [
@@ -101,12 +141,16 @@
         "on-scroll-up": "brightnessctl set 5%+",
         "on-scroll-down": "brightnessctl set 5%-"
     },
+
+    // Battery status
     "battery": {
         "states": {
             "warning": 30,
             "critical": 15
         },
         "format": "{icon} {capacity}%",
+        // Alt format shows time remaining
+        "format-alt": "{icon} {timeTo}",
         "format-charging": "󰂄 {capacity}%",
         "format-plugged": "󰂄 {capacity}%",
         "format-icons": [
@@ -124,6 +168,8 @@
         ],
         "tooltip-format": "{timeTo}\nPower: {power}W"
     },
+
+    // Power action (exit Niri session)
     "custom/power": {
         "format": "⏻",
         "tooltip": false,

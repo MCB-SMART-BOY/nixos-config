@@ -16,6 +16,8 @@ scroll-lines = 3
 mouse = true
 true-color = true
 idle-timeout = 100
+# 标尺（默认 100 列提示）
+rulers = [100]
 
 # 缓冲区管理
 bufferline = "multiple" # 多文件时显示标签栏

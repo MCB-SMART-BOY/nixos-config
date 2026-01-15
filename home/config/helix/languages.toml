@@ -224,6 +224,8 @@ file-types = ["json", "jsonc", "json5"]
 roots = []
 indent = { tab-width = 2, unit = "  " }
 auto-format = true
+# 使用 jq 格式化 JSON（需要 jq）
+formatter = { command = "jq", args = ["." ] }
 
 # 🌐 HTML / CSS
 [[language]]

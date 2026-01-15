@@ -28,6 +28,9 @@ $character"""
 # 命令超时时间 (毫秒)
 command_timeout = 1000
 
+# 仓库扫描超时 (毫秒)，避免大仓库卡顿
+scan_timeout = 50
+
 # 换行前添加空行
 add_newline = true
 
