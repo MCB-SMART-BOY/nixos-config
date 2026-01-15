@@ -49,6 +49,10 @@ $EDITOR host.nix
 
 # 使用脚本部署
 chmod +x run.sh scripts/*.sh
+./run.sh
+
+# 或分步执行
+./run.sh preflight
 ./run.sh install
 
 # 或直接使用 flake
@@ -82,6 +86,7 @@ sudo nixos-rebuild switch --flake .#nixos
 或通过统一入口：
 
 ```bash
+./run.sh cloud
 ./run.sh install_from_github --repo https://github.com/MCB-SMART-BOY/nixos-config.git --branch master
 ```
 

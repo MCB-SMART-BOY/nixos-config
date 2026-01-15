@@ -8,6 +8,8 @@
 ./run.sh list
 ./run.sh preflight --no-network
 ./run.sh install --mode test
+./run.sh            # 默认执行 preflight + install
+./run.sh cloud      # 默认从 GitHub 拉取并部署
 ```
 
 ## 脚本清单
@@ -26,3 +28,18 @@
 - `lib.sh`：脚本公共函数库（内部使用）
 
 > 说明：这些脚本用于目标 NixOS 机器，请在部署环境中运行。
+
+## 默认入口的额外参数
+
+`./run.sh` 与 `./run.sh cloud` 可以通过环境变量传递额外参数：
+
+- `RUN_PREFLIGHT_ARGS`：传给 `preflight.sh`
+- `RUN_INSTALL_ARGS`：传给 `install.sh`
+- `RUN_CLOUD_ARGS`：传给 `install_from_github.sh`
+
+示例：
+
+```bash
+RUN_PREFLIGHT_ARGS="--no-network" RUN_INSTALL_ARGS="--mode test" ./run.sh
+RUN_CLOUD_ARGS="--yes --skip-preflight" ./run.sh cloud
+```

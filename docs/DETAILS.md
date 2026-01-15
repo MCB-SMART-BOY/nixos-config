@@ -30,7 +30,7 @@
 
 ## 部署脚本
 
-- 统一入口：`run.sh`（推荐）
+- 统一入口：`run.sh`（默认 `./run.sh` = preflight + install，`./run.sh cloud` = GitHub 拉取）
 - `scripts/install.sh`：本地部署脚本
 - `scripts/install_from_github.sh`：云端同步部署脚本
 - `scripts/preflight.sh`：部署前自检（含网络与关键依赖检查）

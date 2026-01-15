@@ -14,16 +14,25 @@ err() {
 
 usage() {
   cat <<EOF_USAGE
-Usage: ${SCRIPT_NAME} <command> [args]
+Usage: ${SCRIPT_NAME} [command] [args]
 
 Commands:
+  auto                 Run preflight + install (default)
+  cloud                Run install_from_github with defaults
   list                 List available scripts
   help [command]       Show help for a script
 
 Examples:
+  ${SCRIPT_NAME}
   ${SCRIPT_NAME} list
   ${SCRIPT_NAME} preflight --no-network
   ${SCRIPT_NAME} install --mode test
+  ${SCRIPT_NAME} cloud
+
+Environment:
+  RUN_PREFLIGHT_ARGS   Extra args for preflight.sh
+  RUN_INSTALL_ARGS     Extra args for install.sh
+  RUN_CLOUD_ARGS       Extra args for install_from_github.sh
 EOF_USAGE
 }
 
@@ -59,6 +68,10 @@ list_scripts() {
     printf '  %-20s %s\n' "${name}" "${desc}"
   done
   shopt -u nullglob
+
+  printf '\nBuilt-in workflows:\n'
+  printf '  %-20s %s\n' "auto" "Run preflight + install"
+  printf '  %-20s %s\n' "cloud" "Run install_from_github with defaults"
 }
 
 resolve_script() {
@@ -79,6 +92,54 @@ resolve_script() {
   return 1
 }
 
+run_script() {
+  local name="$1"
+  shift
+  local script
+  script="$(resolve_script "${name}")" || err "Unknown command: ${name}"
+  exec "${script}" "$@"
+}
+
+split_env_args() {
+  local env_value="$1"
+  local -n out_ref="$2"
+
+  if [[ -n "${env_value}" ]]; then
+    read -r -a out_ref <<< "${env_value}"
+  fi
+}
+
+run_auto() {
+  local preflight_args=()
+  local install_args=()
+
+  split_env_args "${RUN_PREFLIGHT_ARGS:-}" preflight_args
+  split_env_args "${RUN_INSTALL_ARGS:-}" install_args
+
+  if [[ -x "${SCRIPTS_DIR}/preflight.sh" ]]; then
+    "${SCRIPTS_DIR}/preflight.sh" "${preflight_args[@]}"
+  else
+    err "preflight.sh not found or not executable"
+  fi
+
+  if [[ -x "${SCRIPTS_DIR}/install.sh" ]]; then
+    "${SCRIPTS_DIR}/install.sh" "${install_args[@]}"
+  else
+    err "install.sh not found or not executable"
+  fi
+}
+
+run_cloud() {
+  local cloud_args=()
+  split_env_args "${RUN_CLOUD_ARGS:-}" cloud_args
+
+  if [[ -x "${SCRIPTS_DIR}/install_from_github.sh" ]]; then
+    "${SCRIPTS_DIR}/install_from_github.sh" "${cloud_args[@]}"
+  else
+    err "install_from_github.sh not found or not executable"
+  fi
+}
+
 show_script_help() {
   local target="$1"
   local script
@@ -97,14 +158,11 @@ show_script_help() {
 }
 
 main() {
-  if [[ $# -lt 1 ]]; then
-    usage
-    list_scripts
-    exit 1
+  local cmd="auto"
+  if [[ $# -ge 1 ]]; then
+    cmd="$1"
+    shift
   fi
-
-  local cmd="$1"
-  shift
 
   case "${cmd}" in
     -h|--help|help)
@@ -118,10 +176,14 @@ main() {
     list|ls)
       list_scripts
       ;;
+    auto|local)
+      run_auto
+      ;;
+    cloud|remote)
+      run_cloud
+      ;;
     *)
-      local script
-      script="$(resolve_script "${cmd}")" || err "Unknown command: ${cmd}"
-      exec "${script}" "$@"
+      run_script "${cmd}" "$@"
       ;;
   esac
 }
