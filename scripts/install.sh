@@ -17,6 +17,7 @@ ASSUME_YES=false
 NO_REBUILD=false
 NO_SYNC=false
 NO_SYNC_ETC=false
+SKIP_PREFLIGHT=false
 
 msg() {
   local level="$1"
@@ -53,6 +54,7 @@ usage() {
   --no-sync          跳过硬件配置同步
   --no-sync-etc      不同步仓库到 /etc/nixos
   --no-rebuild       跳过 nixos-rebuild
+  --skip-preflight   跳过部署前检查
 EOF_USAGE
 }
 
@@ -85,6 +87,9 @@ parse_args() {
         ;;
       --no-rebuild)
         NO_REBUILD=true
+        ;;
+      --skip-preflight)
+        SKIP_PREFLIGHT=true
         ;;
       --)
         shift
@@ -246,6 +251,12 @@ main() {
   validate_flags
   validate_mode
   check_env
+
+  if [[ "${SKIP_PREFLIGHT}" != true && -x "${REPO_ROOT}/scripts/preflight.sh" ]]; then
+    log "运行部署前检查 (preflight)"
+    "${REPO_ROOT}/scripts/preflight.sh"
+  fi
+
   confirm
 
   if [[ "${NO_SYNC}" != true ]]; then

@@ -30,8 +30,19 @@
 
 ## 部署脚本
 
+- 统一入口：`run.sh`（推荐）
 - `scripts/install.sh`：本地部署脚本
 - `scripts/install_from_github.sh`：云端同步部署脚本
+- `scripts/preflight.sh`：部署前自检（含网络与关键依赖检查）
+- `scripts/sync_etc.sh`：同步仓库到 `/etc/nixos`
+- `scripts/sync_hardware.sh`：同步硬件配置
+- `scripts/rebuild.sh`：封装 `nixos-rebuild`
+- `scripts/flake_update.sh`：更新 `flake.lock`
+- `scripts/home_refresh.sh`：刷新 Home Manager systemd 服务
+- `scripts/status.sh`：快速状态查看
+- `scripts/doctor.sh`：综合检查
+- `scripts/clean.sh`：Nix 垃圾回收（默认 dry-run）
+- `scripts/README.md`：脚本说明
 
 常用逻辑：
 - 同步 `/etc/nixos/hardware-configuration.nix` 到 `hardware-configuration.nix`
@@ -53,6 +64,7 @@
 - `--no-sync`：跳过硬件配置同步
 - `--no-sync-etc`：不同步仓库到 `/etc/nixos`
 - `--no-rebuild`：仅同步不重建
+- `--skip-preflight`：跳过部署前自检
 
 ## 常见扩展方式
 

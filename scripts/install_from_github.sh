@@ -13,6 +13,7 @@ ASSUME_YES=false
 SHOW_TRACE=false
 NO_REBUILD=false
 FORCE_HARDWARE=false
+SKIP_PREFLIGHT=false
 
 msg() {
   local level="$1"
@@ -50,6 +51,7 @@ usage() {
   --show-trace         启用 nixos-rebuild --show-trace
   --force-hardware     允许覆盖 /etc/nixos/hardware-configuration.nix
   --no-rebuild         跳过 nixos-rebuild
+  --skip-preflight     跳过部署前检查
 EOF_USAGE
 }
 
@@ -91,6 +93,9 @@ parse_args() {
         ;;
       --no-rebuild)
         NO_REBUILD=true
+        ;;
+      --skip-preflight)
+        SKIP_PREFLIGHT=true
         ;;
       --)
         shift
@@ -222,8 +227,15 @@ activate_home_manager() {
 confirm() {
   local steps=(
     "拉取仓库 ${REPO_URL} (${BRANCH})"
+    "运行部署前自检 (preflight)"
     "同步配置到 ${ETC_DIR}"
   )
+  if [[ "${SKIP_PREFLIGHT}" == true ]]; then
+    steps=(
+      "拉取仓库 ${REPO_URL} (${BRANCH})"
+      "同步配置到 ${ETC_DIR}"
+    )
+  fi
   if [[ "${NO_REBUILD}" != true ]]; then
     steps+=("重建系统 (${MODE})")
     steps+=("刷新 Home Manager 配置")
@@ -255,6 +267,10 @@ main() {
   trap 'rm -rf "${tmp_dir}"' EXIT
 
   clone_repo "${tmp_dir}"
+  if [[ "${SKIP_PREFLIGHT}" != true && -x "${tmp_dir}/scripts/preflight.sh" ]]; then
+    log "运行部署前检查 (preflight)"
+    (cd "${tmp_dir}" && "${tmp_dir}/scripts/preflight.sh")
+  fi
   sync_repo_to_etc "${tmp_dir}"
 
   if [[ "${NO_REBUILD}" != true ]]; then

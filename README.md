@@ -38,6 +38,9 @@
 git clone <your-repo-url> nixos-config
 cd nixos-config
 
+# 部署前自检（含网络可达性检查）
+./run.sh preflight
+
 # 同步硬件配置（必须；若用 scripts/install.sh 可自动同步）
 sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
 
@@ -45,8 +48,8 @@ sudo cp /etc/nixos/hardware-configuration.nix ./hardware-configuration.nix
 $EDITOR host.nix
 
 # 使用脚本部署
-chmod +x scripts/install.sh
-./scripts/install.sh
+chmod +x run.sh scripts/*.sh
+./run.sh install
 
 # 或直接使用 flake
 sudo nixos-rebuild switch --flake .#nixos
@@ -65,6 +68,7 @@ sudo nixos-rebuild switch --flake .#nixos
 ./scripts/install.sh --no-sync                # 跳过硬件配置同步
 ./scripts/install.sh --no-sync-etc            # 不同步仓库到 /etc/nixos
 ./scripts/install.sh --no-rebuild             # 仅同步不重建
+./scripts/install.sh --skip-preflight         # 跳过部署前检查
 ```
 
 #### scripts/install_from_github.sh（云端同步）
@@ -75,9 +79,16 @@ sudo nixos-rebuild switch --flake .#nixos
   --branch master
 ```
 
+或通过统一入口：
+
+```bash
+./run.sh install_from_github --repo https://github.com/MCB-SMART-BOY/nixos-config.git --branch master
+```
+
 说明：
 - 默认保留本机 `/etc/nixos/hardware-configuration.nix`，如需覆盖请加 `--force-hardware`
 - 执行 `nixos-rebuild` 后会由 Home Manager 生成并链接 `~/.config` 配置
+- 如需跳过自检可使用 `--skip-preflight`
 
 一行下载到本地：
 
@@ -101,10 +112,18 @@ nix flake update
 sudo nixos-rebuild switch --flake .#nixos
 ```
 
+也可以使用脚本：
+
+```bash
+./run.sh flake_update
+./run.sh rebuild --mode switch
+```
+
 ## 🧭 结构概览
 
 ```
 nixos-config/
+├── run.sh                    # 统一脚本入口
 ├── flake.nix                  # Flake 入口
 ├── flake.lock                 # 版本锁定（可复现）
 ├── host.nix                   # 主机入口（单主机）
@@ -118,8 +137,19 @@ nixos-config/
 │   └── scripts/               # 用户侧脚本
 ├── configuration.nix          # 非 Flake 兼容入口
 ├── scripts/                   # 部署脚本
+│   ├── README.md              # 脚本说明
 │   ├── install.sh             # 本地部署
-│   └── install_from_github.sh # 云端同步部署
+│   ├── install_from_github.sh # 云端同步部署
+│   ├── preflight.sh           # 部署前自检
+│   ├── sync_etc.sh            # 同步到 /etc/nixos
+│   ├── sync_hardware.sh       # 同步硬件配置
+│   ├── rebuild.sh             # nixos-rebuild 封装
+│   ├── flake_update.sh        # flake.lock 更新
+│   ├── home_refresh.sh        # Home Manager 刷新
+│   ├── status.sh              # 状态查看
+│   ├── doctor.sh              # 综合检查
+│   ├── clean.sh               # Nix 垃圾回收
+│   └── lib.sh                 # 公共函数
 ├── docs/                      # 说明文档
 └── README.md
 ```
@@ -180,6 +210,7 @@ Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管
 - 修改主机配置：编辑 `host.nix`
 - 修改用户名：更新 `host.nix` 与 `home/` 路径
 - 跨机器部署：调整 `host.nix` 中 `vars.user`、`vars.proxyUrl`、`vars.tunInterface`，并同步硬件配置
+- 常用脚本入口：`./run.sh list`、`./run.sh status`、`./run.sh doctor`
 - 传统非 Flake 入口：
 
 ```bash
