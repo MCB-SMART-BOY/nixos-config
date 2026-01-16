@@ -1,11 +1,13 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
-{
+let
+  hasManrope = builtins.hasAttr "manrope" pkgs;
+  hasGoogleFonts = builtins.hasAttr "google-fonts" pkgs;
+in {
   fonts = {
     packages = with pkgs; [
       nerd-fonts.jetbrains-mono
       nerd-fonts.fira-code
-      manrope
       noto-fonts-cjk-sans
       noto-fonts-cjk-serif
       source-han-sans
@@ -14,7 +16,8 @@
       font-awesome
       wqy_zenhei
       wqy_microhei
-    ];
+    ] ++ lib.optionals hasManrope [ pkgs.manrope ]
+      ++ lib.optionals (!hasManrope && hasGoogleFonts) [ pkgs.google-fonts ];
     fontconfig = {
       defaultFonts = {
         monospace = [

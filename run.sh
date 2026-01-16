@@ -12,13 +12,17 @@ err() {
   exit 1
 }
 
+warn() {
+  printf '[WARN] %s\n' "$*" >&2
+}
+
 usage() {
   cat <<EOF_USAGE
 Usage: ${SCRIPT_NAME} [command] [args]
 
 Commands:
   auto                 Run preflight + install (default)
-  cloud                Run install_from_github with defaults
+  cloud                Sync local repo (if available) + install_from_github
   sync                 Sync current repo with remote (safe git pull)
   list                 List available scripts
   help [command]       Show help for a script
@@ -73,7 +77,7 @@ list_scripts() {
 
   printf '\nBuilt-in workflows:\n'
   printf '  %-20s %s\n' "auto" "Run preflight + install"
-  printf '  %-20s %s\n' "cloud" "Run install_from_github with defaults"
+  printf '  %-20s %s\n' "cloud" "Sync local repo (if available) + install_from_github"
   printf '  %-20s %s\n' "sync" "Sync current repo with remote (safe git pull)"
 }
 
@@ -134,7 +138,23 @@ run_auto() {
 
 run_cloud() {
   local cloud_args=()
+  local sync_args=()
   split_env_args "${RUN_CLOUD_ARGS:-}" cloud_args
+  split_env_args "${RUN_SYNC_ARGS:-}" sync_args
+
+  if [[ -x "${SCRIPTS_DIR}/sync_cloud.sh" ]]; then
+    if command -v git >/dev/null 2>&1; then
+      if git -C "${ROOT_DIR}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        if ! "${SCRIPTS_DIR}/sync_cloud.sh" "${sync_args[@]}"; then
+          warn "Local sync failed; continuing with cloud install"
+        fi
+      else
+        warn "Current directory is not a git repo; skipping local sync"
+      fi
+    else
+      warn "git not found; skipping local sync"
+    fi
+  fi
 
   if [[ -x "${SCRIPTS_DIR}/install_from_github.sh" ]]; then
     "${SCRIPTS_DIR}/install_from_github.sh" "${cloud_args[@]}"

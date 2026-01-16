@@ -100,6 +100,7 @@ sudo nixos-rebuild switch --flake .#nixos
 - 如需跳过自检可使用 `--skip-preflight`
 - 如需临时 DNS 可使用 `--temp-dns` 或多次传入 `--dns`
 - 默认会安装开发工具链（rustup），可用 `--skip-toolchain` 关闭
+- `./run.sh cloud` 会先尝试同步当前目录（若为 git 仓库），再执行云端部署
 - `./run.sh sync` 仅更新当前目录（安全 fast-forward），不触发部署
 
 一行下载到本地：
