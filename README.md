@@ -98,7 +98,7 @@ sudo nixos-rebuild switch --flake .#nixos
 一行下载到本地：
 
 ```bash
-curl -fsSL -o install_from_github.sh https://github.com/MCB-SMART-BOY/nixos-config/releases/download/configuration-3.0/install_from_github.sh
+curl -fsSL -o install_from_github.sh https://github.com/MCB-SMART-BOY/nixos-config/releases/latest/download/install_from_github.sh
 chmod +x install_from_github.sh
 ```
 
