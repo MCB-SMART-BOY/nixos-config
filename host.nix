@@ -39,6 +39,7 @@ in
 
   systemd.tmpfiles.rules = [
     "d /home/${vars.user}/.config/clash-verge 0750 ${vars.user} users -"
+    "d /home/${vars.user}/.config/clash-verge-rev 0750 ${vars.user} users -"
     "d /var/lib/mihomo 0755 root root -"
   ];
 }
