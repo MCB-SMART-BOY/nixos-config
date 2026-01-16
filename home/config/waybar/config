@@ -5,11 +5,11 @@
     // Global layout
     "layer": "top",
     "position": "top",
-    "height": 36,
-    "spacing": 0,
-    "margin-top": 8,
-    "margin-left": 12,
-    "margin-right": 12,
+    "height": 34,
+    "spacing": 8,
+    "margin-top": 10,
+    "margin-left": 14,
+    "margin-right": 14,
 
     // Module order
     "modules-left": [
@@ -66,11 +66,11 @@
             "weeks-pos": "right",
             "on-scroll": 1,
             "format": {
-                "months": "<span color='#cba6f7'><b>{}</b></span>",
-                "days": "<span color='#cdd6f4'>{}</span>",
-                "weeks": "<span color='#94e2d5'>W{}</span>",
-                "weekdays": "<span color='#f9e2af'>{}</span>",
-                "today": "<span color='#f38ba8'><b><u>{}</u></b></span>"
+                "months": "<span color='#a5b4fc'><b>{}</b></span>",
+                "days": "<span color='#e2e8f0'>{}</span>",
+                "weeks": "<span color='#7dd3fc'>W{}</span>",
+                "weekdays": "<span color='#fbbf24'>{}</span>",
+                "today": "<span color='#7dd3fc'><b><u>{}</u></b></span>"
             }
         },
         "actions": {

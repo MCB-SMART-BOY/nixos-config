@@ -1,6 +1,6 @@
 # Alacritty Configuration
 # ~/.config/alacritty/alacritty.toml
-# Catppuccin Mocha Theme
+# DMS/Noctalia-inspired Theme
 
 # 热更新配置（无需重启）
 live_config_reload = true
@@ -56,75 +56,75 @@ x = 0
 y = 1
 
 # ══════════════════════════════════════════════════════════════════
-# 🎨 Colors - Catppuccin Mocha
+# 🎨 Colors - DMS/Noctalia-inspired
 # ══════════════════════════════════════════════════════════════════
 [colors.primary]
-background = "#1e1e2e"
-foreground = "#cdd6f4"
-dim_foreground = "#7f849c"
-bright_foreground = "#cdd6f4"
+background = "#0b0f14"
+foreground = "#e2e8f0"
+dim_foreground = "#9aa5b1"
+bright_foreground = "#e2e8f0"
 
 [colors.cursor]
-text = "#1e1e2e"
-cursor = "#f5e0dc"
+text = "#0b0f14"
+cursor = "#7dd3fc"
 
 [colors.vi_mode_cursor]
-text = "#1e1e2e"
-cursor = "#b4befe"
+text = "#0b0f14"
+cursor = "#a5b4fc"
 
 [colors.search.matches]
-foreground = "#1e1e2e"
-background = "#a6adc8"
+foreground = "#0b0f14"
+background = "#a5b4fc"
 
 [colors.search.focused_match]
-foreground = "#1e1e2e"
-background = "#a6e3a1"
+foreground = "#0b0f14"
+background = "#34d399"
 
 [colors.footer_bar]
-foreground = "#1e1e2e"
-background = "#a6adc8"
+foreground = "#0b0f14"
+background = "#94a3b8"
 
 [colors.hints.start]
-foreground = "#1e1e2e"
-background = "#f9e2af"
+foreground = "#0b0f14"
+background = "#fbbf24"
 
 [colors.hints.end]
-foreground = "#1e1e2e"
-background = "#a6adc8"
+foreground = "#0b0f14"
+background = "#94a3b8"
 
 [colors.selection]
-text = "#1e1e2e"
-background = "#f5e0dc"
+text = "#0b0f14"
+background = "#7dd3fc"
 
 [colors.normal]
-black = "#45475a"
-red = "#f38ba8"
-green = "#a6e3a1"
-yellow = "#f9e2af"
-blue = "#89b4fa"
-magenta = "#f5c2e7"
-cyan = "#94e2d5"
-white = "#bac2de"
+black = "#1f2937"
+red = "#f87171"
+green = "#34d399"
+yellow = "#fbbf24"
+blue = "#7dd3fc"
+magenta = "#a5b4fc"
+cyan = "#5eead4"
+white = "#e2e8f0"
 
 [colors.bright]
-black = "#585b70"
-red = "#f38ba8"
-green = "#a6e3a1"
-yellow = "#f9e2af"
-blue = "#89b4fa"
-magenta = "#f5c2e7"
-cyan = "#94e2d5"
-white = "#a6adc8"
+black = "#334155"
+red = "#fca5a5"
+green = "#6ee7b7"
+yellow = "#fcd34d"
+blue = "#bae6fd"
+magenta = "#c7d2fe"
+cyan = "#99f6e4"
+white = "#f8fafc"
 
 [colors.dim]
-black = "#45475a"
-red = "#f38ba8"
-green = "#a6e3a1"
-yellow = "#f9e2af"
-blue = "#89b4fa"
-magenta = "#f5c2e7"
-cyan = "#94e2d5"
-white = "#bac2de"
+black = "#111827"
+red = "#ef4444"
+green = "#22c55e"
+yellow = "#f59e0b"
+blue = "#38bdf8"
+magenta = "#818cf8"
+cyan = "#14b8a6"
+white = "#cbd5e1"
 
 # ══════════════════════════════════════════════════════════════════
 # ⌨️ Keyboard

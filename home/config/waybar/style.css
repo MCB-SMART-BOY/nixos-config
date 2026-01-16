@@ -1,36 +1,40 @@
-/* Waybar Styles - Catppuccin Mocha Theme */
+/* Waybar Styles - DMS/Noctalia-inspired */
 
-/* ══════════════════════════════════════════════════════════════════
- * 🎨 Global Styles
- * ══════════════════════════════════════════════════════════════════ */
+@define-color bg #0b0f14;
+@define-color surface #0f172a;
+@define-color surface-alt #111827;
+@define-color border #253248;
+@define-color text #e2e8f0;
+@define-color muted #94a3b8;
+@define-color accent #7dd3fc;
+@define-color accent2 #a5b4fc;
+@define-color warn #fbbf24;
+@define-color error #f87171;
+@define-color success #34d399;
 
 * {
-    /* 核心修复：增加字体回退列表，确保中文正常显示 */
     font-family: "JetBrainsMono Nerd Font", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
-    font-size: 13px;
-    font-weight: 600; /* 稍微加粗一点，中文显示更清晰 */
+    font-size: 12.5px;
+    font-weight: 600;
     min-height: 0;
 }
 
 window#waybar {
-    background: rgba(30, 30, 46, 0.9);
-    border-radius: 12px;
-    border: 1px solid rgba(203, 166, 247, 0.3);
+    background: rgba(15, 23, 42, 0.88);
+    border-radius: 14px;
+    border: 1px solid rgba(37, 50, 72, 0.9);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
 }
 
 tooltip {
-    background: #1e1e2e;
-    border: 1px solid #cba6f7;
+    background: @surface;
+    border: 1px solid @border;
     border-radius: 8px;
 }
 
 tooltip label {
-    color: #cdd6f4;
+    color: @text;
 }
-
-/* ══════════════════════════════════════════════════════════════════
- * 📦 Module Styles
- * ══════════════════════════════════════════════════════════════════ */
 
 #custom-logo,
 #workspaces,
@@ -44,69 +48,67 @@ tooltip label {
 #battery,
 #custom-power {
     padding: 0 12px;
-    color: #cdd6f4;
+    color: @text;
 }
 
-/* ══════════════════════════════════════════════════════════════════
- * 🏠 Logo
- * ══════════════════════════════════════════════════════════════════ */
+#clock,
+#network,
+#pulseaudio,
+#cpu,
+#memory,
+#backlight,
+#battery,
+#tray,
+#custom-power {
+    margin: 6px 4px;
+    background: rgba(17, 24, 39, 0.55);
+    border-radius: 10px;
+    border: 1px solid rgba(37, 50, 72, 0.6);
+}
 
 #custom-logo {
     font-size: 18px;
-    color: #89b4fa;
+    color: @accent;
     padding-left: 16px;
 }
 
-/* ══════════════════════════════════════════════════════════════════
- * 🪟 Workspaces
- * ══════════════════════════════════════════════════════════════════ */
-
 #workspaces {
-    padding: 0 8px;
+    padding: 0 6px;
 }
 
 #workspaces button {
     padding: 0 8px;
-    color: #6c7086;
+    color: @muted;
     background: transparent;
-    border: none;
-    border-radius: 6px;
-    margin: 4px 2px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    margin: 5px 3px;
     transition: all 0.2s ease;
-    /* 针对 Niri 工作区中的中文数字微调 */
-    font-weight: bold;
+    font-weight: 700;
 }
 
 #workspaces button:hover {
-    color: #cba6f7;
-    background: rgba(203, 166, 247, 0.1);
+    color: @text;
+    background: rgba(125, 211, 252, 0.12);
+    border-color: rgba(125, 211, 252, 0.3);
 }
 
 #workspaces button.active {
-    color: #1e1e2e;
-    background: #cba6f7;
+    color: @text;
+    background: rgba(125, 211, 252, 0.2);
+    border-color: rgba(125, 211, 252, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.35);
 }
 
 #workspaces button.urgent {
-    color: #1e1e2e;
-    background: #f38ba8;
+    color: @text;
+    background: rgba(248, 113, 113, 0.2);
+    border-color: rgba(248, 113, 113, 0.6);
 }
-
-/* ══════════════════════════════════════════════════════════════════
- * ⏰ Clock
- * ══════════════════════════════════════════════════════════════════ */
 
 #clock {
-    color: #cba6f7;
-    font-weight: 600;
-}
-
-/* ══════════════════════════════════════════════════════════════════
- * 🔧 System Tray
- * ══════════════════════════════════════════════════════════════════ */
-
-#tray {
-    margin-right: 8px;
+    color: @accent2;
+    font-weight: 700;
 }
 
 #tray > .passive {
@@ -117,87 +119,64 @@ tooltip label {
     -gtk-icon-effect: highlight;
 }
 
-/* ══════════════════════════════════════════════════════════════════
- * 🌐 Network
- * ══════════════════════════════════════════════════════════════════ */
-
 #network {
-    color: #89dceb;
+    color: @accent;
 }
 
 #network.disconnected {
-    color: #f38ba8;
+    color: @error;
 }
 
-/* ══════════════════════════════════════════════════════════════════
- * 🔊 Audio
- * ══════════════════════════════════════════════════════════════════ */
-
 #pulseaudio {
-    color: #f9e2af;
+    color: @warn;
 }
 
 #pulseaudio.muted {
-    color: #6c7086;
+    color: @muted;
 }
 
-/* ══════════════════════════════════════════════════════════════════
- * 🧠 CPU / Memory
- * ══════════════════════════════════════════════════════════════════ */
-
 #cpu {
-    color: #f9e2af;
+    color: @accent;
 }
 
 #memory {
-    color: #a6e3a1;
+    color: @success;
 }
-
-/* ══════════════════════════════════════════════════════════════════
- * 💡 Backlight
- * ══════════════════════════════════════════════════════════════════ */
 
 #backlight {
-    color: #f5c2e7;
+    color: @accent2;
 }
 
-/* ══════════════════════════════════════════════════════════════════
- * 🔋 Battery
- * ══════════════════════════════════════════════════════════════════ */
-
 #battery {
-    color: #a6e3a1;
+    color: @success;
 }
 
 #battery.charging,
 #battery.plugged {
-    color: #94e2d5;
+    color: @accent;
 }
 
 #battery.warning:not(.charging) {
-    color: #fab387;
+    color: @warn;
 }
 
 #battery.critical:not(.charging) {
-    color: #f38ba8;
+    color: @error;
     animation: blink 1s infinite;
 }
 
 @keyframes blink {
     to {
-        color: #f5e0dc;
+        color: @text;
     }
 }
 
-/* ══════════════════════════════════════════════════════════════════
- * ⏻ Power Button
- * ══════════════════════════════════════════════════════════════════ */
-
 #custom-power {
-    color: #f38ba8;
+    color: @error;
     padding-right: 16px;
 }
 
 #custom-power:hover {
-    color: #f5e0dc;
+    color: @text;
+    background: rgba(248, 113, 113, 0.2);
 }

@@ -1,31 +1,31 @@
 # Swaylock Configuration
 # ~/.config/swaylock/config
-# Catppuccin Mocha Theme
+# DMS/Noctalia-inspired Theme
 
 # 只有在没有图片时才使用纯色背景
-color=1e1e2e
+color=0b0f14
 
 # 核心圆环
-ring-color=cba6f7
-key-hl-color=a6e3a1
-line-color=313244
-inside-color=1e1e2e
-separator-color=1e1e2e
+ring-color=7dd3fc
+key-hl-color=34d399
+line-color=1f2937
+inside-color=0b0f14
+separator-color=0b0f14
 
 # 验证时
-ring-ver-color=89b4fa
-inside-ver-color=1e1e2e
-text-ver-color=89b4fa
+ring-ver-color=a5b4fc
+inside-ver-color=0b0f14
+text-ver-color=a5b4fc
 
 # 错误时
-ring-wrong-color=f38ba8
-inside-wrong-color=1e1e2e
-text-wrong-color=f38ba8
+ring-wrong-color=f87171
+inside-wrong-color=0b0f14
+text-wrong-color=f87171
 
 # 清除时
-ring-clear-color=f5e0dc
-inside-clear-color=1e1e2e
-text-clear-color=f5e0dc
+ring-clear-color=fbbf24
+inside-clear-color=0b0f14
+text-clear-color=fbbf24
 
 # 杂项
 indicator-radius=100

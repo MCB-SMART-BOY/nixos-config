@@ -48,7 +48,7 @@ input {
 // ══════════════════════════════════════════════════════════════════
 
 layout {
-    gaps 12
+    gaps 14
     center-focused-column "always"
 
     preset-column-widths {
@@ -61,8 +61,8 @@ layout {
 
     focus-ring {
         width 2
-        active-color "#cba6f7"     // Catppuccin Mocha Mauve
-        inactive-color "#45475a"   // Catppuccin Mocha Surface1
+        active-color "#7dd3fc"     // Accent
+        inactive-color "#253248"   // Border
     }
 
     border {
@@ -74,7 +74,7 @@ layout {
         softness 30
         spread 5
         offset x=0 y=5
-        color "#00000064"
+        color "#00000070"
     }
 }
 
@@ -147,7 +147,7 @@ spawn-at-startup "swayidle" "-w"
 // ══════════════════════════════════════════════════════════════════
 
 window-rule {
-    geometry-corner-radius 12
+    geometry-corner-radius 14
     clip-to-geometry true
 }
 
