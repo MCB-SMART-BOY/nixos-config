@@ -8,6 +8,8 @@ if [[ -n "${NIXOS_CONFIG_LIB_SOURCED:-}" ]]; then
 fi
 NIXOS_CONFIG_LIB_SOURCED=1
 
+export PATH="/run/wrappers/bin:${PATH}"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 

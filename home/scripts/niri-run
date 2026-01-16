@@ -1,6 +1,18 @@
-#!/run/current-system/sw/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER}/bin:${HOME}/.nix-profile/bin:${HOME}/.local/bin:${PATH}"
+add_path() {
+  local dir="$1"
+  case ":${PATH}:" in
+    *":${dir}:"*) ;;
+    *) PATH="${dir}:${PATH}" ;;
+  esac
+}
 
+add_path "/run/wrappers/bin"
+add_path "${HOME}/.local/bin"
+add_path "${HOME}/.nix-profile/bin"
+add_path "/etc/profiles/per-user/${USER}/bin"
+
+export PATH
 exec "$@"

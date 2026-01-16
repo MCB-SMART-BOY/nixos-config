@@ -133,14 +133,14 @@ screenshot-path "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
 // 🚀 Autostart (自启动)
 // ══════════════════════════════════════════════════════════════════
 
-spawn-at-startup "/run/current-system/sw/bin/waybar"
+spawn-at-startup "niri-run" "waybar"
 // 随机壁纸脚本（由 Home Manager 提供）
-spawn-at-startup "/run/current-system/sw/bin/sh" "-c" "$HOME/.local/bin/wallpaper-random"
+spawn-at-startup "niri-run" "sh" "-c" "$HOME/.local/bin/wallpaper-random"
 // NetworkManager 托盘（可在 Waybar 托盘显示）
-spawn-at-startup "/run/current-system/sw/bin/nm-applet"
-spawn-at-startup "/run/current-system/sw/bin/mako"
-spawn-at-startup "/run/current-system/sw/bin/fcitx5" "-d" "-r" // -r 替换现有实例
-spawn-at-startup "/run/current-system/sw/bin/swayidle" "-w"
+spawn-at-startup "niri-run" "nm-applet"
+spawn-at-startup "niri-run" "mako"
+spawn-at-startup "niri-run" "fcitx5" "-d" "-r" // -r 替换现有实例
+spawn-at-startup "niri-run" "swayidle" "-w"
 
 // ══════════════════════════════════════════════════════════════════
 // 🪟 Window Rules
@@ -167,11 +167,11 @@ window-rule {
 
 binds {
     // ─── 应用启动 ───
-    Mod+Return { spawn "/run/current-system/sw/bin/sh" "-c" "${TERMINAL:-foot}"; }
-    Mod+Space { spawn "/run/current-system/sw/bin/fuzzel"; }
+    Mod+Return { spawn "niri-run" "sh" "-c" "${TERMINAL:-foot}"; }
+    Mod+Space { spawn "niri-run" "fuzzel"; }
     // Mod { spawn "fuzzel"; }
-    Mod+E { spawn "/run/current-system/sw/bin/nautilus"; }
-    Mod+B { spawn "/run/current-system/sw/bin/firefox"; }
+    Mod+E { spawn "niri-run" "nautilus"; }
+    Mod+B { spawn "niri-run" "firefox"; }
 
     // ─── 系统控制 ───
     Mod+Q { close-window; }
@@ -179,7 +179,7 @@ binds {
     Mod+Shift+Slash { show-hotkey-overlay; }
     
     // 锁屏
-    Mod+Escape { spawn "/run/current-system/sw/bin/sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || /run/current-system/sw/bin/swaylock"; }
+    Mod+Escape { spawn "niri-run" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || swaylock"; }
     
     // 电源管理
     Mod+Shift+P { power-off-monitors; }
@@ -254,17 +254,17 @@ binds {
     // ─── 截图 (高级模式) ───
     // 依赖: grim, slurp, swappy (需在 systemPackages 中安装)
     // 截图全屏
-    Print { spawn "/run/current-system/sw/bin/sh" "-c" "grim - | swappy -f -"; }
+    Print { spawn "niri-run" "sh" "-c" "grim - | swappy -f -"; }
     // 截图选区 (推荐)
-    Shift+Print { spawn "/run/current-system/sw/bin/sh" "-c" "grim -g \"$(slurp)\" - | swappy -f -"; }
+    Shift+Print { spawn "niri-run" "sh" "-c" "grim -g \"$(slurp)\" - | swappy -f -"; }
     // 原生截图 (备用)
     Alt+Print { screenshot; }
 
     // ─── 媒体与亮度 ───
-    XF86AudioRaiseVolume allow-when-locked=true { spawn "/run/current-system/sw/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
-    XF86AudioLowerVolume allow-when-locked=true { spawn "/run/current-system/sw/bin/wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
-    XF86AudioMute allow-when-locked=true { spawn "/run/current-system/sw/bin/wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
-    XF86AudioMicMute allow-when-locked=true { spawn "/run/current-system/sw/bin/wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
-    XF86MonBrightnessUp allow-when-locked=true { spawn "/run/current-system/sw/bin/brightnessctl" "set" "5%+"; }
-    XF86MonBrightnessDown allow-when-locked=true { spawn "/run/current-system/sw/bin/brightnessctl" "set" "5%-"; }
+    XF86AudioRaiseVolume allow-when-locked=true { spawn "niri-run" "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn "niri-run" "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
+    XF86AudioMute allow-when-locked=true { spawn "niri-run" "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+    XF86AudioMicMute allow-when-locked=true { spawn "niri-run" "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
+    XF86MonBrightnessUp allow-when-locked=true { spawn "niri-run" "brightnessctl" "set" "5%+"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "niri-run" "brightnessctl" "set" "5%-"; }
 }
