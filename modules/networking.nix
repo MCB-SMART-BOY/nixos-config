@@ -1,9 +1,15 @@
-{ vars, lib, ... }:
+{ vars, lib, options, ... }:
 
 let
   tunInterface = vars.tunInterface;
   proxyUrl = vars.proxyUrl;
   proxyEnabled = proxyUrl != "";
+  resolvedHasDns = lib.hasAttrByPath [ "services" "resolved" "dns" ] options;
+  resolvedHasFallback = lib.hasAttrByPath [ "services" "resolved" "fallbackDns" ] options;
+  resolvedExtraConfig = ''
+    ${lib.optionalString (!resolvedHasDns && proxyEnabled) "DNS=127.0.0.1"}
+    ${lib.optionalString (!resolvedHasFallback) "FallbackDNS=223.5.5.5 1.1.1.1"}
+  '';
 in
 {
   networking = {
@@ -36,11 +42,20 @@ in
     };
   };
 
-  services.resolved = {
-    enable = true;
-    extraConfig = ''
-      ${lib.optionalString proxyEnabled "DNS=127.0.0.1"}
-      FallbackDNS=223.5.5.5 1.1.1.1
-    '';
-  };
+  services.resolved =
+    {
+      enable = true;
+    }
+    // lib.optionalAttrs resolvedHasDns {
+      dns = lib.optionals proxyEnabled [ "127.0.0.1" ];
+    }
+    // lib.optionalAttrs resolvedHasFallback {
+      fallbackDns = [
+        "223.5.5.5"
+        "1.1.1.1"
+      ];
+    }
+    // lib.optionalAttrs (resolvedExtraConfig != "") {
+      extraConfig = resolvedExtraConfig;
+    };
 }
