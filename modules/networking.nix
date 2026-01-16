@@ -38,10 +38,9 @@ in
 
   services.resolved = {
     enable = true;
-    dns = lib.optionals proxyEnabled [ "127.0.0.1" ];
-    fallbackDns = [
-      "223.5.5.5"
-      "1.1.1.1"
-    ];
+    extraConfig = ''
+      ${lib.optionalString proxyEnabled "DNS=127.0.0.1"}
+      FallbackDNS=223.5.5.5 1.1.1.1
+    '';
   };
 }
