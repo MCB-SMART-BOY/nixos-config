@@ -2,13 +2,13 @@
 # ~/.config/helix/config.toml
 # Target: Helix 25.07 (Bleeding Edge)
 
-theme = "catppuccin_mocha"
+theme = "nord-night"
 
 [editor]
 # 基础体验
 line-number = "relative"
 cursorline = true
-cursorcolumn = false
+cursorcolumn = true
 auto-save = true
 auto-format = true
 scrolloff = 8
@@ -124,6 +124,7 @@ supersede-menu = false
 # 系统操作
 "C-s" = ":w"
 "C-q" = ":q"
+"backspace" = { r = ":sh cargo run" }
 
 # 窗口导航 (类 Tmux/Vim)
 "C-h" = "jump_view_left"
