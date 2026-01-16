@@ -19,22 +19,56 @@ add_path "/etc/profiles/per-user/${USER}/bin"
 
 export PATH
 
-if [[ -z "${WAYLAND_DISPLAY:-}" && -n "${XDG_RUNTIME_DIR:-}" ]]; then
-  for sock in "${XDG_RUNTIME_DIR}"/wayland-*; do
-    if [[ -S "${sock}" ]]; then
-      WAYLAND_DISPLAY="$(basename "${sock}")"
-      export WAYLAND_DISPLAY
-      break
-    fi
-  done
-fi
+sleep_short() {
+  local seconds="$1"
+  if command -v sleep >/dev/null 2>&1; then
+    sleep "${seconds}"
+  else
+    read -r -t "${seconds}" _ || true
+  fi
+}
 
-if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
-  exit 0
+wait_for_wayland() {
+  local attempts=50
+  local interval="0.2"
+  local sock=""
+
+  for _ in $(seq 1 "${attempts}"); do
+    if [[ -n "${WAYLAND_DISPLAY:-}" && -n "${XDG_RUNTIME_DIR:-}" ]]; then
+      sock="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+      if [[ -S "${sock}" ]]; then
+        return 0
+      fi
+    fi
+
+    if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+      if [[ -S "${XDG_RUNTIME_DIR}/wayland-0" ]]; then
+        WAYLAND_DISPLAY="wayland-0"
+        export WAYLAND_DISPLAY
+        return 0
+      fi
+      for sock in "${XDG_RUNTIME_DIR}"/wayland-*; do
+        if [[ -S "${sock}" ]]; then
+          WAYLAND_DISPLAY="$(basename "${sock}")"
+          export WAYLAND_DISPLAY
+          return 0
+        fi
+      done
+    fi
+
+    sleep_short "${interval}"
+  done
+
+  return 1
+}
+
+if ! wait_for_wayland; then
+  echo "wallpaper-random: Wayland socket not ready" >&2
+  exit 1
 fi
 
 # Wallpaper directory managed by Home Manager.
-wallpaper_dir="${HOME}/Pictures/Wallpapers"
+wallpaper_dir="${WALLPAPER_DIR:-${HOME}/Pictures/Wallpapers}"
 fallback_dir="/etc/nixos/home/assets/wallpapers"
 
 if [[ ! -d "${wallpaper_dir}" && -d "${fallback_dir}" ]]; then
@@ -42,16 +76,18 @@ if [[ ! -d "${wallpaper_dir}" && -d "${fallback_dir}" ]]; then
 fi
 
 if [[ ! -d "${wallpaper_dir}" ]]; then
+  echo "wallpaper-random: wallpaper dir not found: ${wallpaper_dir}" >&2
   exit 0
 fi
 
 # Collect supported image files.
 mapfile -d '' wallpapers < <(
   find "${wallpaper_dir}" -maxdepth 1 -type f \
-    \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
+    -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
 )
 
 if [[ ${#wallpapers[@]} -eq 0 ]]; then
+  echo "wallpaper-random: no wallpapers found in ${wallpaper_dir}" >&2
   exit 0
 fi
 
@@ -74,7 +110,8 @@ fi
 
 swaybg_bin="$(command -v swaybg || true)"
 if [[ -z "${swaybg_bin}" ]]; then
-  exit 0
+  echo "wallpaper-random: swaybg not found in PATH" >&2
+  exit 1
 fi
 
 exec "${swaybg_bin}" -i "${choice}" -m fill
