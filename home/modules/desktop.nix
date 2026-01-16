@@ -50,12 +50,28 @@
       Description = "Random wallpaper (swaybg)";
       After = [ "graphical-session.target" ];
       PartOf = [ "graphical-session.target" ];
+      ConditionPathExistsGlob = "%t/wayland-*";
     };
     Service = {
-      Type = "simple";
+      Type = "oneshot";
       ExecStart = "%h/.local/bin/wallpaper-random";
       Restart = "on-failure";
       RestartSec = 2;
+    };
+    Install = {
+      WantedBy = [ "graphical-session.target" ];
+    };
+  };
+
+  systemd.user.timers.wallpaper-random = {
+    Unit = {
+      Description = "Rotate wallpaper periodically";
+      PartOf = [ "graphical-session.target" ];
+    };
+    Timer = {
+      OnBootSec = "1m";
+      OnUnitActiveSec = "10m";
+      AccuracySec = "1m";
     };
     Install = {
       WantedBy = [ "graphical-session.target" ];

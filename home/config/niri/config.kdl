@@ -182,6 +182,8 @@ binds {
     
     // 电源管理
     Mod+Shift+P { power-off-monitors; }
+    // 切换壁纸
+    Mod+Shift+C { spawn "niri-run" "wallpaper-random"; }
 
     // ─── 焦点移动 (Vim 风格) ───
     Mod+H { focus-column-left; }
