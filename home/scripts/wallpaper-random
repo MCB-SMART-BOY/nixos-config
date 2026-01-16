@@ -67,28 +67,37 @@ if ! wait_for_wayland; then
   exit 1
 fi
 
-# Wallpaper directory managed by Home Manager.
-wallpaper_dir="${WALLPAPER_DIR:-${HOME}/Pictures/Wallpapers}"
-fallback_dir="/etc/nixos/home/assets/wallpapers"
-
-if [[ ! -d "${wallpaper_dir}" && -d "${fallback_dir}" ]]; then
-  wallpaper_dir="${fallback_dir}"
+# Wallpaper directories (first match wins).
+candidates=()
+if [[ -n "${WALLPAPER_DIR:-}" ]]; then
+  IFS=':' read -r -a candidates <<< "${WALLPAPER_DIR}"
 fi
-
-if [[ ! -d "${wallpaper_dir}" ]]; then
-  echo "wallpaper-random: wallpaper dir not found: ${wallpaper_dir}" >&2
-  exit 0
-fi
-
-# Collect supported image files.
-mapfile -d '' wallpapers < <(
-  find "${wallpaper_dir}" -maxdepth 1 -type f \
-    -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
+candidates+=(
+  "${HOME}/Pictures/Wallpapers"
+  "/etc/nixos/home/assets/wallpapers"
 )
 
+wallpaper_dir=""
+wallpapers=()
+
+for dir in "${candidates[@]}"; do
+  [[ -n "${dir}" ]] || continue
+  if [[ -d "${dir}" ]]; then
+    mapfile -d '' found < <(
+      find "${dir}" -maxdepth 1 -type f \
+        -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
+    )
+    if [[ ${#found[@]} -gt 0 ]]; then
+      wallpaper_dir="${dir}"
+      wallpapers=("${found[@]}")
+      break
+    fi
+  fi
+done
+
 if [[ ${#wallpapers[@]} -eq 0 ]]; then
-  echo "wallpaper-random: no wallpapers found in ${wallpaper_dir}" >&2
-  exit 0
+  echo "wallpaper-random: no wallpapers found in ${candidates[*]}" >&2
+  exit 1
 fi
 
 # Pick a random wallpaper.
