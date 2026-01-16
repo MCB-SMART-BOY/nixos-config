@@ -26,6 +26,7 @@ in
   };
 
   home.sessionPath = [
+    "/run/wrappers/bin"
     "${homeDir}/.cargo/bin"
     "${homeDir}/go/bin"
     "${homeDir}/.local/bin"
