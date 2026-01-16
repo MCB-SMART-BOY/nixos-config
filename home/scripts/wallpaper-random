@@ -84,7 +84,7 @@ for dir in "${candidates[@]}"; do
   [[ -n "${dir}" ]] || continue
   if [[ -d "${dir}" ]]; then
     mapfile -d '' found < <(
-      find "${dir}" -maxdepth 1 -type f \
+      find -L "${dir}" -maxdepth 1 -type f \
         -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
     )
     if [[ ${#found[@]} -gt 0 ]]; then
