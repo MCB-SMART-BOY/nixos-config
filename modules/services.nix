@@ -56,9 +56,10 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
-      User = clashUser;
+      User = "root";
       Group = "users";
       WorkingDirectory = clashHome;
+      UMask = "0002";
       Environment = [
         "HOME=${clashHome}"
         "XDG_CONFIG_HOME=${clashConfig}"
@@ -71,8 +72,13 @@ in
       ExecStart = "${pkgs.clash-verge-rev}/bin/clash-verge-service";
       CapabilityBoundingSet = netCaps;
       AmbientCapabilities = netCaps;
-      DevicePolicy = "closed";
-      DeviceAllow = [ "/dev/net/tun rwm" ];
+      DeviceAllow = [
+        "/dev/net/tun rwm"
+        "/dev/null rwm"
+        "/dev/zero rwm"
+        "/dev/random rwm"
+        "/dev/urandom rwm"
+      ];
       LockPersonality = true;
       MemoryDenyWriteExecute = true;
       NoNewPrivileges = true;
