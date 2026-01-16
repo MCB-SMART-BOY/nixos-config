@@ -34,6 +34,7 @@
 - `scripts/install.sh`：本地部署脚本
 - `scripts/install_from_github.sh`：云端同步部署脚本
 - `scripts/preflight.sh`：部署前自检（含网络与关键依赖检查）
+- `scripts/toolchain.sh`：安装开发工具链（rustup）
 - `scripts/sync_etc.sh`：同步仓库到 `/etc/nixos`
 - `scripts/sync_hardware.sh`：同步硬件配置
 - `scripts/rebuild.sh`：封装 `nixos-rebuild`
@@ -67,6 +68,7 @@
 - `--skip-preflight`：跳过部署前自检
 - `--temp-dns`：部署期间临时指定 DNS
 - `--dns <ip>`：追加临时 DNS（可多次）
+- `--skip-toolchain`：跳过工具链安装
 
 ## 常见扩展方式
 

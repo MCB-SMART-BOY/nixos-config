@@ -1,8 +1,10 @@
-{ ... }:
+{ config, ... }:
 
 {
   programs.zsh = {
     enable = true;
+    # Keep legacy dotDir to silence Home Manager warning.
+    dotDir = config.home.homeDirectory;
     enableCompletion = true;
     autosuggestion.enable = true;
     syntaxHighlighting.enable = true;

@@ -17,6 +17,7 @@
 - `preflight.sh`：部署前自检（依赖、网络、硬件配置等）
 - `install.sh`：本地部署（同步硬件配置、同步到 /etc/nixos、nixos-rebuild）
 - `install_from_github.sh`：从 GitHub 拉取并部署
+- `toolchain.sh`：安装开发工具链（rustup）
 - `sync_etc.sh`：同步仓库到 `/etc/nixos`
 - `sync_hardware.sh`：同步硬件配置到仓库
 - `rebuild.sh`：封装 `nixos-rebuild`（支持模式/目标切换）

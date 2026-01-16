@@ -73,6 +73,7 @@ sudo nixos-rebuild switch --flake .#nixos
 ./scripts/install.sh --no-sync-etc            # 不同步仓库到 /etc/nixos
 ./scripts/install.sh --no-rebuild             # 仅同步不重建
 ./scripts/install.sh --skip-preflight         # 跳过部署前检查
+./scripts/install.sh --skip-toolchain         # 跳过工具链安装
 ./scripts/install.sh --temp-dns               # 临时 DNS（默认 223.5.5.5 223.6.6.6 1.1.1.1 8.8.8.8）
 ./scripts/install.sh --dns 223.5.5.5 --dns 1.1.1.1
 ```
@@ -97,6 +98,7 @@ sudo nixos-rebuild switch --flake .#nixos
 - 执行 `nixos-rebuild` 后会由 Home Manager 生成并链接 `~/.config` 配置
 - 如需跳过自检可使用 `--skip-preflight`
 - 如需临时 DNS 可使用 `--temp-dns` 或多次传入 `--dns`
+- 默认会安装开发工具链（rustup），可用 `--skip-toolchain` 关闭
 
 一行下载到本地：
 

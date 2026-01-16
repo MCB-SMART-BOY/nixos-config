@@ -84,9 +84,37 @@ SHOW_TRACE=false
 NO_REBUILD=false
 FORCE_HARDWARE=false
 SKIP_PREFLIGHT=false
+SKIP_TOOLCHAIN=false
 TEMP_DNS=false
 DNS_IFACE=""
 DNS_SERVERS=()
+
+ORIGINAL_ARGS=("$@")
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --repo)
+      shift
+      [[ $# -gt 0 ]] || bootstrap_error "参数 --repo 需要一个值"
+      REPO_URL="$1"
+      ;;
+    --branch)
+      shift
+      [[ $# -gt 0 ]] || bootstrap_error "参数 --branch 需要一个值"
+      BRANCH="$1"
+      ;;
+    --lib-url)
+      shift
+      [[ $# -gt 0 ]] || bootstrap_error "参数 --lib-url 需要一个值"
+      LIB_URL="$1"
+      ;;
+    --)
+      shift
+      break
+      ;;
+  esac
+  shift
+done
+set -- "${ORIGINAL_ARGS[@]}"
 
 msg() {
   local level="$1"
@@ -125,10 +153,11 @@ usage() {
   --force-hardware     允许覆盖 /etc/nixos/hardware-configuration.nix
   --no-rebuild         跳过 nixos-rebuild
   --skip-preflight     跳过部署前检查
+  --skip-toolchain     跳过工具链安装
   --temp-dns           部署期间临时指定 DNS（默认 223.5.5.5 223.6.6.6 1.1.1.1 8.8.8.8）
   --dns <ip>           指定临时 DNS（可多次传入）
   --dns-iface <dev>    指定 DNS 绑定网卡（resolvectl）
-  LIB_URL              可选：指定 lib.sh 的直链地址
+  --lib-url <url>      指定 lib.sh 的直链地址
 EOF_USAGE
 }
 
@@ -174,6 +203,9 @@ parse_args() {
       --skip-preflight)
         SKIP_PREFLIGHT=true
         ;;
+      --skip-toolchain)
+        SKIP_TOOLCHAIN=true
+        ;;
       --temp-dns)
         TEMP_DNS=true
         ;;
@@ -188,6 +220,11 @@ parse_args() {
         [[ $# -gt 0 ]] || error "参数 --dns-iface 需要一个值"
         DNS_IFACE="$1"
         TEMP_DNS=true
+        ;;
+      --lib-url)
+        shift
+        [[ $# -gt 0 ]] || error "参数 --lib-url 需要一个值"
+        LIB_URL="$1"
         ;;
       --)
         shift
@@ -329,6 +366,9 @@ confirm() {
     steps+=("重建系统 (${MODE})")
     steps+=("刷新 Home Manager 配置")
   fi
+  if [[ "${SKIP_TOOLCHAIN}" != true ]]; then
+    steps+=("安装开发工具链")
+  fi
 
   if [[ "${ASSUME_YES}" == true ]]; then
     return
@@ -380,6 +420,25 @@ main() {
   else
     warn "跳过 nixos-rebuild"
     warn "未执行重建，~/.config 不会更新为 Home Manager 链接"
+  fi
+
+  if [[ "${SKIP_TOOLCHAIN}" != true ]]; then
+    if [[ -x "${ETC_DIR}/scripts/toolchain.sh" ]]; then
+      log "安装开发工具链"
+      if [[ "${ASSUME_YES}" == true ]]; then
+        if ! "${ETC_DIR}/scripts/toolchain.sh" --yes; then
+          warn "工具链安装失败，可稍后运行 /etc/nixos/scripts/toolchain.sh"
+        fi
+      else
+        if ! "${ETC_DIR}/scripts/toolchain.sh"; then
+          warn "工具链安装失败，可稍后运行 /etc/nixos/scripts/toolchain.sh"
+        fi
+      fi
+    else
+      warn "未找到 /etc/nixos/scripts/toolchain.sh，跳过工具链安装"
+    fi
+  else
+    warn "跳过工具链安装"
   fi
 }
 

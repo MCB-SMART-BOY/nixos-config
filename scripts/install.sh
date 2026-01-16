@@ -20,6 +20,7 @@ NO_REBUILD=false
 NO_SYNC=false
 NO_SYNC_ETC=false
 SKIP_PREFLIGHT=false
+SKIP_TOOLCHAIN=false
 TEMP_DNS=false
 DNS_IFACE=""
 DNS_SERVERS=()
@@ -60,6 +61,7 @@ usage() {
   --no-sync-etc      不同步仓库到 /etc/nixos
   --no-rebuild       跳过 nixos-rebuild
   --skip-preflight   跳过部署前检查
+  --skip-toolchain   跳过工具链安装
   --temp-dns         部署期间临时指定 DNS（默认 223.5.5.5 223.6.6.6 1.1.1.1 8.8.8.8）
   --dns <ip>         指定临时 DNS（可多次传入）
   --dns-iface <dev>  指定 DNS 绑定网卡（resolvectl）
@@ -98,6 +100,9 @@ parse_args() {
         ;;
       --skip-preflight)
         SKIP_PREFLIGHT=true
+        ;;
+      --skip-toolchain)
+        SKIP_TOOLCHAIN=true
         ;;
       --temp-dns)
         TEMP_DNS=true
@@ -253,6 +258,9 @@ confirm() {
   if [[ "${NO_REBUILD}" != true ]]; then
     steps+=("重建系统 (${MODE})")
   fi
+  if [[ "${SKIP_TOOLCHAIN}" != true ]]; then
+    steps+=("安装开发工具链")
+  fi
   if [[ ${#steps[@]} -eq 0 ]]; then
     error "无需执行任何操作（同时设置了 --no-sync 与 --no-rebuild）"
   fi
@@ -308,6 +316,25 @@ main() {
     rebuild_system
   else
     warn "跳过 nixos-rebuild"
+  fi
+
+  if [[ "${SKIP_TOOLCHAIN}" != true ]]; then
+    if [[ -x "${REPO_ROOT}/scripts/toolchain.sh" ]]; then
+      log "安装开发工具链"
+      if [[ "${ASSUME_YES}" == true ]]; then
+        if ! "${REPO_ROOT}/scripts/toolchain.sh" --yes; then
+          warn "工具链安装失败，可稍后运行 scripts/toolchain.sh"
+        fi
+      else
+        if ! "${REPO_ROOT}/scripts/toolchain.sh"; then
+          warn "工具链安装失败，可稍后运行 scripts/toolchain.sh"
+        fi
+      fi
+    else
+      warn "未找到 scripts/toolchain.sh，跳过工具链安装"
+    fi
+  else
+    warn "跳过工具链安装"
   fi
 }
 

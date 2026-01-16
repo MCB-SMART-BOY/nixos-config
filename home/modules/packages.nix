@@ -86,14 +86,13 @@ let
   dev = with pkgs; [
     # Toolchains
     rustup
+    # rust-analyzer is managed via rustup (rustup component add rust-analyzer)
     gcc
     gnumake
     clang
     cmake
     pkg-config
     openssl
-    # CUDA toolkit
-    cudaPackages.cudatoolkit
     # Editors/IDEs
     helix
     neovim
@@ -107,7 +106,6 @@ let
     uv
     conda
     # LSP and formatters
-    rust-analyzer
     nil
     marksman
     taplo
@@ -115,7 +113,6 @@ let
     lua-language-server
     gopls
     nixfmt
-    nixfmt-rfc-style
     black
     stylua
     shfmt

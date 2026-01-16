@@ -4,9 +4,11 @@
   programs.git = {
     enable = true;
     lfs.enable = true;
-    userName = "MCB-SMART-BOY";
-    userEmail = "mcb2720838051@gmail.com";
-    extraConfig = {
+    settings = {
+      user = {
+        name = "MCB-SMART-BOY";
+        email = "mcb2720838051@gmail.com";
+      };
       core = {
         editor = "hx";
         pager = "delta";
