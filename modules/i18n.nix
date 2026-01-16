@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 {
   time.timeZone = "Asia/Shanghai";
@@ -14,12 +14,15 @@
       type = "fcitx5";
       fcitx5 = {
         waylandFrontend = true;
-        addons = with pkgs; [
-          qt6Packages.fcitx5-chinese-addons
-          fcitx5-rime
-          fcitx5-gtk
-          qt6Packages.fcitx5-configtool
-        ];
+        addons =
+          (with pkgs; [
+            qt6Packages.fcitx5-chinese-addons
+            fcitx5-rime
+            fcitx5-gtk
+            qt6Packages.fcitx5-configtool
+          ])
+          ++ lib.optionals (lib.hasAttrByPath [ "fcitx5-qt" ] pkgs) [ pkgs.fcitx5-qt ]
+          ++ lib.optionals (lib.hasAttrByPath [ "qt6Packages" "fcitx5-qt" ] pkgs) [ pkgs.qt6Packages.fcitx5-qt ];
       };
     };
   };
