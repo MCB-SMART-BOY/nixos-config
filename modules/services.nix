@@ -71,6 +71,8 @@ in
       Restart = "on-failure";
       RestartSec = "2s";
       ExecStart = "${pkgs.clash-verge-rev}/bin/clash-verge-service";
+      RuntimeDirectory = "clash-verge-rev";
+      RuntimeDirectoryMode = "0755";
       CapabilityBoundingSet = netCaps;
       AmbientCapabilities = netCaps;
     };
