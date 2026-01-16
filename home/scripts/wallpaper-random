@@ -19,6 +19,16 @@ add_path "/etc/profiles/per-user/${USER}/bin"
 
 export PATH
 
+if [[ -z "${WAYLAND_DISPLAY:-}" && -n "${XDG_RUNTIME_DIR:-}" ]]; then
+  for sock in "${XDG_RUNTIME_DIR}"/wayland-*; do
+    if [[ -S "${sock}" ]]; then
+      WAYLAND_DISPLAY="$(basename "${sock}")"
+      export WAYLAND_DISPLAY
+      break
+    fi
+  done
+fi
+
 if [[ -z "${WAYLAND_DISPLAY:-}" ]]; then
   exit 0
 fi

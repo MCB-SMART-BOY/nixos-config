@@ -16,6 +16,7 @@ let
     systemd
     pipewire
     niri
+    swaybg
   ];
 
   network = with pkgs; [
@@ -65,7 +66,6 @@ let
     # Notifications and wallpaper
     mako
     libnotify
-    swaybg
     # Session helpers
     swaylock
     swayidle
