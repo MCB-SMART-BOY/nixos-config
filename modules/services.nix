@@ -7,6 +7,20 @@ let
     "CAP_NET_RAW"
   ];
   proxyUrl = vars.proxyUrl;
+  clashUser = vars.user;
+  clashHome = "/home/${clashUser}";
+  clashConfig = "${clashHome}/.config";
+  clashData = "${clashHome}/.local/share";
+  clashCache = "${clashHome}/.cache";
+  clashState = "${clashHome}/.local/state";
+  clashPath = lib.makeBinPath [
+    pkgs.clash-verge-rev
+    pkgs.mihomo
+    pkgs.iproute2
+    pkgs.iptables
+    pkgs.coreutils
+    pkgs.procps
+  ];
 in
 {
   services.openssh.enable = true;
@@ -42,6 +56,17 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
+      User = clashUser;
+      Group = "users";
+      WorkingDirectory = clashHome;
+      Environment = [
+        "HOME=${clashHome}"
+        "XDG_CONFIG_HOME=${clashConfig}"
+        "XDG_DATA_HOME=${clashData}"
+        "XDG_CACHE_HOME=${clashCache}"
+        "XDG_STATE_HOME=${clashState}"
+        "PATH=${clashPath}:/run/wrappers/bin"
+      ];
       Restart = "always";
       ExecStart = "${pkgs.clash-verge-rev}/bin/clash-verge-service";
       CapabilityBoundingSet = netCaps;
