@@ -42,4 +42,5 @@
 ```bash
 RUN_PREFLIGHT_ARGS="--no-network" RUN_INSTALL_ARGS="--mode test" ./run.sh
 RUN_CLOUD_ARGS="--yes --skip-preflight" ./run.sh cloud
+RUN_INSTALL_ARGS="--temp-dns" ./run.sh
 ```

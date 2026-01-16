@@ -6,6 +6,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SCRIPT_NAME="$(basename "$0")"
+# shellcheck source=./lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 TARGET_NAME="${TARGET_NAME:-nixos}"
 MODE="${MODE:-switch}"
 SHOW_TRACE=false
@@ -18,6 +20,9 @@ NO_REBUILD=false
 NO_SYNC=false
 NO_SYNC_ETC=false
 SKIP_PREFLIGHT=false
+TEMP_DNS=false
+DNS_IFACE=""
+DNS_SERVERS=()
 
 msg() {
   local level="$1"
@@ -55,6 +60,9 @@ usage() {
   --no-sync-etc      不同步仓库到 /etc/nixos
   --no-rebuild       跳过 nixos-rebuild
   --skip-preflight   跳过部署前检查
+  --temp-dns         部署期间临时指定 DNS（默认 223.5.5.5 223.6.6.6 1.1.1.1 8.8.8.8）
+  --dns <ip>         指定临时 DNS（可多次传入）
+  --dns-iface <dev>  指定 DNS 绑定网卡（resolvectl）
 EOF_USAGE
 }
 
@@ -90,6 +98,21 @@ parse_args() {
         ;;
       --skip-preflight)
         SKIP_PREFLIGHT=true
+        ;;
+      --temp-dns)
+        TEMP_DNS=true
+        ;;
+      --dns)
+        shift
+        [[ $# -gt 0 ]] || error "参数 --dns 需要一个值"
+        DNS_SERVERS+=("$1")
+        TEMP_DNS=true
+        ;;
+      --dns-iface)
+        shift
+        [[ $# -gt 0 ]] || error "参数 --dns-iface 需要一个值"
+        DNS_IFACE="$1"
+        TEMP_DNS=true
         ;;
       --)
         shift
@@ -148,6 +171,9 @@ check_env() {
 
   if [[ "${needs_sudo}" == true ]] && ! command -v sudo >/dev/null 2>&1; then
     error "需要 sudo，但未找到该命令。"
+  fi
+  if [[ "${TEMP_DNS}" == true ]] && ! command -v sudo >/dev/null 2>&1; then
+    error "临时 DNS 需要 sudo，但未找到该命令。"
   fi
 
   if [[ "${NO_REBUILD}" != true ]] && ! command -v nixos-rebuild >/dev/null 2>&1; then
@@ -251,6 +277,13 @@ main() {
   validate_flags
   validate_mode
   check_env
+
+  if [[ "${TEMP_DNS}" == true ]]; then
+    TEMP_DNS_IFACE="${DNS_IFACE}"
+    log "启用临时 DNS..."
+    temp_dns_enable "${DNS_SERVERS[@]}"
+    trap temp_dns_disable EXIT
+  fi
 
   if [[ "${SKIP_PREFLIGHT}" != true && -x "${REPO_ROOT}/scripts/preflight.sh" ]]; then
     log "运行部署前检查 (preflight)"

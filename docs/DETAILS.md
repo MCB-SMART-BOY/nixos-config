@@ -65,6 +65,8 @@
 - `--no-sync-etc`：不同步仓库到 `/etc/nixos`
 - `--no-rebuild`：仅同步不重建
 - `--skip-preflight`：跳过部署前自检
+- `--temp-dns`：部署期间临时指定 DNS
+- `--dns <ip>`：追加临时 DNS（可多次）
 
 ## 常见扩展方式
 

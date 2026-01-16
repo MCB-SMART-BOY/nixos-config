@@ -3,7 +3,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "$0")"
+# shellcheck source=./lib.sh
+source "${SCRIPT_DIR}/lib.sh"
 REPO_URL="${REPO_URL:-https://github.com/MCB-SMART-BOY/nixos-config.git}"
 BRANCH="${BRANCH:-master}"
 TARGET_NAME="${TARGET_NAME:-nixos}"
@@ -14,6 +17,9 @@ SHOW_TRACE=false
 NO_REBUILD=false
 FORCE_HARDWARE=false
 SKIP_PREFLIGHT=false
+TEMP_DNS=false
+DNS_IFACE=""
+DNS_SERVERS=()
 
 msg() {
   local level="$1"
@@ -52,6 +58,9 @@ usage() {
   --force-hardware     允许覆盖 /etc/nixos/hardware-configuration.nix
   --no-rebuild         跳过 nixos-rebuild
   --skip-preflight     跳过部署前检查
+  --temp-dns           部署期间临时指定 DNS（默认 223.5.5.5 223.6.6.6 1.1.1.1 8.8.8.8）
+  --dns <ip>           指定临时 DNS（可多次传入）
+  --dns-iface <dev>    指定 DNS 绑定网卡（resolvectl）
 EOF_USAGE
 }
 
@@ -96,6 +105,21 @@ parse_args() {
         ;;
       --skip-preflight)
         SKIP_PREFLIGHT=true
+        ;;
+      --temp-dns)
+        TEMP_DNS=true
+        ;;
+      --dns)
+        shift
+        [[ $# -gt 0 ]] || error "参数 --dns 需要一个值"
+        DNS_SERVERS+=("$1")
+        TEMP_DNS=true
+        ;;
+      --dns-iface)
+        shift
+        [[ $# -gt 0 ]] || error "参数 --dns-iface 需要一个值"
+        DNS_IFACE="$1"
+        TEMP_DNS=true
         ;;
       --)
         shift
@@ -225,17 +249,14 @@ activate_home_manager() {
 }
 
 confirm() {
-  local steps=(
-    "拉取仓库 ${REPO_URL} (${BRANCH})"
-    "运行部署前自检 (preflight)"
-    "同步配置到 ${ETC_DIR}"
-  )
-  if [[ "${SKIP_PREFLIGHT}" == true ]]; then
-    steps=(
-      "拉取仓库 ${REPO_URL} (${BRANCH})"
-      "同步配置到 ${ETC_DIR}"
-    )
+  local steps=("拉取仓库 ${REPO_URL} (${BRANCH})")
+  if [[ "${TEMP_DNS}" == true ]]; then
+    steps+=("临时指定 DNS")
   fi
+  if [[ "${SKIP_PREFLIGHT}" != true ]]; then
+    steps+=("运行部署前自检 (preflight)")
+  fi
+  steps+=("同步配置到 ${ETC_DIR}")
   if [[ "${NO_REBUILD}" != true ]]; then
     steps+=("重建系统 (${MODE})")
     steps+=("刷新 Home Manager 配置")
@@ -264,7 +285,19 @@ main() {
 
   local tmp_dir
   tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "${tmp_dir}"' EXIT
+  cleanup() {
+    local status=$?
+    temp_dns_disable
+    rm -rf "${tmp_dir}"
+    exit "${status}"
+  }
+  trap cleanup EXIT
+
+  if [[ "${TEMP_DNS}" == true ]]; then
+    TEMP_DNS_IFACE="${DNS_IFACE}"
+    log "启用临时 DNS..."
+    temp_dns_enable "${DNS_SERVERS[@]}"
+  fi
 
   clone_repo "${tmp_dir}"
   if [[ "${SKIP_PREFLIGHT}" != true && -x "${tmp_dir}/scripts/preflight.sh" ]]; then
