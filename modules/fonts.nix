@@ -1,8 +1,16 @@
 { pkgs, lib, ... }:
 
 let
-  hasManrope = builtins.hasAttr "manrope" pkgs;
-  hasGoogleFonts = builtins.hasAttr "google-fonts" pkgs;
+  manropeEval =
+    if pkgs ? manrope then
+      builtins.tryEval pkgs.manrope
+    else
+      { success = false; value = null; };
+  googleFontsEval =
+    if pkgs ? "google-fonts" then
+      builtins.tryEval pkgs."google-fonts"
+    else
+      { success = false; value = null; };
 in {
   fonts = {
     packages = with pkgs; [
@@ -16,8 +24,8 @@ in {
       font-awesome
       wqy_zenhei
       wqy_microhei
-    ] ++ lib.optionals hasManrope [ pkgs.manrope ]
-      ++ lib.optionals (!hasManrope && hasGoogleFonts) [ pkgs.google-fonts ];
+    ] ++ lib.optionals manropeEval.success [ manropeEval.value ]
+      ++ lib.optionals (!manropeEval.success && googleFontsEval.success) [ googleFontsEval.value ];
     fontconfig = {
       defaultFonts = {
         monospace = [
