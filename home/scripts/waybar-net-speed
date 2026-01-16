@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
+state_file="${cache_dir}/waybar-net-speed.state"
+
+mkdir -p "${cache_dir}"
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+get_iface() {
+  if command -v ip >/dev/null 2>&1; then
+    ip -4 route list default 2>/dev/null \
+      | awk '{for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}'
+  fi
+}
+
+iface="$(get_iface)"
+if [[ -z "${iface}" ]]; then
+  iface="$(ls -1 /sys/class/net 2>/dev/null | grep -v '^lo$' | head -n1 || true)"
+fi
+
+if [[ -z "${iface}" ]]; then
+  emit_json "" "No network interface" "disconnected"
+  exit 0
+fi
+
+rx_path="/sys/class/net/${iface}/statistics/rx_bytes"
+tx_path="/sys/class/net/${iface}/statistics/tx_bytes"
+state_path="/sys/class/net/${iface}/operstate"
+
+if [[ ! -f "${rx_path}" || ! -f "${tx_path}" ]]; then
+  emit_json "" "No stats for ${iface}" "disconnected"
+  exit 0
+fi
+
+operstate="up"
+if [[ -f "${state_path}" ]]; then
+  operstate="$(cat "${state_path}")"
+fi
+
+now="$(date +%s)"
+rx_now="$(cat "${rx_path}")"
+tx_now="$(cat "${tx_path}")"
+
+if [[ -f "${state_file}" ]]; then
+  read -r rx_prev tx_prev time_prev < "${state_file}" || true
+else
+  rx_prev="${rx_now}"
+  tx_prev="${tx_now}"
+  time_prev="${now}"
+fi
+
+dt=$(( now - time_prev ))
+(( dt > 0 )) || dt=1
+
+rx_diff=$(( rx_now - rx_prev ))
+tx_diff=$(( tx_now - tx_prev ))
+(( rx_diff >= 0 )) || rx_diff=0
+(( tx_diff >= 0 )) || tx_diff=0
+
+rx_rate=$(( rx_diff / dt ))
+tx_rate=$(( tx_diff / dt ))
+
+printf '%s %s %s\n' "${rx_now}" "${tx_now}" "${now}" > "${state_file}"
+
+format_rate() {
+  local rate="$1"
+  if command -v numfmt >/dev/null 2>&1; then
+    numfmt --to=iec --suffix=B/s --format="%.1f" "${rate}"
+    return
+  fi
+
+  if (( rate < 1024 )); then
+    printf "%dB/s" "${rate}"
+  elif (( rate < 1048576 )); then
+    awk -v r="${rate}" 'BEGIN { printf "%.1fKB/s", r/1024 }'
+  elif (( rate < 1073741824 )); then
+    awk -v r="${rate}" 'BEGIN { printf "%.1fMB/s", r/1048576 }'
+  else
+    awk -v r="${rate}" 'BEGIN { printf "%.1fGB/s", r/1073741824 }'
+  fi
+}
+
+rx_human="$(format_rate "${rx_rate}")"
+tx_human="$(format_rate "${tx_rate}")"
+
+text="U:${tx_human} D:${rx_human}"
+tooltip="Iface ${iface}\\nUp ${tx_human}\\nDown ${rx_human}"
+
+if [[ "${operstate}" != "up" ]]; then
+  emit_json "${text}" "${tooltip}" "disconnected"
+else
+  emit_json "${text}" "${tooltip}" "connected"
+fi

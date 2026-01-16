@@ -11,6 +11,7 @@ key-hl-color=34d399
 line-color=1f2937
 inside-color=0b0f14
 separator-color=0b0f14
+text-color=e2e8f0
 
 # 验证时
 ring-ver-color=a5b4fc
@@ -28,9 +29,9 @@ inside-clear-color=0b0f14
 text-clear-color=fbbf24
 
 # 杂项
-indicator-radius=100
-indicator-thickness=7
-font=JetBrainsMono Nerd Font
+indicator-radius=94
+indicator-thickness=6
+font=Manrope
 show-failed-attempts
 daemonize # 后台运行，避免阻塞 Niri
 ignore-empty-password

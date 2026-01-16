@@ -20,6 +20,26 @@
     executable = true;
   };
 
+  home.file.".local/bin/lock-screen" = {
+    source = ../scripts/lock-screen;
+    executable = true;
+  };
+
+  home.file.".local/bin/waybar-flake-updates" = {
+    source = ../scripts/waybar-flake-updates;
+    executable = true;
+  };
+
+  home.file.".local/bin/waybar-proxy-status" = {
+    source = ../scripts/waybar-proxy-status;
+    executable = true;
+  };
+
+  home.file.".local/bin/waybar-net-speed" = {
+    source = ../scripts/waybar-net-speed;
+    executable = true;
+  };
+
   programs.swaylock.enable = true;
   programs.fuzzel.enable = true;
   programs.waybar.enable = true;

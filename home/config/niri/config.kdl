@@ -147,7 +147,7 @@ spawn-at-startup "swayidle" "-w"
 // ══════════════════════════════════════════════════════════════════
 
 window-rule {
-    geometry-corner-radius 14
+    geometry-corner-radius 16
     clip-to-geometry true
 }
 
@@ -179,7 +179,7 @@ binds {
     Mod+Shift+Slash { show-hotkey-overlay; }
     
     // 锁屏
-    Mod+Escape { spawn "swaylock"; }
+    Mod+Escape { spawn "sh" "-c" "$HOME/.local/bin/lock-screen"; }
     
     // 电源管理
     Mod+Shift+P { power-off-monitors; }

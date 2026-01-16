@@ -23,6 +23,15 @@ fi
 # Pick a random wallpaper.
 choice="${wallpapers[RANDOM % ${#wallpapers[@]}]}"
 
+# Keep a stable lockscreen image path.
+cache_dir="${HOME}/.cache"
+lock_image="${cache_dir}/wallpaper-lock.png"
+current_image="${cache_dir}/wallpaper-current"
+
+mkdir -p "${cache_dir}"
+ln -sf "${choice}" "${lock_image}"
+ln -sf "${choice}" "${current_image}"
+
 # Restart swaybg to apply the new wallpaper.
 if command -v pkill >/dev/null 2>&1; then
   pkill swaybg >/dev/null 2>&1 || true

@@ -5,11 +5,11 @@
     // Global layout
     "layer": "top",
     "position": "top",
-    "height": 34,
-    "spacing": 8,
-    "margin-top": 10,
-    "margin-left": 14,
-    "margin-right": 14,
+    "height": 30,
+    "spacing": 4,
+    "margin-top": 8,
+    "margin-left": 10,
+    "margin-right": 10,
 
     // Module order
     "modules-left": [
@@ -20,13 +20,20 @@
         "clock"
     ],
     "modules-right": [
+        "custom/updates",
         "tray",
         "network",
+        "custom/net-speed",
+        "bluetooth",
         "pulseaudio",
-        "cpu",
-        "memory",
         "backlight",
         "battery",
+        "idle_inhibitor",
+        "cpu",
+        "memory",
+        "temperature",
+        "disk",
+        "custom/proxy",
         "custom/power"
     ],
 
@@ -80,28 +87,58 @@
         }
     },
 
+    // Flake updates
+    "custom/updates": {
+        "exec": "sh -c \"$HOME/.local/bin/waybar-flake-updates\"",
+        "interval": 900,
+        "return-type": "json",
+        "format": "󰏗{}",
+        "tooltip": true
+    },
+
     // System tray
     "tray": {
-        "icon-size": 16,
-        "spacing": 8
+        "icon-size": 14,
+        "spacing": 6
     },
 
     // Network indicator (click to edit connections)
     "network": {
-        "format-wifi": "󰤨 ",
-        "format-ethernet": "󰈀 ",
-        "format-disconnected": "󰤭 ",
-        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}",
-        "tooltip-format-ethernet": "{ifname}\n{ipaddr}",
+        "format-wifi": "󰤨",
+        "format-ethernet": "󰈀",
+        "format-disconnected": "󰤭",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}\n↑{bandwidthUpBits} ↓{bandwidthDownBits}",
+        "tooltip-format-ethernet": "{ifname}\n{ipaddr}\n↑{bandwidthUpBits} ↓{bandwidthDownBits}",
         // Simple status for offline state
         "tooltip-format-disconnected": "disconnected",
         "on-click": "nm-connection-editor"
     },
 
+    // Live network speed
+    "custom/net-speed": {
+        "exec": "sh -c \"$HOME/.local/bin/waybar-net-speed\"",
+        "interval": 2,
+        "return-type": "json",
+        "format": "󰛿 {}",
+        "tooltip": true
+    },
+
+    // Bluetooth status
+    "bluetooth": {
+        "format": "󰂯",
+        "format-disabled": "󰂲",
+        "format-off": "󰂲",
+        "format-on": "󰂯",
+        "format-connected": "󰂱",
+        "tooltip-format": "{status}"
+    },
+
     // Audio volume (PipeWire/Pulse)
     "pulseaudio": {
-        "format": "{icon} {volume}%",
-        "format-muted": "󰝟 ",
+        "format": "{icon}",
+        "tooltip-format": "Volume {volume}% ({desc})",
+        "format-muted": "󰝟",
+        "tooltip-format-muted": "Muted",
         "format-icons": {
             "default": [
                 "󰕿",
@@ -118,21 +155,38 @@
 
     // CPU usage
     "cpu": {
-        "format": " {usage}%",
-        "tooltip": false,
+        "format": "",
+        "tooltip-format": "CPU {usage}% (avg {avg_frequency}GHz)",
         "interval": 2
     },
 
     // Memory usage
     "memory": {
-        "format": "󰍛 {percentage}%",
-        "tooltip-format": "RAM {used} / {total} (avail {available})",
+        "format": "󰍛",
+        "tooltip-format": "RAM {used} / {total} ({percentage}%)",
         "interval": 2
+    },
+
+    // Temperature (requires lm_sensors)
+    "temperature": {
+        "format": "󰔏",
+        "tooltip-format": "Temp {temperatureC}°C",
+        "critical-threshold": 80,
+        "interval": 5
+    },
+
+    // Disk usage
+    "disk": {
+        "format": "󰋊",
+        "path": "/",
+        "tooltip-format": "Disk {used} / {total} ({percentage}%)",
+        "interval": 60
     },
 
     // Backlight control
     "backlight": {
-        "format": "{icon} {percent}%",
+        "format": "{icon}",
+        "tooltip-format": "Brightness {percent}%",
         "format-icons": [
             "󰃞",
             "󰃟",
@@ -148,7 +202,7 @@
             "warning": 30,
             "critical": 15
         },
-        "format": "{icon} {capacity}%",
+        "format": "{icon}{capacity}%",
         // Alt format shows time remaining
         "format-alt": "{icon} {timeTo}",
         "format-charging": "󰂄 {capacity}%",
@@ -167,6 +221,23 @@
             "󰁹"
         ],
         "tooltip-format": "{timeTo}\nPower: {power}W"
+    },
+
+    // Proxy status
+    "custom/proxy": {
+        "exec": "sh -c \"$HOME/.local/bin/waybar-proxy-status\"",
+        "interval": 5,
+        "return-type": "json",
+        "format": "󰛳{}",
+        "tooltip": true
+    },
+
+    // Idle inhibitor
+    "idle_inhibitor": {
+        "format": "󰈈",
+        "format-activated": "󰈉",
+        "tooltip-format": "Idle allowed",
+        "tooltip-format-activated": "Idle inhibited"
     },
 
     // Power action (exit Niri session)

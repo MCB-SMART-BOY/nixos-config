@@ -5,6 +5,7 @@
     packages = with pkgs; [
       nerd-fonts.jetbrains-mono
       nerd-fonts.fira-code
+      manrope
       noto-fonts-cjk-sans
       noto-fonts-cjk-serif
       source-han-sans
@@ -21,6 +22,7 @@
           "LXGW WenKai Mono"
         ];
         sansSerif = [
+          "Manrope"
           "Noto Sans CJK SC"
           "LXGW WenKai"
         ];

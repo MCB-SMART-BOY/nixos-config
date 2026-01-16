@@ -3,19 +3,19 @@
 # DMS/Noctalia-inspired Theme
 
 # 基础样式
-font=JetBrainsMono Nerd Font 12
-background-color=#0f172ae6
+font=Manrope 12
+background-color=#0b0f14e6
 text-color=#e2e8f0
 border-color=#7dd3fc
-border-size=2
-border-radius=14
+border-size=1
+border-radius=16
 progress-color=over #7dd3fc
 
 # 尺寸与位置
 width=420
 height=160
-margin=20
-padding=15
+margin=24
+padding=18
 anchor=top-right
 
 # 行为
@@ -39,14 +39,14 @@ icon-path=/run/current-system/sw/share/icons/Papirus-Dark
 invisible=1
 
 [urgency=low]
-background-color=#0f172ae6
+background-color=#0b0f14e6
 border-color=#34d399
 
 [urgency=normal]
-background-color=#0f172ae6
+background-color=#0b0f14e6
 border-color=#7dd3fc
 
 [urgency=high]
-background-color=#0f172ae6
+background-color=#0b0f14e6
 border-color=#f87171
 default-timeout=0

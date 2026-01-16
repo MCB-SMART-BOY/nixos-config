@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+lock_image="${HOME}/.cache/wallpaper-lock.png"
+
+if [[ -f "${lock_image}" ]]; then
+  exec swaylock -i "${lock_image}"
+fi
+
+exec swaylock

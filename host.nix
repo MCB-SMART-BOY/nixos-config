@@ -4,7 +4,9 @@ let
   vars = {
     user = "mcbnixos";
     tunInterface = "clash0";
-    proxyUrl = "http://127.0.0.1:7890";
+    # Leave empty to keep system proxy/DNS disabled by default.
+    # When using Clash Verge, let it manage proxy/DNS on demand.
+    proxyUrl = "";
   };
 in
 {

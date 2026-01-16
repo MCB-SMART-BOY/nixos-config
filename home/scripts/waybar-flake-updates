@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+LOCK_FILE="${REPO_ROOT}/flake.lock"
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
+cache_file="${cache_dir}/waybar-flake-updates.json"
+lock_file="${cache_dir}/waybar-flake-updates.lock"
+ttl_seconds=900
+
+mkdir -p "${cache_dir}"
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+if [[ -f "${cache_file}" ]]; then
+  cache_age=$(( $(date +%s) - $(stat -c %Y "${cache_file}") ))
+  if (( cache_age < ttl_seconds )); then
+    cat "${cache_file}"
+    exit 0
+  fi
+fi
+
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"${lock_file}"
+  if ! flock -n 9; then
+    cat "${cache_file}" 2>/dev/null || emit_json "" "Update check in progress" "pending"
+    exit 0
+  fi
+fi
+
+if [[ ! -f "${LOCK_FILE}" ]]; then
+  emit_json "" "flake.lock not found" "error" | tee "${cache_file}"
+  exit 0
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+  emit_json "" "jq not installed" "error" | tee "${cache_file}"
+  exit 0
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+  emit_json "" "git not installed" "error" | tee "${cache_file}"
+  exit 0
+fi
+
+updates=0
+updated_list=()
+
+while IFS=$'\t' read -r name owner repo ref rev; do
+  [[ -n "${owner}" && -n "${repo}" && -n "${rev}" ]] || continue
+  [[ -n "${ref}" && "${ref}" != "null" ]] || ref="HEAD"
+
+  remote_rev="$(
+    GIT_TERMINAL_PROMPT=0 git ls-remote "https://github.com/${owner}/${repo}.git" "${ref}" 2>/dev/null \
+      | head -n1 | awk '{print $1}'
+  )"
+
+  if [[ -n "${remote_rev}" && "${remote_rev}" != "${rev}" ]]; then
+    updates=$(( updates + 1 ))
+    updated_list+=( "${name}" )
+  fi
+done < <(
+  jq -r 'to_entries[]
+    | select(.value.locked.type == "github")
+    | [.key, .value.locked.owner, .value.locked.repo, (.value.original.ref // "HEAD"), .value.locked.rev]
+    | @tsv' "${LOCK_FILE}"
+)
+
+if (( updates > 0 )); then
+  tooltip="Updates available: ${updates}\\n${updated_list[*]}"
+  emit_json " ${updates}" "${tooltip}" "updates" | tee "${cache_file}"
+else
+  emit_json "" "Up to date" "up-to-date" | tee "${cache_file}"
+fi
