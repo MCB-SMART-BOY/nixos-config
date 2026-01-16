@@ -90,6 +90,7 @@ sudo nixos-rebuild switch --flake .#nixos
 
 ```bash
 ./run.sh cloud
+./run.sh sync
 ./run.sh install_from_github --repo https://github.com/MCB-SMART-BOY/nixos-config.git --branch master
 ```
 
@@ -99,6 +100,7 @@ sudo nixos-rebuild switch --flake .#nixos
 - 如需跳过自检可使用 `--skip-preflight`
 - 如需临时 DNS 可使用 `--temp-dns` 或多次传入 `--dns`
 - 默认会安装开发工具链（rustup），可用 `--skip-toolchain` 关闭
+- `./run.sh sync` 仅更新当前目录（安全 fast-forward），不触发部署
 
 一行下载到本地：
 

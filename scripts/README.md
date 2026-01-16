@@ -10,6 +10,7 @@
 ./run.sh install --mode test
 ./run.sh            # 默认执行 preflight + install
 ./run.sh cloud      # 默认从 GitHub 拉取并部署
+./run.sh sync       # 同步当前目录到云端最新版本
 ```
 
 ## 脚本清单
@@ -17,6 +18,7 @@
 - `preflight.sh`：部署前自检（依赖、网络、硬件配置等）
 - `install.sh`：本地部署（同步硬件配置、同步到 /etc/nixos、nixos-rebuild）
 - `install_from_github.sh`：从 GitHub 拉取并部署
+- `sync_cloud.sh`：同步当前仓库到云端最新版本
 - `toolchain.sh`：安装开发工具链（rustup）
 - `sync_etc.sh`：同步仓库到 `/etc/nixos`
 - `sync_hardware.sh`：同步硬件配置到仓库

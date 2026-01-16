@@ -19,6 +19,7 @@ Usage: ${SCRIPT_NAME} [command] [args]
 Commands:
   auto                 Run preflight + install (default)
   cloud                Run install_from_github with defaults
+  sync                 Sync current repo with remote (safe git pull)
   list                 List available scripts
   help [command]       Show help for a script
 
@@ -33,6 +34,7 @@ Environment:
   RUN_PREFLIGHT_ARGS   Extra args for preflight.sh
   RUN_INSTALL_ARGS     Extra args for install.sh
   RUN_CLOUD_ARGS       Extra args for install_from_github.sh
+  RUN_SYNC_ARGS        Extra args for sync_cloud.sh
 EOF_USAGE
 }
 
@@ -72,6 +74,7 @@ list_scripts() {
   printf '\nBuilt-in workflows:\n'
   printf '  %-20s %s\n' "auto" "Run preflight + install"
   printf '  %-20s %s\n' "cloud" "Run install_from_github with defaults"
+  printf '  %-20s %s\n' "sync" "Sync current repo with remote (safe git pull)"
 }
 
 resolve_script() {
@@ -140,6 +143,17 @@ run_cloud() {
   fi
 }
 
+run_sync() {
+  local sync_args=()
+  split_env_args "${RUN_SYNC_ARGS:-}" sync_args
+
+  if [[ -x "${SCRIPTS_DIR}/sync_cloud.sh" ]]; then
+    "${SCRIPTS_DIR}/sync_cloud.sh" "${sync_args[@]}"
+  else
+    err "sync_cloud.sh not found or not executable"
+  fi
+}
+
 show_script_help() {
   local target="$1"
   local script
@@ -181,6 +195,9 @@ main() {
       ;;
     cloud|remote)
       run_cloud
+      ;;
+    sync|update)
+      run_sync
       ;;
     *)
       run_script "${cmd}" "$@"
