@@ -18,7 +18,6 @@ $git_commit\
 $rust\
 $python\
 $golang\
-$nodejs\
 $nix_shell\
 $docker_context\
 $cmd_duration\
@@ -34,7 +33,7 @@ scan_timeout = 50
 # 换行前添加空行
 add_newline = true
 
-palette = "catppuccin_mocha"
+palette = "noctalia"
 
 # ══════════════════════════════════════════════════════════════════
 # 📍 Prompt Character (提示符符号)
@@ -168,11 +167,7 @@ detect_files = ["go.mod", "go.sum"]
 # ══════════════════════════════════════════════════════════════════
 
 [nodejs]
-symbol = " "
-style = "bold green"
-format = "via [$symbol($version )]($style)"
-detect_extensions = ["js", "ts", "mjs"]
-detect_files = ["package.json", "tsconfig.json"]
+disabled = true
 
 # ══════════════════════════════════════════════════════════════════
 # ❄️ Nix Shell
@@ -208,33 +203,33 @@ show_milliseconds = false
 show_notifications = false
 
 # ══════════════════════════════════════════════════════════════════
-# 🎨 Palette (Catppuccin Mocha)
+# 🎨 Palette (DMS/Noctalia-inspired)
 # ══════════════════════════════════════════════════════════════════
 
-[palettes.catppuccin_mocha]
-rosewater = "#f5e0dc"
-flamingo = "#f2cdcd"
-pink = "#f5c2e7"
-mauve = "#cba6f7"
-red = "#f38ba8"
-maroon = "#eba0ac"
-peach = "#fab387"
-yellow = "#f9e2af"
-green = "#a6e3a1"
-teal = "#94e2d5"
-sky = "#89dceb"
-sapphire = "#74c7ec"
-blue = "#89b4fa"
-lavender = "#b4befe"
-text = "#cdd6f4"
-subtext1 = "#bac2de"
-subtext0 = "#a6adc8"
-overlay2 = "#9399b2"
-overlay1 = "#7f849c"
-overlay0 = "#6c7086"
-surface2 = "#585b70"
-surface1 = "#45475a"
-surface0 = "#313244"
-base = "#1e1e2e"
-mantle = "#181825"
-crust = "#11111b"
+[palettes.noctalia]
+rosewater = "#f8fafc"
+flamingo = "#e2e8f0"
+pink = "#c7d2fe"
+mauve = "#a5b4fc"
+red = "#f87171"
+maroon = "#fb7185"
+peach = "#fbbf24"
+yellow = "#fbbf24"
+green = "#34d399"
+teal = "#5eead4"
+sky = "#7dd3fc"
+sapphire = "#38bdf8"
+blue = "#7dd3fc"
+lavender = "#a5b4fc"
+text = "#e2e8f0"
+subtext1 = "#cbd5e1"
+subtext0 = "#94a3b8"
+overlay2 = "#64748b"
+overlay1 = "#475569"
+overlay0 = "#334155"
+surface2 = "#1f2937"
+surface1 = "#111827"
+surface0 = "#0f172a"
+base = "#0b0f14"
+mantle = "#0b0f14"
+crust = "#0b0f14"

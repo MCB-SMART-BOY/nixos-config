@@ -12,6 +12,7 @@ in
     enable = heavy;
   };
 
+  xdg.configFile."foot/foot.ini".source = ../config/foot/foot.ini;
   xdg.configFile."alacritty/alacritty.toml" = lib.mkIf heavy {
     source = ../config/alacritty/alacritty.toml;
   };
