@@ -1,0 +1,6 @@
+#!/run/current-system/sw/bin/bash
+set -euo pipefail
+
+export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER}/bin:${HOME}/.nix-profile/bin:${HOME}/.local/bin:${PATH}"
+
+exec "$@"

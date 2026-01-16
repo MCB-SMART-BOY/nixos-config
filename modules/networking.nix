@@ -9,13 +9,8 @@ in
   networking = {
     networkmanager = {
       enable = true;
-      dns = "none";
+      dns = "systemd-resolved";
     };
-
-    nameservers = (lib.optionals proxyEnabled [ "127.0.0.1" ]) ++ [
-      "223.5.5.5"
-      "1.1.1.1"
-    ];
 
     proxy = lib.mkIf proxyEnabled {
       default = proxyUrl;
@@ -41,5 +36,12 @@ in
     };
   };
 
-  services.resolved.enable = false;
+  services.resolved = {
+    enable = true;
+    dns = lib.optionals proxyEnabled [ "127.0.0.1" ];
+    fallbackDns = [
+      "223.5.5.5"
+      "1.1.1.1"
+    ];
+  };
 }

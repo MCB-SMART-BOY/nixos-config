@@ -25,6 +25,11 @@
     executable = true;
   };
 
+  home.file.".local/bin/niri-run" = {
+    source = ../scripts/niri-run;
+    executable = true;
+  };
+
   home.file.".local/bin/waybar-flake-updates" = {
     source = ../scripts/waybar-flake-updates;
     executable = true;
