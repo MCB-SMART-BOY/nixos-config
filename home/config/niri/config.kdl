@@ -134,8 +134,7 @@ screenshot-path "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
 // ══════════════════════════════════════════════════════════════════
 
 spawn-at-startup "niri-run" "waybar"
-// 随机壁纸脚本（由 Home Manager 提供）
-spawn-at-startup "niri-run" "wallpaper-random"
+// 随机壁纸脚本改由 systemd 用户服务启动（graphical-session.target），更稳定
 // NetworkManager 托盘（可在 Waybar 托盘显示）
 spawn-at-startup "niri-run" "nm-applet"
 spawn-at-startup "niri-run" "mako"

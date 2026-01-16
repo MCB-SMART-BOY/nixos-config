@@ -45,6 +45,23 @@
     executable = true;
   };
 
+  systemd.user.services.wallpaper-random = {
+    Unit = {
+      Description = "Random wallpaper (swaybg)";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+    };
+    Service = {
+      Type = "simple";
+      ExecStart = "%h/.local/bin/wallpaper-random";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+    Install = {
+      WantedBy = [ "graphical-session.target" ];
+    };
+  };
+
   programs.swaylock.enable = true;
   programs.fuzzel.enable = true;
   programs.waybar.enable = true;

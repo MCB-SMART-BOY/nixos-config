@@ -154,7 +154,8 @@ let
     kazumi
     mangayomi
     bilibili
-  ];
+  ] ++ lib.optionals (pkgs ? yesplaymusic) [ pkgs.yesplaymusic ]
+    ++ lib.optionals (pkgs ? musicfox) [ pkgs.musicfox ];
 
   gaming = with pkgs; [
     # Core clients/tools
