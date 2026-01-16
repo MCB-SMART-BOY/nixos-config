@@ -5,10 +5,77 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "$0")"
-# shellcheck source=./lib.sh
-source "${SCRIPT_DIR}/lib.sh"
 REPO_URL="${REPO_URL:-https://github.com/MCB-SMART-BOY/nixos-config.git}"
 BRANCH="${BRANCH:-master}"
+
+bootstrap_warn() {
+  printf '[警告] %s\n' "$*" >&2
+}
+
+bootstrap_error() {
+  printf '[错误] %s\n' "$*" >&2
+  exit 1
+}
+
+derive_repo_slug() {
+  local url="$1"
+  local slug
+  slug="${url#*github.com/}"
+  if [[ "${slug}" == "${url}" ]]; then
+    slug="${url#*github.com:}"
+  fi
+  slug="${slug%.git}"
+  slug="${slug%%/}"
+  if [[ -z "${slug}" || "${slug}" == "${url}" ]]; then
+    return 1
+  fi
+  printf '%s' "${slug}"
+}
+
+download_lib() {
+  local slug raw_url tmp_file lib_path
+  lib_path="${SCRIPT_DIR}/lib.sh"
+
+  if [[ -n "${LIB_URL:-}" ]]; then
+    raw_url="${LIB_URL}"
+  else
+    slug="$(derive_repo_slug "${REPO_URL}")" || bootstrap_error "无法解析仓库地址: ${REPO_URL}"
+    raw_url="https://raw.githubusercontent.com/${slug}/${BRANCH}/scripts/lib.sh"
+  fi
+
+  tmp_file="$(mktemp)"
+  if command -v curl >/dev/null 2>&1; then
+    if ! curl -fsSL "${raw_url}" -o "${tmp_file}"; then
+      rm -f "${tmp_file}"
+      bootstrap_error "无法下载 lib.sh: ${raw_url}"
+    fi
+  elif command -v wget >/dev/null 2>&1; then
+    if ! wget -qO "${tmp_file}" "${raw_url}"; then
+      rm -f "${tmp_file}"
+      bootstrap_error "无法下载 lib.sh: ${raw_url}"
+    fi
+  else
+    rm -f "${tmp_file}"
+    bootstrap_error "缺少 curl 或 wget，无法下载 lib.sh"
+  fi
+
+  if cp -a "${tmp_file}" "${lib_path}" 2>/dev/null; then
+    rm -f "${tmp_file}"
+  else
+    bootstrap_warn "无法写入 ${lib_path}，将使用临时文件"
+    lib_path="${tmp_file}"
+  fi
+
+  printf '%s' "${lib_path}"
+}
+
+LIB_PATH="${SCRIPT_DIR}/lib.sh"
+if [[ ! -f "${LIB_PATH}" ]]; then
+  LIB_PATH="$(download_lib)"
+fi
+
+# shellcheck source=./lib.sh
+source "${LIB_PATH}"
 TARGET_NAME="${TARGET_NAME:-nixos}"
 MODE="${MODE:-switch}"
 ETC_DIR="/etc/nixos"
@@ -61,6 +128,7 @@ usage() {
   --temp-dns           部署期间临时指定 DNS（默认 223.5.5.5 223.6.6.6 1.1.1.1 8.8.8.8）
   --dns <ip>           指定临时 DNS（可多次传入）
   --dns-iface <dev>    指定 DNS 绑定网卡（resolvectl）
+  LIB_URL              可选：指定 lib.sh 的直链地址
 EOF_USAGE
 }
 
