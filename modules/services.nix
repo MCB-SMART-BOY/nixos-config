@@ -49,6 +49,7 @@ in
     ];
   };
 
+  # Clash Verge service uses /tmp/verge IPC; keep a shared /tmp for UI access.
   systemd.services.clash-verge-service = {
     description = "Clash Verge Service Mode Daemon";
     after = [ "network-online.target" ];
@@ -56,8 +57,7 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "simple";
-      User = "root";
-      Group = "users";
+      User = clashUser;
       WorkingDirectory = clashHome;
       UMask = "0002";
       Environment = [
@@ -68,30 +68,11 @@ in
         "XDG_STATE_HOME=${clashState}"
         "PATH=${clashPath}:/run/wrappers/bin"
       ];
-      Restart = "always";
+      Restart = "on-failure";
+      RestartSec = "2s";
       ExecStart = "${pkgs.clash-verge-rev}/bin/clash-verge-service";
       CapabilityBoundingSet = netCaps;
       AmbientCapabilities = netCaps;
-      DeviceAllow = [
-        "/dev/net/tun rwm"
-        "/dev/null rwm"
-        "/dev/zero rwm"
-        "/dev/random rwm"
-        "/dev/urandom rwm"
-      ];
-      LockPersonality = true;
-      MemoryDenyWriteExecute = true;
-      NoNewPrivileges = true;
-      PrivateTmp = true;
-      ProtectClock = true;
-      ProtectControlGroups = true;
-      ProtectHostname = true;
-      ProtectKernelLogs = true;
-      ProtectKernelModules = true;
-      ProtectKernelTunables = true;
-      RestrictRealtime = true;
-      RestrictSUIDSGID = true;
-      SystemCallArchitectures = "native";
     };
   };
 
