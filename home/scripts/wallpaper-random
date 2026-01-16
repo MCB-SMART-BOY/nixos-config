@@ -3,8 +3,20 @@
 
 set -euo pipefail
 
+# Ensure common NixOS paths are available when launched by the compositor.
+export PATH="/run/current-system/sw/bin:/etc/profiles/per-user/${USER}/bin:${HOME}/.nix-profile/bin:${PATH}"
+
+if [[ -z "${WAYLAND_DISPLAY:-}" || -z "${XDG_RUNTIME_DIR:-}" ]]; then
+  exit 0
+fi
+
 # Wallpaper directory managed by Home Manager.
 wallpaper_dir="${HOME}/Pictures/Wallpapers"
+fallback_dir="/etc/nixos/home/assets/wallpapers"
+
+if [[ ! -d "${wallpaper_dir}" && -d "${fallback_dir}" ]]; then
+  wallpaper_dir="${fallback_dir}"
+fi
 
 if [[ ! -d "${wallpaper_dir}" ]]; then
   exit 0
@@ -37,4 +49,9 @@ if command -v pkill >/dev/null 2>&1; then
   pkill swaybg >/dev/null 2>&1 || true
 fi
 
-exec swaybg -i "${choice}" -m fill
+swaybg_bin="$(command -v swaybg || true)"
+if [[ -z "${swaybg_bin}" ]]; then
+  exit 0
+fi
+
+exec "${swaybg_bin}" -i "${choice}" -m fill
