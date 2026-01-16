@@ -3,6 +3,21 @@
 let
   cfg = config.mcb.packages;
 
+  baseRuntime = with pkgs; [
+    # Core runtime tools for scripts when the system profile is not on PATH
+    bash
+    coreutils
+    findutils
+    gawk
+    gnugrep
+    iproute2
+    procps
+    util-linux
+    systemd
+    pipewire
+    niri
+  ];
+
   network = with pkgs; [
     # Proxy core
     clash-verge-rev
@@ -56,6 +71,7 @@ let
     swayidle
     waybar
     fuzzel
+    fcitx5
     # Brightness
     brightnessctl
   ];
@@ -217,6 +233,7 @@ let
   ];
 
   groups = lib.concatLists [
+    baseRuntime
     (lib.optionals cfg.enableNetwork network)
     (lib.optionals cfg.enableShellTools shellTools)
     (lib.optionals cfg.enableWaylandTools waylandTools)

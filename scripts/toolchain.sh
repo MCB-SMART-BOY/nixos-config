@@ -62,8 +62,8 @@ find_rustup() {
   if [[ -z "${rustup_bin}" && -x "${HOME}/.nix-profile/bin/rustup" ]]; then
     rustup_bin="${HOME}/.nix-profile/bin/rustup"
   fi
-  if [[ -z "${rustup_bin}" && -x "/run/current-system/sw/bin/rustup" ]]; then
-    rustup_bin="/run/current-system/sw/bin/rustup"
+  if [[ -z "${rustup_bin}" && -x "/etc/profiles/per-user/${USER}/bin/rustup" ]]; then
+    rustup_bin="/etc/profiles/per-user/${USER}/bin/rustup"
   fi
   printf '%s' "${rustup_bin}"
 }

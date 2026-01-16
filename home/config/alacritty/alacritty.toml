@@ -195,7 +195,7 @@ blinking = "Off"
 # ══════════════════════════════════════════════════════════════════
 # [terminal]
 # 建议注释掉，让系统自动使用默认 Shell (zsh)
-# shell = { program = "/run/current-system/sw/bin/zsh" }
+# shell = { program = "zsh" }
 
 [env]
 TERM = "alacritty"

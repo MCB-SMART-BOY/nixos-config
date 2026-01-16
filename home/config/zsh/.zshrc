@@ -160,9 +160,9 @@ if command -v zoxide &> /dev/null; then
 fi
 
 # 🛡️ 后悔药：保留原生命令的访问方式
-alias oldls='/run/current-system/sw/bin/ls'
-alias oldcat='/run/current-system/sw/bin/cat'
-alias oldgrep='/run/current-system/sw/bin/grep'
+alias oldls='command ls'
+alias oldcat='command cat'
+alias oldgrep='command grep'
 
 # ══════════════════════════════════════════════════════════════════
 # 6. 🛠️ 常用别名 (Aliases)
