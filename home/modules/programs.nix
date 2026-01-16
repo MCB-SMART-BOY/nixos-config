@@ -1,15 +1,24 @@
-{ ... }:
+{ config, lib, ... }:
 
+let
+  heavy = config.mcb.packages.enableHeavyBuilds;
+in
 {
   programs.alacritty = {
-    enable = true;
+    enable = heavy;
   };
 
   programs.helix = {
-    enable = true;
+    enable = heavy;
   };
 
-  xdg.configFile."alacritty/alacritty.toml".source = ../config/alacritty/alacritty.toml;
-  xdg.configFile."helix/config.toml".source = ../config/helix/config.toml;
-  xdg.configFile."helix/languages.toml".source = ../config/helix/languages.toml;
+  xdg.configFile."alacritty/alacritty.toml" = lib.mkIf heavy {
+    source = ../config/alacritty/alacritty.toml;
+  };
+  xdg.configFile."helix/config.toml" = lib.mkIf heavy {
+    source = ../config/helix/config.toml;
+  };
+  xdg.configFile."helix/languages.toml" = lib.mkIf heavy {
+    source = ../config/helix/languages.toml;
+  };
 }

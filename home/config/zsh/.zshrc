@@ -21,13 +21,26 @@ bindkey "^[[F" end-of-line
 # ══════════════════════════════════════════════════════════════════
 # 2. 📁 环境变量 (Environment Variables)
 # ══════════════════════════════════════════════════════════════════
-# 默认编辑器设置为 Helix
-export EDITOR="hx"
-export VISUAL="hx"
+# 默认编辑器（优先沿用已有环境变量）
+if [ -z "${EDITOR:-}" ]; then
+    if command -v hx &> /dev/null; then
+        export EDITOR="hx"
+        export VISUAL="hx"
+    else
+        export EDITOR="nvim"
+        export VISUAL="nvim"
+    fi
+fi
 export BROWSER="firefox"
 
-# 让 man 手册页使用 bat 进行带颜色的渲染
-export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+# 让 man 手册页使用 bat（若不可用则退回 less）
+if [ -z "${MANPAGER:-}" ]; then
+    if command -v bat &> /dev/null; then
+        export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+    else
+        export MANPAGER="less -R"
+    fi
+fi
 
 # XDG 标准目录 (规范化配置存储位置)
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -197,9 +210,11 @@ alias mv='mv -i'
 alias rm='rm -i'
 
 # --- 编辑器快捷键 ---
-alias e='hx'
-alias v='hx'
-alias z='zed'
+e() { "${EDITOR:-nvim}" "$@"; }
+v() { "${EDITOR:-nvim}" "$@"; }
+if command -v zed &> /dev/null; then
+    alias z='zed'
+fi
 
 # --- 网络 ---
 alias ip='ip -color=auto'
@@ -241,8 +256,14 @@ extract() {
 # fzf: 模糊搜索文件并用 Helix 编辑
 fe() {
     local file
-    file=$(fd --type f --hidden --exclude .git | fzf --preview 'bat --color=always {}')
-    [ -n "$file" ] && hx "$file"
+    local preview_cmd
+    if command -v bat &> /dev/null; then
+        preview_cmd='bat --color=always {}'
+    else
+        preview_cmd='sed -n "1,200p" {}'
+    fi
+    file=$(fd --type f --hidden --exclude .git | fzf --preview "${preview_cmd}")
+    [ -n "$file" ] && "${EDITOR:-nvim}" "$file"
 }
 
 # fzf: 模糊搜索目录并进入

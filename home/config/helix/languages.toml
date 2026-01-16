@@ -36,14 +36,6 @@ args = ["server"]
 command = "yaml-language-server"
 args = ["--stdio"]
 
-[language-server.bash-language-server]
-command = "bash-language-server"
-args = ["start"]
-
-[language-server.pyright]
-command = "pyright-langserver"
-args = ["--stdio"]
-
 [language-server.typescript-language-server]
 command = "typescript-language-server"
 args = ["--stdio"]
@@ -128,7 +120,6 @@ injection-regex = "(shell|bash|zsh|sh)"
 file-types = ["sh", "bash", "zsh", ".zshrc", ".bashrc", ".bash_profile", ".zshenv", ".zprofile"]
 roots = []
 comment-token = "#"
-language-servers = ["bash-language-server"]
 indent = { tab-width = 2, unit = "  " }
 auto-format = true
 formatter = { command = "shfmt", args = ["-i", "2"] }
@@ -141,7 +132,6 @@ injection-regex = "python"
 file-types = ["py", "pyi", "py3", "pyw", "ptl"]
 roots = ["pyproject.toml", "setup.py", "Poetry.lock", "requirements.txt"]
 comment-token = "#"
-language-servers = ["pyright"]
 indent = { tab-width = 4, unit = "    " }
 auto-format = true
 formatter = { command = "black", args = ["--quiet", "-"] }

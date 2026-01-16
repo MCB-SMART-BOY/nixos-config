@@ -19,8 +19,6 @@ let
     wget
     curl
     eza
-    bat
-    ripgrep
     fd
     fzf
     # Shell workflow
@@ -28,16 +26,10 @@ let
     starship
     direnv
     fish
-    # File management
-    yazi
     # Monitoring and disk
     btop
     fastfetch
-    dust
     duf
-    procs
-    bottom
-    delta
     gdu
     # Data and crypto tools
     jq
@@ -70,7 +62,6 @@ let
 
   browsersAndMedia = with pkgs; [
     # Terminals
-    alacritty
     foot
     # Browsers
     firefox
@@ -87,20 +78,13 @@ let
     # Toolchains
     rustup
     # rust-analyzer is managed via rustup (rustup component add rust-analyzer)
-    gcc
     gnumake
-    clang
     cmake
     pkg-config
     openssl
     # Editors/IDEs
-    helix
     neovim
-    nodejs
-    nodePackages.bash-language-server
-    pyright
     nodePackages.typescript-language-server
-    zed-editor
     vscode-fhs
     # Python environments
     uv
@@ -116,6 +100,23 @@ let
     black
     stylua
     shfmt
+  ];
+
+  heavyBuilds = with pkgs; [
+    # Large builds (often compiled from source when cache misses)
+    zed-editor
+    helix
+    alacritty
+    yazi
+    ripgrep
+    bat
+    delta
+    bottom
+    procs
+    dust
+    # Large toolchains
+    clang
+    gcc
   ];
 
   chat = with pkgs; [
@@ -229,6 +230,7 @@ let
     (lib.optionals cfg.enableTheming theming)
     (lib.optionals cfg.enableXorgCompat xorgCompat)
     (lib.optionals cfg.enableGeekTools geekTools)
+    (lib.optionals cfg.enableHeavyBuilds heavyBuilds)
   ];
 in
 {
@@ -297,6 +299,11 @@ in
       type = lib.types.bool;
       default = true;
       description = "Install common geek/debug/network tooling.";
+    };
+    enableHeavyBuilds = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install large packages that may compile from source.";
     };
   };
 

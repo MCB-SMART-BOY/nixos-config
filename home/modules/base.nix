@@ -2,13 +2,18 @@
 
 let
   homeDir = config.home.homeDirectory;
+  heavy = config.mcb.packages.enableHeavyBuilds;
+  editor = if heavy then "hx" else "nvim";
+  manpager = if heavy then "sh -c 'col -bx | bat -l man -p'" else "less -R";
+  terminal = if heavy then "alacritty" else "foot";
 in
 {
   home.sessionVariables = {
-    EDITOR = "hx";
-    VISUAL = "hx";
+    EDITOR = editor;
+    VISUAL = editor;
+    TERMINAL = terminal;
     BROWSER = "firefox";
-    MANPAGER = "sh -c 'col -bx | bat -l man -p'";
+    MANPAGER = manpager;
 
     XDG_CONFIG_HOME = "${homeDir}/.config";
     XDG_DATA_HOME = "${homeDir}/.local/share";

@@ -167,7 +167,7 @@ window-rule {
 
 binds {
     // ─── 应用启动 ───
-    Mod+Return { spawn "alacritty"; }
+    Mod+Return { spawn "sh" "-c" "${TERMINAL:-foot}"; }
     Mod+Space { spawn "fuzzel"; }
     // Mod { spawn "fuzzel"; }
     Mod+E { spawn "nautilus"; }

@@ -207,6 +207,15 @@ mcb.packages.enableGeekTools = false;
 - enableTheming：主题与外观
 - enableXorgCompat：Xwayland 兼容
 - enableGeekTools：调试/诊断/极客工具
+- enableHeavyBuilds：大体量包（可能触发源码编译）
+
+启用大体量包示例（默认关闭）：
+
+```nix
+mcb.packages.enableHeavyBuilds = true;
+```
+
+包含示例：zed-editor、clang/gcc、helix、alacritty、yazi、ripgrep 等。
 
 ## 🖥️ 桌面与自启动
 
