@@ -66,20 +66,6 @@ tooltip label {
     transition: all 0.2s ease;
 }
 
-#clock,
-#custom-net-speed,
-#network,
-#cpu,
-#memory,
-#temperature,
-#disk,
-#battery,
-#pulseaudio,
-#backlight,
-#custom-updates {
-    font-variant-numeric: tabular-nums;
-}
-
 #custom-logo {
     font-size: 16px;
     color: #7dd3fc;
