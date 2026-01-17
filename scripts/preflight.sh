@@ -68,6 +68,17 @@ check_file() {
   fi
 }
 
+get_host_bool() {
+  local key="$1"
+  local file="${2:-${HOST_FILE}}"
+  awk -v k="${key}" '
+    $0 ~ "^[[:space:]]*"k"[[:space:]]*=" {
+      if ($0 ~ /true/) { print "true"; exit }
+      if ($0 ~ /false/) { print "false"; exit }
+    }
+  ' "${file}" 2>/dev/null || true
+}
+
 check_optional_file() {
   local path="$1"
   local label="$2"
@@ -157,10 +168,11 @@ check_preflight() {
 
   msg INFO "==> Host variables"
   if [[ -f "${HOST_FILE}" ]]; then
-    local user proxy tun
+    local user proxy tun enable_proxy
     user="$(get_host_var "user" "${HOST_FILE}")"
     proxy="$(get_host_var "proxyUrl" "${HOST_FILE}")"
     tun="$(get_host_var "tunInterface" "${HOST_FILE}")"
+    enable_proxy="$(get_host_bool "enableProxy" "${HOST_FILE}")"
 
     if [[ -n "${user}" ]]; then
       ok_msg "vars.user = ${user}"
@@ -174,13 +186,21 @@ check_preflight() {
     if [[ -n "${proxy}" ]]; then
       ok_msg "vars.proxyUrl = ${proxy}"
     else
-      warn_msg "vars.proxyUrl is empty (proxy disabled)"
+      warn_msg "vars.proxyUrl is empty (system proxy disabled)"
     fi
 
     if [[ -n "${tun}" ]]; then
       ok_msg "vars.tunInterface = ${tun}"
     else
       warn_msg "vars.tunInterface is empty"
+    fi
+
+    if [[ "${enable_proxy}" == "true" ]]; then
+      ok_msg "vars.enableProxy = true (proxy services/TUN enabled)"
+    elif [[ "${enable_proxy}" == "false" ]]; then
+      warn_msg "vars.enableProxy = false (proxy services/TUN disabled)"
+    else
+      warn_msg "vars.enableProxy not detected (default: false)"
     fi
   fi
 
