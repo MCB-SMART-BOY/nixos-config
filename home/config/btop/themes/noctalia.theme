@@ -1,0 +1,92 @@
+# Noctalia theme for btop
+# Based on the palette used across the NixOS config
+
+# Main background, empty for terminal default
+theme[main_bg]=""
+
+# Main text color
+theme[main_fg]="#e2e8f0"
+
+# Title color for boxes
+theme[title]="#7dd3fc"
+
+# Highlight color for keyboard shortcuts
+theme[hi_fg]="#a5b4fc"
+
+# Background color of selected item in processes box
+theme[selected_bg]="#1f2937"
+
+# Foreground color of selected item in processes box
+theme[selected_fg]="#e2e8f0"
+
+# Color of inactive/disabled text
+theme[inactive_fg]="#94a3b8"
+
+# Color of text appearing on top of graphs
+theme[graph_text]="#e2e8f0"
+
+# Background color of the percentage meters
+theme[meter_bg]="#334155"
+
+# Misc colors for processes box
+theme[proc_misc]="#a5b4fc"
+
+# Cpu box outline color
+theme[cpu_box]="#7dd3fc"
+
+# Memory/disks box outline color
+theme[mem_box]="#34d399"
+
+# Net up/down box outline color
+theme[net_box]="#fbbf24"
+
+# Processes box outline color
+theme[proc_box]="#a5b4fc"
+
+# Box divider line and small boxes line color
+theme[div_line]="#253248"
+
+# Temperature graph colors
+theme[temp_start]="#fbbf24"
+theme[temp_mid]="#fb7185"
+theme[temp_end]="#f87171"
+
+# CPU graph colors
+theme[cpu_start]="#7dd3fc"
+theme[cpu_mid]="#a5b4fc"
+theme[cpu_end]="#34d399"
+
+# Mem/Disk free meter
+theme[free_start]="#94a3b8"
+theme[free_mid]="#cbd5e1"
+theme[free_end]="#e2e8f0"
+
+# Mem/Disk cached meter
+theme[cached_start]="#a5b4fc"
+theme[cached_mid]="#7dd3fc"
+theme[cached_end]="#38bdf8"
+
+# Mem/Disk available meter
+theme[available_start]="#fcd34d"
+theme[available_mid]="#fbbf24"
+theme[available_end]="#f59e0b"
+
+# Mem/Disk used meter
+theme[used_start]="#34d399"
+theme[used_mid]="#5eead4"
+theme[used_end]="#7dd3fc"
+
+# Download graph colors
+theme[download_start]="#7dd3fc"
+theme[download_mid]="#5eead4"
+theme[download_end]="#34d399"
+
+# Upload graph colors
+theme[upload_start]="#a5b4fc"
+theme[upload_mid]="#c7d2fe"
+theme[upload_end]="#fb7185"
+
+# Process box color gradient for threads, mem and cpu usage
+theme[process_start]="#34d399"
+theme[process_mid]="#7dd3fc"
+theme[process_end]="#a5b4fc"

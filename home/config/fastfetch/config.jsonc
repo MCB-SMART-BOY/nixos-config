@@ -1,0 +1,124 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+    "type": "small",
+    "source": "nixos",
+    "color": {
+      "1": "blue",
+      "2": "cyan",
+      "3": "magenta",
+      "4": "blue"
+    },
+    "padding": {
+      "top": 1,
+      "left": 1
+    }
+  },
+  "display": {
+    "separator": " : ",
+    "color": {
+      "keys": "blue",
+      "title": "cyan",
+      "separator": "bright_black"
+    },
+    "key": {
+      "type": "both-1",
+      "width": 12,
+      "paddingLeft": 1
+    }
+  },
+  "modules": [
+    "title",
+    "separator",
+    {
+      "type": "os",
+      "key": "OS",
+      "keyColor": "blue"
+    },
+    {
+      "type": "host",
+      "key": "Host",
+      "keyColor": "blue"
+    },
+    {
+      "type": "kernel",
+      "key": "Kernel",
+      "keyColor": "magenta"
+    },
+    {
+      "type": "uptime",
+      "key": "Uptime",
+      "keyColor": "green"
+    },
+    {
+      "type": "packages",
+      "key": "Pkgs",
+      "keyColor": "yellow"
+    },
+    {
+      "type": "shell",
+      "key": "Shell",
+      "keyColor": "green"
+    },
+    {
+      "type": "terminal",
+      "key": "Terminal",
+      "keyColor": "cyan"
+    },
+    {
+      "type": "terminalfont",
+      "key": "Term Font",
+      "keyColor": "cyan"
+    },
+    {
+      "type": "wm",
+      "key": "WM",
+      "keyColor": "blue"
+    },
+    {
+      "type": "display",
+      "key": "Display",
+      "keyColor": "blue"
+    },
+    "break",
+    {
+      "type": "cpu",
+      "key": "CPU",
+      "keyColor": "red"
+    },
+    {
+      "type": "gpu",
+      "key": "GPU",
+      "keyColor": "red"
+    },
+    {
+      "type": "memory",
+      "key": "Memory",
+      "keyColor": "green"
+    },
+    {
+      "type": "disk",
+      "key": "Disk",
+      "keyColor": "green",
+      "folders": ["/"]
+    },
+    {
+      "type": "battery",
+      "key": "Battery",
+      "keyColor": "yellow"
+    },
+    "break",
+    {
+      "type": "localip",
+      "key": "Local IP",
+      "keyColor": "magenta"
+    },
+    {
+      "type": "locale",
+      "key": "Locale",
+      "keyColor": "magenta"
+    },
+    "break",
+    "colors"
+  ]
+}

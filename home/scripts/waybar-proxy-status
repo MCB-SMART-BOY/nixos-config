@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+service_name=""
+status="off"
+
+if command -v systemctl >/dev/null 2>&1; then
+  if systemctl --user is-active --quiet clash-verge-service 2>/dev/null; then
+    service_name="clash-verge-service (user)"
+    status="on"
+  elif systemctl is-active --quiet clash-verge-service 2>/dev/null; then
+    service_name="clash-verge-service"
+    status="on"
+  elif systemctl is-active --quiet mihomo 2>/dev/null; then
+    service_name="mihomo"
+    status="on"
+  fi
+fi
+
+if [[ "${status}" == "on" ]]; then
+  emit_json "ON" "Proxy: ${service_name}" "on"
+else
+  emit_json "" "Proxy: off" "off"
+fi

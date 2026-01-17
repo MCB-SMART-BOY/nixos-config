@@ -1,0 +1,52 @@
+# Mako Configuration
+# ~/.config/mako/config
+# DMS/Noctalia-inspired Theme
+
+# 基础样式
+font=Manrope 12
+background-color=#0b0f14e6
+text-color=#e2e8f0
+border-color=#7dd3fc
+border-size=1
+border-radius=16
+progress-color=over #7dd3fc
+
+# 尺寸与位置
+width=420
+height=160
+margin=24
+padding=18
+anchor=top-right
+
+# 行为
+# 通知格式：标题 + 正文（Pango）
+format=<b>%s</b>\n%b
+default-timeout=5000
+ignore-timeout=0
+max-visible=5
+layer=overlay
+sort=-time # 最新通知优先显示
+max-history=20 # 历史记录上限
+group-by=app-name # 按应用聚合，减少刷屏
+
+# 图标
+icons=1
+max-icon-size=48
+icon-path=~/.nix-profile/share/icons/Papirus-Dark:~/.local/share/icons/Papirus-Dark
+
+# 进度条 (例如音量调节)
+[mode=do-not-disturb]
+invisible=1
+
+[urgency=low]
+background-color=#0b0f14e6
+border-color=#34d399
+
+[urgency=normal]
+background-color=#0b0f14e6
+border-color=#7dd3fc
+
+[urgency=high]
+background-color=#0b0f14e6
+border-color=#f87171
+default-timeout=0

@@ -1,0 +1,276 @@
+/* Waybar Styles - DMS/Noctalia-inspired */
+
+* {
+    font-family: "Manrope", "JetBrainsMono Nerd Font", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    min-height: 0;
+}
+
+window#waybar {
+    background-color: transparent;
+    color: #e2e8f0;
+}
+
+.modules-left,
+.modules-center,
+.modules-right {
+    margin: 4px 3px;
+    padding: 3px 5px;
+    background-color: rgba(15, 23, 42, 0.76);
+    border: 1px solid #253248;
+    border-radius: 12px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+}
+
+.modules-center {
+    padding: 3px 8px;
+    background-color: rgba(17, 24, 39, 0.9);
+    border-color: rgba(125, 211, 252, 0.25);
+}
+
+tooltip {
+    background-color: #0f172a;
+    border: 1px solid #253248;
+    border-radius: 10px;
+}
+
+tooltip label {
+    color: #e2e8f0;
+}
+
+#custom-logo,
+#workspaces,
+#clock,
+#custom-updates,
+#tray,
+#network,
+#custom-net-speed,
+#bluetooth,
+#pulseaudio,
+#cpu,
+#memory,
+#temperature,
+#disk,
+#backlight,
+#battery,
+#idle_inhibitor,
+#custom-proxy,
+#custom-power {
+    padding: 0 8px;
+    margin: 2px 2px;
+    color: #e2e8f0;
+    border-radius: 9px;
+    background-color: rgba(17, 24, 39, 0.45);
+    border: 1px solid rgba(37, 50, 72, 0.45);
+    transition: all 0.2s ease;
+}
+
+#clock,
+#custom-net-speed,
+#network,
+#cpu,
+#memory,
+#temperature,
+#disk,
+#battery,
+#pulseaudio,
+#backlight,
+#custom-updates {
+    font-variant-numeric: tabular-nums;
+}
+
+#custom-logo {
+    font-size: 16px;
+    color: #7dd3fc;
+    padding: 0 8px;
+    margin-left: 3px;
+    background-color: rgba(125, 211, 252, 0.12);
+    border-color: rgba(125, 211, 252, 0.35);
+}
+
+#workspaces {
+    padding: 0 4px;
+    background-color: transparent;
+    border: none;
+    margin-left: 2px;
+}
+
+#workspaces button {
+    padding: 0 6px;
+    min-width: 20px;
+    color: #94a3b8;
+    background-color: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    margin: 3px 2px;
+    transition: all 0.2s ease;
+    font-weight: 700;
+}
+
+#workspaces button:hover {
+    color: #e2e8f0;
+    background-color: rgba(125, 211, 252, 0.12);
+    border-color: rgba(125, 211, 252, 0.3);
+}
+
+#workspaces button.active,
+#workspaces button.focused {
+    color: #e2e8f0;
+    background-color: rgba(125, 211, 252, 0.2);
+    border-color: rgba(125, 211, 252, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.35);
+}
+
+#workspaces button.visible {
+    color: #e2e8f0;
+    border-color: rgba(125, 211, 252, 0.25);
+}
+
+#workspaces button.urgent {
+    color: #e2e8f0;
+    background-color: rgba(248, 113, 113, 0.2);
+    border-color: rgba(248, 113, 113, 0.6);
+}
+
+#clock {
+    color: #a5b4fc;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+}
+
+#network {
+    color: #7dd3fc;
+}
+
+#network.disconnected {
+    color: #f87171;
+}
+
+#custom-net-speed {
+    color: #e2e8f0;
+    font-size: 10px;
+}
+
+#custom-net-speed.connected {
+    color: #7dd3fc;
+}
+
+#custom-net-speed.disconnected {
+    color: #94a3b8;
+}
+
+#bluetooth {
+    color: #a5b4fc;
+}
+
+#bluetooth.off {
+    color: #94a3b8;
+}
+
+#pulseaudio {
+    color: #fbbf24;
+}
+
+#pulseaudio.muted {
+    color: #94a3b8;
+}
+
+#cpu {
+    color: #7dd3fc;
+}
+
+#memory {
+    color: #34d399;
+}
+
+#temperature {
+    color: #a5b4fc;
+}
+
+#disk {
+    color: #94a3b8;
+}
+
+#backlight {
+    color: #a5b4fc;
+}
+
+#battery {
+    color: #34d399;
+}
+
+#battery.charging,
+#battery.plugged {
+    color: #7dd3fc;
+}
+
+#battery.warning:not(.charging) {
+    color: #fbbf24;
+}
+
+#battery.critical:not(.charging) {
+    color: #f87171;
+    animation: blink 1s infinite;
+}
+
+#custom-updates {
+    color: #a5b4fc;
+}
+
+#custom-updates.updates {
+    color: #fbbf24;
+}
+
+#custom-updates.up-to-date {
+    color: #34d399;
+}
+
+#custom-updates.pending {
+    color: #94a3b8;
+}
+
+#custom-updates.error {
+    color: #f87171;
+}
+
+#custom-proxy {
+    color: #94a3b8;
+}
+
+#custom-proxy.on {
+    color: #7dd3fc;
+}
+
+#custom-proxy.off {
+    color: #94a3b8;
+}
+
+#custom-proxy.error {
+    color: #f87171;
+}
+
+#idle_inhibitor {
+    color: #94a3b8;
+}
+
+#idle_inhibitor.activated {
+    color: #7dd3fc;
+}
+
+@keyframes blink {
+    to {
+        color: #e2e8f0;
+    }
+}
+
+#custom-power {
+    color: #f87171;
+    padding-right: 10px;
+}
+
+#custom-power:hover {
+    color: #e2e8f0;
+    background-color: rgba(248, 113, 113, 0.22);
+    border-color: rgba(248, 113, 113, 0.6);
+}

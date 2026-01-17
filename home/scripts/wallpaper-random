@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# Random wallpaper setter for swaybg.
+
+set -euo pipefail
+
+add_path() {
+  local dir="$1"
+  case ":${PATH}:" in
+    *":${dir}:"*) ;;
+    *) PATH="${dir}:${PATH}" ;;
+  esac
+}
+
+# Ensure common user profiles are available when launched by the compositor.
+add_path "/run/wrappers/bin"
+add_path "${HOME}/.local/bin"
+add_path "${HOME}/.nix-profile/bin"
+add_path "/etc/profiles/per-user/${USER}/bin"
+
+export PATH
+
+sleep_short() {
+  local seconds="$1"
+  if command -v sleep >/dev/null 2>&1; then
+    sleep "${seconds}"
+  else
+    read -r -t "${seconds}" _ || true
+  fi
+}
+
+wait_for_wayland() {
+  local attempts=50
+  local interval="0.2"
+  local sock=""
+
+  for _ in $(seq 1 "${attempts}"); do
+    if [[ -n "${WAYLAND_DISPLAY:-}" && -n "${XDG_RUNTIME_DIR:-}" ]]; then
+      sock="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
+      if [[ -S "${sock}" ]]; then
+        return 0
+      fi
+    fi
+
+    if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+      if [[ -S "${XDG_RUNTIME_DIR}/wayland-0" ]]; then
+        WAYLAND_DISPLAY="wayland-0"
+        export WAYLAND_DISPLAY
+        return 0
+      fi
+      for sock in "${XDG_RUNTIME_DIR}"/wayland-*; do
+        if [[ -S "${sock}" ]]; then
+          WAYLAND_DISPLAY="$(basename "${sock}")"
+          export WAYLAND_DISPLAY
+          return 0
+        fi
+      done
+    fi
+
+    sleep_short "${interval}"
+  done
+
+  return 1
+}
+
+if ! wait_for_wayland; then
+  echo "wallpaper-random: Wayland socket not ready" >&2
+  exit 1
+fi
+
+# Wallpaper directories (first match wins).
+candidates=()
+if [[ -n "${WALLPAPER_DIR:-}" ]]; then
+  IFS=':' read -r -a candidates <<< "${WALLPAPER_DIR}"
+fi
+candidates+=(
+  "${HOME}/Pictures/Wallpapers"
+  "/etc/nixos/home/assets/wallpapers"
+)
+
+wallpaper_dir=""
+wallpapers=()
+
+for dir in "${candidates[@]}"; do
+  [[ -n "${dir}" ]] || continue
+  if [[ -d "${dir}" ]]; then
+    mapfile -d '' found < <(
+      find -L "${dir}" -maxdepth 1 -type f \
+        -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
+    )
+    if [[ ${#found[@]} -gt 0 ]]; then
+      wallpaper_dir="${dir}"
+      wallpapers=("${found[@]}")
+      break
+    fi
+  fi
+done
+
+if [[ ${#wallpapers[@]} -eq 0 ]]; then
+  echo "wallpaper-random: no wallpapers found in ${candidates[*]}" >&2
+  exit 1
+fi
+
+# Pick a random wallpaper.
+choice="${wallpapers[RANDOM % ${#wallpapers[@]}]}"
+
+# Keep a stable lockscreen image path.
+cache_dir="${HOME}/.cache"
+lock_image="${cache_dir}/wallpaper-lock.png"
+current_image="${cache_dir}/wallpaper-current"
+
+mkdir -p "${cache_dir}"
+ln -sf "${choice}" "${lock_image}"
+ln -sf "${choice}" "${current_image}"
+
+# Restart swaybg to apply the new wallpaper.
+if command -v pkill >/dev/null 2>&1; then
+  pkill swaybg >/dev/null 2>&1 || true
+fi
+
+swaybg_bin="$(command -v swaybg || true)"
+if [[ -z "${swaybg_bin}" ]]; then
+  echo "wallpaper-random: swaybg not found in PATH" >&2
+  exit 1
+fi
+
+exec "${swaybg_bin}" -i "${choice}" -m fill

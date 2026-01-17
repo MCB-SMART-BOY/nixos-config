@@ -1,0 +1,250 @@
+// Waybar Configuration
+// ~/.config/waybar/config
+// JSONC (comments supported by Waybar)
+{
+    // Global layout
+    "layer": "top",
+    "position": "top",
+    "height": 30,
+    "spacing": 4,
+    "margin-top": 8,
+    "margin-left": 10,
+    "margin-right": 10,
+
+    // Module order
+    "modules-left": [
+        "custom/logo",
+        "niri/workspaces"
+    ],
+    "modules-center": [
+        "clock"
+    ],
+    "modules-right": [
+        "custom/updates",
+        "tray",
+        "network",
+        "custom/net-speed",
+        "bluetooth",
+        "pulseaudio",
+        "backlight",
+        "battery",
+        "idle_inhibitor",
+        "cpu",
+        "memory",
+        "temperature",
+        "disk",
+        "custom/proxy",
+        "custom/power"
+    ],
+
+    // Logo launcher
+    "custom/logo": {
+        "format": " ",
+        "tooltip": false,
+        "on-click": "fuzzel"
+    },
+
+    // Niri workspaces with Chinese numerals
+    "niri/workspaces": {
+        "format": "{icon}",
+        "format-icons": {
+            "1": "一",
+            "2": "二",
+            "3": "三",
+            "4": "四",
+            "5": "五",
+            "6": "六",
+            "7": "七",
+            "8": "八",
+            "9": "九",
+            "default": "●"
+        },
+        "on-click": "activate"
+    },
+
+    // Clock with calendar tooltip
+    "clock": {
+        "format": "{:%H:%M}",
+        "format-alt": "{:%Y-%m-%d %A}",
+        "tooltip-format": "<tt><small>{calendar}</small></tt>",
+        "calendar": {
+            "mode": "month",
+            "mode-mon-col": 3,
+            "weeks-pos": "right",
+            "on-scroll": 1,
+            "format": {
+                "months": "<span color='#a5b4fc'><b>{}</b></span>",
+                "days": "<span color='#e2e8f0'>{}</span>",
+                "weeks": "<span color='#7dd3fc'>W{}</span>",
+                "weekdays": "<span color='#fbbf24'>{}</span>",
+                "today": "<span color='#7dd3fc'><b><u>{}</u></b></span>"
+            }
+        },
+        "actions": {
+            "on-click-right": "mode",
+            "on-scroll-up": "shift_up",
+            "on-scroll-down": "shift_down"
+        }
+    },
+
+    // Flake updates
+    "custom/updates": {
+        "exec": "sh -c \"$HOME/.local/bin/waybar-flake-updates\"",
+        "interval": 900,
+        "return-type": "json",
+        "format": "󰏗 {}",
+        "tooltip": true
+    },
+
+    // System tray
+    "tray": {
+        "icon-size": 14,
+        "spacing": 6
+    },
+
+    // Network indicator (click to edit connections)
+    "network": {
+        "format-wifi": "󰤨 {signalStrength}%",
+        "format-ethernet": "󰈀 {ifname}",
+        "format-disconnected": "󰤭",
+        "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}\n↑{bandwidthUpBits} ↓{bandwidthDownBits}",
+        "tooltip-format-ethernet": "{ifname}\n{ipaddr}\n↑{bandwidthUpBits} ↓{bandwidthDownBits}",
+        // Simple status for offline state
+        "tooltip-format-disconnected": "disconnected",
+        "on-click": "nm-connection-editor"
+    },
+
+    // Live network speed
+    "custom/net-speed": {
+        "exec": "sh -c \"$HOME/.local/bin/waybar-net-speed\"",
+        "interval": 2,
+        "return-type": "json",
+        "format": "󰛿 {}",
+        "tooltip": true
+    },
+
+    // Bluetooth status
+    "bluetooth": {
+        "format": "󰂯",
+        "format-disabled": "󰂲",
+        "format-off": "󰂲",
+        "format-on": "󰂯",
+        "format-connected": "󰂱",
+        "tooltip-format": "{status}"
+    },
+
+    // Audio volume (PipeWire/Pulse)
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "tooltip-format": "Volume {volume}% ({desc})",
+        "format-muted": "󰝟 0%",
+        "tooltip-format-muted": "Muted",
+        "format-icons": {
+            "default": [
+                "󰕿",
+                "󰖀",
+                "󰕾"
+            ]
+        },
+        "on-click": "pavucontrol",
+        // Right click to toggle mute
+        "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+        "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
+        "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+    },
+
+    // CPU usage
+    "cpu": {
+        "format": " {usage}%",
+        "tooltip-format": "CPU {usage}% (avg {avg_frequency}GHz)",
+        "interval": 2
+    },
+
+    // Memory usage
+    "memory": {
+        "format": "󰍛 {percentage}%",
+        "format-alt": "󰍛 {used}/{total}",
+        "tooltip-format": "RAM {used} / {total} ({percentage}%)",
+        "interval": 2
+    },
+
+    // Temperature (requires lm_sensors)
+    "temperature": {
+        "format": "󰔏 {temperatureC}°C",
+        "tooltip-format": "Temp {temperatureC}°C",
+        "critical-threshold": 80,
+        "interval": 5
+    },
+
+    // Disk usage
+    "disk": {
+        "format": "󰋊 {percentage}%",
+        "path": "/",
+        "tooltip-format": "Disk {used} / {total} ({percentage}%)",
+        "interval": 60
+    },
+
+    // Backlight control
+    "backlight": {
+        "format": "{icon} {percent}%",
+        "tooltip-format": "Brightness {percent}%",
+        "format-icons": [
+            "󰃞",
+            "󰃟",
+            "󰃠"
+        ],
+        "on-scroll-up": "brightnessctl set 5%+",
+        "on-scroll-down": "brightnessctl set 5%-"
+    },
+
+    // Battery status
+    "battery": {
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon}{capacity}%",
+        // Alt format shows time remaining
+        "format-alt": "{icon} {timeTo}",
+        "format-charging": "󰂄 {capacity}%",
+        "format-plugged": "󰂄 {capacity}%",
+        "format-icons": [
+            "󰂎",
+            "󰁺",
+            "󰁻",
+            "󰁼",
+            "󰁽",
+            "󰁾",
+            "󰁿",
+            "󰂀",
+            "󰂁",
+            "󰂂",
+            "󰁹"
+        ],
+        "tooltip-format": "{timeTo}\nPower: {power}W"
+    },
+
+    // Proxy status
+    "custom/proxy": {
+        "exec": "sh -c \"$HOME/.local/bin/waybar-proxy-status\"",
+        "interval": 5,
+        "return-type": "json",
+        "format": "󰛳 {}",
+        "tooltip": true
+    },
+
+    // Idle inhibitor
+    "idle_inhibitor": {
+        "format": "󰈈",
+        "format-activated": "󰈉",
+        "tooltip-format": "Idle allowed",
+        "tooltip-format-activated": "Idle inhibited"
+    },
+
+    // Power action (exit Niri session)
+    "custom/power": {
+        "format": "⏻",
+        "tooltip": false,
+        "on-click": "niri msg action quit"
+    }
+}

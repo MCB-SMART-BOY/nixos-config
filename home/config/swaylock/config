@@ -1,0 +1,45 @@
+# Swaylock Configuration
+# ~/.config/swaylock/config
+# DMS/Noctalia-inspired Theme
+
+# 只有在没有图片时才使用纯色背景
+color=0b0f14
+
+# 核心圆环
+ring-color=7dd3fc
+key-hl-color=34d399
+line-color=1f2937
+inside-color=0b0f14
+separator-color=0b0f14
+text-color=e2e8f0
+
+# 验证时
+ring-ver-color=a5b4fc
+inside-ver-color=0b0f14
+text-ver-color=a5b4fc
+
+# 错误时
+ring-wrong-color=f87171
+inside-wrong-color=0b0f14
+text-wrong-color=f87171
+
+# 清除时
+ring-clear-color=fbbf24
+inside-clear-color=0b0f14
+text-clear-color=fbbf24
+
+# 杂项
+indicator-radius=94
+indicator-thickness=6
+font=Manrope
+show-failed-attempts
+daemonize # 后台运行，避免阻塞 Niri
+ignore-empty-password
+
+# 时间与日期（更直观）
+clock
+timestr=%H:%M
+datestr=%Y-%m-%d %a
+
+# 显示当前键盘布局（多语言环境更友好）
+show-keyboard-layout

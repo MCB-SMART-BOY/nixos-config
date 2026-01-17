@@ -1,0 +1,235 @@
+# Helix Languages Configuration
+# ~/.config/helix/languages.toml
+
+# ══════════════════════════════════════════════════════════════════
+# 🛠️ Language Server Definitions (LSP 定义区)
+# ══════════════════════════════════════════════════════════════════
+
+[language-server.rust-analyzer]
+command = "rust-analyzer"
+
+[language-server.rust-analyzer.config]
+inlayHints.bindingModeHints.enable = false
+inlayHints.closingBraceHints.minLines = 10
+inlayHints.closureReturnTypeHints.enable = "with_block"
+inlayHints.discriminantHints.enable = "fieldless"
+inlayHints.lifetimeElisionHints.enable = "skip_trivial"
+inlayHints.typeHints.hideClosureInitialization = false
+check.command = "clippy"
+cargo.allFeatures = true
+cargo.buildScripts.enable = true
+procMacro.enable = true
+
+[language-server.nil]
+command = "nil"
+config.nil.formatting.command = ["nixfmt"]
+
+[language-server.taplo]
+command = "taplo"
+args = ["lsp", "stdio"]
+
+[language-server.marksman]
+command = "marksman"
+args = ["server"]
+
+[language-server.yaml-language-server]
+command = "yaml-language-server"
+args = ["--stdio"]
+
+[language-server.typescript-language-server]
+command = "typescript-language-server"
+args = ["--stdio"]
+
+[language-server.clangd]
+command = "clangd"
+args = ["--background-index", "--clang-tidy"]
+
+[language-server.lua-language-server]
+command = "lua-language-server"
+
+[language-server.gopls]
+command = "gopls"
+
+# ══════════════════════════════════════════════════════════════════
+# 👅 Language Configurations (语言绑定区)
+# ══════════════════════════════════════════════════════════════════
+
+# 🦀 Rust
+[[language]]
+name = "rust"
+scope = "source.rust"
+injection-regex = "rust"
+file-types = ["rs"]
+roots = ["Cargo.toml", "Cargo.lock"]
+auto-format = true
+language-servers = ["rust-analyzer"]
+indent = { tab-width = 4, unit = "    " }
+
+# ❄️ Nix
+[[language]]
+name = "nix"
+scope = "source.nix"
+injection-regex = "nix"
+file-types = ["nix"]
+roots = ["flake.nix", "shell.nix", "default.nix"]
+comment-token = "#"
+language-servers = ["nil"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "nixfmt" }
+
+# 📝 TOML
+[[language]]
+name = "toml"
+scope = "source.toml"
+injection-regex = "toml"
+file-types = ["toml", "Cargo.lock"]
+roots = []
+comment-token = "#"
+language-servers = ["taplo"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+
+# 📖 Markdown
+[[language]]
+name = "markdown"
+scope = "source.markdown"
+injection-regex = "md|markdown"
+file-types = ["md", "markdown", "mkd", "mdwn", "mkdn", "mdx"]
+roots = []
+language-servers = ["marksman"]
+indent = { tab-width = 2, unit = "  " }
+soft-wrap.enable = true
+
+# 📋 YAML
+[[language]]
+name = "yaml"
+scope = "source.yaml"
+file-types = ["yml", "yaml"]
+roots = []
+comment-token = "#"
+language-servers = ["yaml-language-server"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+
+# 🐚 Bash
+[[language]]
+name = "bash"
+scope = "source.bash"
+injection-regex = "(shell|bash|zsh|sh)"
+file-types = ["sh", "bash", "zsh", ".zshrc", ".bashrc", ".bash_profile", ".zshenv", ".zprofile"]
+roots = []
+comment-token = "#"
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "shfmt", args = ["-i", "2"] }
+
+# 🐍 Python
+[[language]]
+name = "python"
+scope = "source.python"
+injection-regex = "python"
+file-types = ["py", "pyi", "py3", "pyw", "ptl"]
+roots = ["pyproject.toml", "setup.py", "Poetry.lock", "requirements.txt"]
+comment-token = "#"
+indent = { tab-width = 4, unit = "    " }
+auto-format = true
+formatter = { command = "black", args = ["--quiet", "-"] }
+
+# 🔷 TypeScript / JavaScript
+[[language]]
+name = "typescript"
+scope = "source.ts"
+injection-regex = "(ts|typescript)"
+file-types = ["ts", "mts", "cts"]
+roots = ["package.json", "tsconfig.json"]
+language-servers = ["typescript-language-server"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+
+[[language]]
+name = "javascript"
+scope = "source.js"
+injection-regex = "(js|javascript)"
+file-types = ["js", "mjs", "cjs"]
+roots = ["package.json"]
+language-servers = ["typescript-language-server"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+
+# 🔵 C / C++
+[[language]]
+name = "c"
+scope = "source.c"
+injection-regex = "c"
+file-types = ["c", "h"]
+roots = ["compile_commands.json", "Makefile", "CMakeLists.txt"]
+comment-token = "//"
+language-servers = ["clangd"]
+indent = { tab-width = 4, unit = "    " }
+auto-format = true
+
+[[language]]
+name = "cpp"
+scope = "source.cpp"
+injection-regex = "cpp"
+file-types = ["cc", "cpp", "cxx", "c++", "hpp", "hxx", "h++", "hh"]
+roots = ["compile_commands.json", "Makefile", "CMakeLists.txt"]
+comment-token = "//"
+language-servers = ["clangd"]
+indent = { tab-width = 4, unit = "    " }
+auto-format = true
+
+# 🌙 Lua
+[[language]]
+name = "lua"
+scope = "source.lua"
+injection-regex = "lua"
+file-types = ["lua"]
+roots = [".luarc.json", ".luacheckrc", "stylua.toml"]
+comment-token = "--"
+language-servers = ["lua-language-server"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "stylua", args = ["-"] }
+
+# 🐹 Go
+[[language]]
+name = "go"
+scope = "source.go"
+injection-regex = "go"
+file-types = ["go"]
+roots = ["go.mod", "go.work"]
+comment-token = "//"
+language-servers = ["gopls"]
+indent = { tab-width = 4, unit = "\t" }
+auto-format = true
+
+# 📄 JSON
+[[language]]
+name = "json"
+scope = "source.json"
+injection-regex = "json"
+file-types = ["json", "jsonc", "json5"]
+roots = []
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+# 使用 jq 格式化 JSON（需要 jq）
+formatter = { command = "jq", args = ["." ] }
+
+# 🌐 HTML / CSS
+[[language]]
+name = "html"
+scope = "text.html.basic"
+injection-regex = "html"
+file-types = ["html", "htm"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+
+[[language]]
+name = "css"
+scope = "source.css"
+injection-regex = "css"
+file-types = ["css"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
