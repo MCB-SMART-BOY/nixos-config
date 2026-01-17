@@ -16,11 +16,16 @@
         waylandFrontend = true;
         addons =
           (with pkgs; [
-            qt6Packages.fcitx5-chinese-addons
+            fcitx5-chinese-addons
             fcitx5-rime
             fcitx5-gtk
-            qt6Packages.fcitx5-configtool
           ])
+          ++ lib.optionals (lib.hasAttrByPath [ "qt6Packages" "fcitx5-configtool" ] pkgs) [
+            pkgs.qt6Packages.fcitx5-configtool
+          ]
+          ++ lib.optionals (lib.hasAttrByPath [ "fcitx5-configtool" ] pkgs) [
+            pkgs.fcitx5-configtool
+          ]
           ++ lib.optionals (lib.hasAttrByPath [ "fcitx5-qt" ] pkgs) [ pkgs.fcitx5-qt ]
           ++ lib.optionals (lib.hasAttrByPath [ "qt6Packages" "fcitx5-qt" ] pkgs) [ pkgs.qt6Packages.fcitx5-qt ];
       };

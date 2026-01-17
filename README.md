@@ -1,6 +1,6 @@
 # 🌸 NixOS Configuration
 
-一套面向日常使用与开发的 NixOS 25.11 配置，采用 **Flake + Home Manager** 构建，结构清晰、可复用、便于扩展。
+一套面向日常使用与开发的 NixOS 配置（Flake 使用 nixos-unstable，legacy 入口固定 25.11），采用 **Flake + Home Manager** 构建，结构清晰、可复用、便于扩展。
 
 > 适合希望用模块化方式管理系统与用户环境的人，默认走 Niri + Wayland 路线。
 
@@ -185,7 +185,7 @@ nixos-config/
 
 ### 主机变量
 
-- `host.nix`：用户名、代理地址、TUN 网卡名等统一入口
+- `host.nix`：用户名、代理地址、TUN 网卡名、CPU 类型、代理开关等统一入口
 
 ## 🧩 包组开关
 
@@ -221,6 +221,12 @@ mcb.packages.enableHeavyBuilds = true;
 
 包含示例：zed-editor、clang/gcc、helix、alacritty、yazi、ripgrep 等。
 
+系统层游戏开关（NixOS）：
+
+```nix
+mcb.system.enableGaming = false;
+```
+
 ## 🖥️ 桌面与自启动
 
 Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管理：
@@ -233,7 +239,7 @@ Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管
 
 - 修改主机配置：编辑 `host.nix`
 - 修改用户名：更新 `host.nix` 与 `home/` 路径
-- 跨机器部署：调整 `host.nix` 中 `vars.user`、`vars.proxyUrl`、`vars.tunInterface`，并同步硬件配置
+- 跨机器部署：调整 `host.nix` 中 `vars.user`、`vars.proxyUrl`、`vars.tunInterface`、`vars.cpuVendor`、`vars.enableProxy`，并同步硬件配置
 - 常用脚本入口：`./run.sh list`、`./run.sh status`、`./run.sh doctor`
 - 传统非 Flake 入口：
 
@@ -322,6 +328,12 @@ wallpaper-random
   ```bash
   pkill fcitx5 && fcitx5 -d -r
   ```
+
+- 输入法无拼音选项：
+  ```bash
+  fcitx5-configtool
+  ```
+  确认已安装 `fcitx5-chinese-addons`，并在输入法列表中添加 Pinyin/Rime 后重启。
 
 - 网络问题：参见 `docs/NETWORK_CN.md`
 

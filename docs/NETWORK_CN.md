@@ -8,6 +8,7 @@
 - `vars.proxyUrl` 为空时：
   - 不启用系统代理
   - DNS 直接走公网解析（不依赖 Clash）
+- `vars.enableProxy = true` 时仍会启用代理相关服务/TUN DNS（即使 `proxyUrl` 为空）
 
 ## Clash Verge 排查清单
 

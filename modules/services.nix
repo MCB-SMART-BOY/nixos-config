@@ -1,4 +1,4 @@
-{ pkgs, vars, lib, ... }:
+{ config, pkgs, vars, lib, ... }:
 
 let
   netCaps = [
@@ -7,6 +7,7 @@ let
     "CAP_NET_RAW"
   ];
   proxyUrl = vars.proxyUrl;
+  proxyServiceEnabled = if vars ? enableProxy then vars.enableProxy else proxyUrl != "";
   clashUser = vars.user;
   clashHome = "/home/${clashUser}";
   clashConfig = "${clashHome}/.config";
@@ -50,7 +51,7 @@ in
   };
 
   # Clash Verge service uses /tmp/verge IPC; keep a shared /tmp for UI access.
-  systemd.services.clash-verge-service = {
+  systemd.services.clash-verge-service = lib.mkIf proxyServiceEnabled {
     description = "Clash Verge Service Mode Daemon";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
@@ -88,12 +89,10 @@ in
     configFile = "/etc/mihomo/config.yaml";
   };
 
-  systemd.services.mihomo = {
+  systemd.services.mihomo = lib.mkIf config.services.mihomo.enable {
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     serviceConfig = {
-      User = "root";
-      Group = "root";
       CapabilityBoundingSet = netCaps;
       AmbientCapabilities = netCaps;
       WorkingDirectory = "/var/lib/mihomo";

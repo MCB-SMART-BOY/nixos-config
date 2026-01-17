@@ -4,6 +4,8 @@ let
   vars = {
     user = "mcbnixos";
     tunInterface = "clash0";
+    enableProxy = true;
+    cpuVendor = "intel";
     # Leave empty to keep system proxy/DNS disabled by default.
     # When using Clash Verge, let it manage proxy/DNS on demand.
     proxyUrl = "";

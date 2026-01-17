@@ -29,6 +29,8 @@ Waybar 自定义模块脚本位于 `home/scripts/waybar-*`，会安装到 `~/.lo
   - `user`：用户名
   - `proxyUrl`：系统代理默认地址
   - `tunInterface`：TUN 网卡名（与相关服务配置一致）
+  - `enableProxy`：代理/TUN 相关服务与防火墙开关
+  - `cpuVendor`：CPU 类型（`intel` 或 `amd`）
   - `proxyUrl` 为空时不启用系统代理与本地 DNS
 
 ## 部署脚本
@@ -77,3 +79,4 @@ Waybar 自定义模块脚本位于 `home/scripts/waybar-*`，会安装到 `~/.lo
 
 - 修改主机配置：编辑 `host.nix`
 - 自定义应用配置：把文件放入 `home/config/` 后再通过模块接入
+- 关闭系统层游戏功能：`mcb.system.enableGaming = false;`

@@ -3,11 +3,12 @@
 let
   tunInterface = vars.tunInterface;
   proxyUrl = vars.proxyUrl;
+  proxyServiceEnabled = if vars ? enableProxy then vars.enableProxy else proxyUrl != "";
   proxyEnabled = proxyUrl != "";
   resolvedHasDns = lib.hasAttrByPath [ "services" "resolved" "dns" ] options;
   resolvedHasFallback = lib.hasAttrByPath [ "services" "resolved" "fallbackDns" ] options;
   resolvedExtraConfig = ''
-    ${lib.optionalString (!resolvedHasDns && proxyEnabled) "DNS=127.0.0.1"}
+    ${lib.optionalString (!resolvedHasDns && proxyServiceEnabled) "DNS=127.0.0.1"}
     ${lib.optionalString (!resolvedHasFallback) "FallbackDNS=223.5.5.5 1.1.1.1"}
   '';
 in
@@ -26,12 +27,18 @@ in
     firewall = {
       enable = true;
       checkReversePath = "loose";
-      allowedTCPPorts = [
-        22
-        7890
-        9090
-      ];
-      allowedUDPPorts = [ 53 ];
+      allowedTCPPorts =
+        [
+          22
+        ]
+        ++ lib.optionals proxyServiceEnabled [
+          7890
+          9090
+        ];
+      allowedUDPPorts = lib.optionals (proxyServiceEnabled && tunInterface == "") [ 53 ];
+      interfaces = lib.optionalAttrs (proxyServiceEnabled && tunInterface != "") {
+        "${tunInterface}".allowedUDPPorts = [ 53 ];
+      };
       trustedInterfaces =
         (lib.optionals (tunInterface != "") [ tunInterface ]) ++ [
           "tun+"
@@ -46,8 +53,8 @@ in
     {
       enable = true;
     }
-    // lib.optionalAttrs resolvedHasDns {
-      dns = lib.optionals proxyEnabled [ "127.0.0.1" ];
+    // lib.optionalAttrs (resolvedHasDns && proxyServiceEnabled) {
+      dns = [ "127.0.0.1" ];
     }
     // lib.optionalAttrs resolvedHasFallback {
       fallbackDns = [

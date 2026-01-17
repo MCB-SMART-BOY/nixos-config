@@ -1,5 +1,15 @@
-{ pkgs, ... }:
+{ pkgs, lib, vars, ... }:
 
+let
+  cpuVendor = if vars ? cpuVendor then vars.cpuVendor else "intel";
+  kvmModule =
+    if cpuVendor == "amd" then
+      "kvm-amd"
+    else if cpuVendor == "intel" then
+      "kvm-intel"
+    else
+      null;
+in
 {
   boot = {
     loader = {
@@ -12,10 +22,11 @@
     };
 
     kernelPackages = pkgs.linuxPackages_latest;
-    kernelModules = [
-      "kvm-intel"
-      "tun"
-    ];
+    kernelModules =
+      [
+        "tun"
+      ]
+      ++ lib.optional (kvmModule != null) kvmModule;
 
     kernel.sysctl = {
       "net.core.default_qdisc" = "fq";
