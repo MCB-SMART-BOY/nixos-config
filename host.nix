@@ -3,8 +3,9 @@
 let
   vars = {
     user = "mcbnixos";
-    tunInterface = "Mihomo";
+    tunInterface = "Meta";
     tunInterfaces = [
+      "Meta"
       "Mihomo"
       "clash0"
     ];
