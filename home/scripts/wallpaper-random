@@ -16,6 +16,7 @@ add_path "/run/wrappers/bin"
 add_path "${HOME}/.local/bin"
 add_path "${HOME}/.nix-profile/bin"
 add_path "/etc/profiles/per-user/${USER}/bin"
+add_path "/run/current-system/sw/bin"
 
 export PATH
 
@@ -84,8 +85,8 @@ for dir in "${candidates[@]}"; do
   [[ -n "${dir}" ]] || continue
   if [[ -d "${dir}" ]]; then
     mapfile -d '' found < <(
-      find -L "${dir}" -maxdepth 1 -type f \
-        -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' \) -print0
+      find -L "${dir}" -type f \
+        -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) -print0
     )
     if [[ ${#found[@]} -gt 0 ]]; then
       wallpaper_dir="${dir}"
@@ -100,13 +101,29 @@ if [[ ${#wallpapers[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# Pick a random wallpaper.
-choice="${wallpapers[RANDOM % ${#wallpapers[@]}]}"
-
 # Keep a stable lockscreen image path.
 cache_dir="${HOME}/.cache"
 lock_image="${cache_dir}/wallpaper-lock.png"
 current_image="${cache_dir}/wallpaper-current"
+
+# Pick a random wallpaper, avoid immediate repeats when possible.
+current_target=""
+if [[ -e "${current_image}" ]]; then
+  current_target="$(readlink -f "${current_image}" 2>/dev/null || true)"
+fi
+if [[ -n "${current_target}" && ${#wallpapers[@]} -gt 1 ]]; then
+  filtered=()
+  for wp in "${wallpapers[@]}"; do
+    if [[ "$(readlink -f "${wp}")" != "${current_target}" ]]; then
+      filtered+=("${wp}")
+    fi
+  done
+  if [[ ${#filtered[@]} -gt 0 ]]; then
+    wallpapers=("${filtered[@]}")
+  fi
+fi
+
+choice="${wallpapers[RANDOM % ${#wallpapers[@]}]}"
 
 mkdir -p "${cache_dir}"
 ln -sf "${choice}" "${lock_image}"
@@ -123,4 +140,9 @@ if [[ -z "${swaybg_bin}" ]]; then
   exit 1
 fi
 
-exec "${swaybg_bin}" -i "${choice}" -m fill
+if command -v systemd-run >/dev/null 2>&1; then
+  systemd-run --user --scope --quiet -- "${swaybg_bin}" -i "${choice}" -m fill >/dev/null 2>&1
+else
+  "${swaybg_bin}" -i "${choice}" -m fill >/dev/null 2>&1 &
+fi
+exit 0
