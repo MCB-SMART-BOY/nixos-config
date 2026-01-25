@@ -20,7 +20,7 @@
    ```bash
    ip link
    ```
-   如果接口名不是 `clash0`，请修改 `host.nix` 的 `vars.tunInterface`。
+   如果接口名不是 `clash0`，请修改 `host.nix` 的 `vars.tunInterface`，或使用 `vars.tunInterfaces` 配置多个候选名称。
 3. DNS 是否由 Clash 提供：
    ```bash
    cat /etc/resolv.conf

@@ -2,6 +2,15 @@
 
 let
   tunInterface = vars.tunInterface;
+  tunInterfaces =
+    if vars ? tunInterfaces then
+      vars.tunInterfaces
+    else
+      [ ];
+  tunInterfacesEffective = lib.unique (
+    (lib.optionals (tunInterface != "") [ tunInterface ])
+    ++ tunInterfaces
+  );
   proxyUrl = vars.proxyUrl;
   proxyServiceEnabled = if vars ? enableProxy then vars.enableProxy else proxyUrl != "";
   proxyEnabled = proxyUrl != "";
@@ -35,12 +44,12 @@ in
           7890
           9090
         ];
-      allowedUDPPorts = lib.optionals (proxyServiceEnabled && tunInterface == "") [ 53 ];
-      interfaces = lib.optionalAttrs (proxyServiceEnabled && tunInterface != "") {
-        "${tunInterface}".allowedUDPPorts = [ 53 ];
-      };
+      allowedUDPPorts = lib.optionals (proxyServiceEnabled && tunInterfacesEffective == [ ]) [ 53 ];
+      interfaces = lib.optionalAttrs proxyServiceEnabled (lib.genAttrs tunInterfacesEffective (_: {
+        allowedUDPPorts = [ 53 ];
+      }));
       trustedInterfaces =
-        (lib.optionals (tunInterface != "") [ tunInterface ]) ++ [
+        tunInterfacesEffective ++ [
           "tun+"
           "utun+"
           "docker0"

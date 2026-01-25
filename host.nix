@@ -3,7 +3,11 @@
 let
   vars = {
     user = "mcbnixos";
-    tunInterface = "clash0";
+    tunInterface = "Mihomo";
+    tunInterfaces = [
+      "Mihomo"
+      "clash0"
+    ];
     enableProxy = true;
     cpuVendor = "intel";
     # Leave empty to keep system proxy/DNS disabled by default.
