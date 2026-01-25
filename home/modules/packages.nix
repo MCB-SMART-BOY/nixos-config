@@ -120,7 +120,7 @@ let
 
   heavyBuilds = with pkgs; [
     # Large builds (often compiled from source when cache misses)
-    zed-editor
+    zed
     helix
     alacritty
     yazi
@@ -131,7 +131,7 @@ let
     procs
     dust
     # Large toolchains
-    clang
+    # clang
     gcc
   ];
 
@@ -321,7 +321,7 @@ in
     };
     enableHeavyBuilds = lib.mkOption {
       type = lib.types.bool;
-      default = false;
+      default = true;
       description = "Install large packages that may compile from source.";
     };
   };
