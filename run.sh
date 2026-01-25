@@ -11,8 +11,16 @@ ETC_DIR="/etc/nixos"
 
 msg() {
   local level="$1"
+  local label
   shift
-  printf '[%s] %s\n' "${level}" "$*"
+  case "${level}" in
+    INFO) label="信息" ;;
+    OK) label="完成" ;;
+    WARN) label="警告" ;;
+    ERROR) label="错误" ;;
+    *) label="${level}" ;;
+  esac
+  printf '[%s] %s\n' "${label}" "$*"
 }
 
 log() { msg INFO "$*"; }
@@ -25,40 +33,40 @@ error() {
 
 usage() {
   cat <<EOF_USAGE
-Usage: run.sh
+用法: run.sh
 
-This script takes no arguments.
+该脚本不接受任何参数。
 EOF_USAGE
 }
 
 parse_args() {
   if [[ $# -gt 0 ]]; then
     usage
-    error "Unexpected arguments: $*"
+    error "不支持的参数：$*"
   fi
 }
 
 check_env() {
-  log "Checking environment..."
+  log "检查环境..."
 
   if [[ "$(whoami)" == "root" ]]; then
-    error "Run as a normal user (sudo will be used when needed)."
+    error "请以普通用户运行（需要时会调用 sudo）。"
   fi
 
   if ! command -v sudo >/dev/null 2>&1; then
-    error "sudo not found."
+    error "未找到 sudo。"
   fi
 
   if ! command -v git >/dev/null 2>&1; then
-    error "git not found."
+    error "未找到 git。"
   fi
 
   if ! command -v nixos-rebuild >/dev/null 2>&1; then
-    error "nixos-rebuild not found."
+    error "未找到 nixos-rebuild。"
   fi
 
   if [[ ! -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
-    error "Missing ${ETC_DIR}/hardware-configuration.nix; run nixos-generate-config first."
+    error "缺少 ${ETC_DIR}/hardware-configuration.nix；请先运行 nixos-generate-config。"
   fi
 }
 
@@ -81,7 +89,7 @@ temp_dns_enable() {
       iface="$(detect_default_iface)"
 
       if [[ -n "${iface}" ]]; then
-        log "Temporary DNS (resolvectl ${iface}): ${servers[*]}"
+        log "临时 DNS（resolvectl ${iface}）：${servers[*]}"
         sudo resolvectl dns "${iface}" "${servers[@]}"
         sudo resolvectl domain "${iface}" "~."
         TEMP_DNS_BACKEND="resolvectl"
@@ -96,24 +104,24 @@ temp_dns_enable() {
     sudo cp -a /etc/resolv.conf "${TEMP_DNS_BACKUP}"
     sudo rm -f /etc/resolv.conf
     printf 'nameserver %s\n' "${servers[@]}" | sudo tee /etc/resolv.conf >/dev/null
-    log "Temporary DNS (/etc/resolv.conf): ${servers[*]}"
+    log "临时 DNS（/etc/resolv.conf）：${servers[*]}"
     TEMP_DNS_BACKEND="resolv.conf"
     return 0
   fi
 
-  error "Failed to set temporary DNS (no resolvectl and no /etc/resolv.conf)."
+  error "无法设置临时 DNS（无 resolvectl 且缺少 /etc/resolv.conf）。"
 }
 
 temp_dns_disable() {
   if [[ "${TEMP_DNS_BACKEND}" == "resolvectl" ]]; then
     if [[ -n "${TEMP_DNS_IFACE}" ]]; then
-      log "Reverting DNS (resolvectl ${TEMP_DNS_IFACE})"
+      log "恢复 DNS（resolvectl ${TEMP_DNS_IFACE}）"
       sudo resolvectl revert "${TEMP_DNS_IFACE}" || true
       sudo resolvectl flush-caches >/dev/null 2>&1 || true
     fi
   elif [[ "${TEMP_DNS_BACKEND}" == "resolv.conf" ]]; then
     if [[ -n "${TEMP_DNS_BACKUP}" && -f "${TEMP_DNS_BACKUP}" ]]; then
-      log "Restoring /etc/resolv.conf"
+      log "恢复 /etc/resolv.conf"
       sudo cp -a "${TEMP_DNS_BACKUP}" /etc/resolv.conf || true
       rm -f "${TEMP_DNS_BACKUP}"
     fi
@@ -122,14 +130,14 @@ temp_dns_disable() {
 
 clone_repo() {
   local tmp_dir="$1"
-  log "Cloning: ${REPO_URL} (${BRANCH})"
+  log "拉取仓库：${REPO_URL}（${BRANCH}）"
   git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${tmp_dir}"
-  success "Repository fetched"
+  success "仓库拉取完成"
 }
 
 sync_repo_to_etc() {
   local repo_dir="$1"
-  log "Syncing to ${ETC_DIR}"
+  log "同步到 ${ETC_DIR}"
   sudo mkdir -p "${ETC_DIR}"
 
   if command -v rsync >/dev/null 2>&1; then
@@ -138,22 +146,22 @@ sync_repo_to_etc() {
     (cd "${repo_dir}" && tar --exclude=.git --exclude=hardware-configuration.nix -cf - .) | sudo tar -C "${ETC_DIR}" -xf -
   fi
 
-  success "Config synced"
+  success "配置同步完成"
 }
 
 rebuild_system() {
-  log "Rebuilding system (${MODE}), target: ${TARGET_NAME}"
+  log "重建系统（${MODE}），目标：${TARGET_NAME}"
   local nix_config="experimental-features = nix-command flakes"
   local rebuild_args=("${MODE}" "--show-trace" "--upgrade")
   if [[ -n "${NIX_CONFIG:-}" ]]; then
     nix_config="${NIX_CONFIG}"$'\n'"${nix_config}"
   fi
   sudo -E env NIX_CONFIG="${nix_config}" nixos-rebuild "${rebuild_args[@]}" --flake "${ETC_DIR}#${TARGET_NAME}"
-  success "Rebuild complete"
+  success "系统重建完成"
 }
 
 main() {
-  printf '==> %s\n' "NixOS one-step deploy"
+  printf '==> %s\n' "NixOS 一键部署"
   parse_args "$@"
   check_env
 
