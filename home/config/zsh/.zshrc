@@ -176,6 +176,11 @@ alias nfu='nix flake update'               # 更新 flake.lock
 alias nsp='nix search nixpkgs'             # 搜索软件包
 alias nsh='nix-shell'                      # 进入临时 Shell
 alias ngc='sudo nix-collect-garbage -d'    # 清理旧系统版本 (慎用)
+# 快速查看将要构建/下载的 derivations（判断是否会源码编译）
+nrc() {
+    local flake="${1:-/etc/nixos#nixosConfigurations.nixos.config.system.build.toplevel}"
+    nix build "$flake" --dry-run --accept-flake-config
+}
 
 # --- Git ---
 alias g='git'
