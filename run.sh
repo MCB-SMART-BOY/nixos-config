@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
-# One-step NixOS deploy from GitHub.
+# One-step NixOS deploy from GitHub. No arguments.
 
 set -euo pipefail
 
-SCRIPT_NAME="$(basename "$0")"
-REPO_URL="${REPO_URL:-https://github.com/MCB-SMART-BOY/nixos-config.git}"
-BRANCH="${BRANCH:-master}"
-TARGET_NAME="${TARGET_NAME:-nixos}"
-MODE="${MODE:-switch}"
+REPO_URL="https://github.com/MCB-SMART-BOY/nixos-config.git"
+BRANCH="master"
+TARGET_NAME="nixos"
+MODE="switch"
 ETC_DIR="/etc/nixos"
-USE_ALI_DNS=false
-DNS_IFACE=""
-FORCE_HARDWARE=false
 
 msg() {
   local level="$1"
@@ -29,82 +25,17 @@ error() {
 
 usage() {
   cat <<EOF_USAGE
-Usage: ${SCRIPT_NAME} [options]
+Usage: run.sh
 
-Options:
-  -h, --help           Show help
-  --repo <url>         Repository URL (default: ${REPO_URL})
-  --branch <name>      Branch name (default: ${BRANCH})
-  --target <name>      flake target name (default: ${TARGET_NAME})
-  --mode <action>      nixos-rebuild action: switch|test|build (default: switch)
-  --force-hardware     Allow overwriting /etc/nixos/hardware-configuration.nix
-  --aliyun-dns         Use Aliyun DNS temporarily (223.5.5.5/223.6.6.6)
-  --dns-iface <dev>    Bind DNS to interface (resolvectl)
+This script takes no arguments.
 EOF_USAGE
 }
 
 parse_args() {
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      --repo)
-        shift
-        [[ $# -gt 0 ]] || error "--repo requires a value"
-        REPO_URL="$1"
-        ;;
-      --branch)
-        shift
-        [[ $# -gt 0 ]] || error "--branch requires a value"
-        BRANCH="$1"
-        ;;
-      --target)
-        shift
-        [[ $# -gt 0 ]] || error "--target requires a value"
-        TARGET_NAME="$1"
-        ;;
-      --mode)
-        shift
-        [[ $# -gt 0 ]] || error "--mode requires a value"
-        MODE="$1"
-        ;;
-      --force-hardware)
-        FORCE_HARDWARE=true
-        ;;
-      --aliyun-dns)
-        USE_ALI_DNS=true
-        ;;
-      --dns-iface)
-        shift
-        [[ $# -gt 0 ]] || error "--dns-iface requires a value"
-        DNS_IFACE="$1"
-        USE_ALI_DNS=true
-        ;;
-      --)
-        shift
-        break
-        ;;
-      -* )
-        error "Unknown option: $1"
-        ;;
-      * )
-        error "Unexpected argument: $1"
-        ;;
-    esac
-    shift
-  done
-}
-
-validate_mode() {
-  case "${MODE}" in
-    switch|test|build)
-      ;;
-    *)
-      error "--mode '${MODE}' is invalid (use switch|test|build)"
-      ;;
-  esac
+  if [[ $# -gt 0 ]]; then
+    usage
+    error "Unexpected arguments: $*"
+  fi
 }
 
 check_env() {
@@ -126,8 +57,8 @@ check_env() {
     error "nixos-rebuild not found."
   fi
 
-  if [[ "${FORCE_HARDWARE}" != true && ! -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
-    error "Missing ${ETC_DIR}/hardware-configuration.nix; run nixos-generate-config or use --force-hardware"
+  if [[ ! -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
+    error "Missing ${ETC_DIR}/hardware-configuration.nix; run nixos-generate-config first."
   fi
 }
 
@@ -147,10 +78,7 @@ temp_dns_enable() {
 
   if command -v resolvectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1; then
     if systemctl is-active --quiet systemd-resolved; then
-      iface="${DNS_IFACE}"
-      if [[ -z "${iface}" ]]; then
-        iface="$(detect_default_iface)"
-      fi
+      iface="$(detect_default_iface)"
 
       if [[ -n "${iface}" ]]; then
         log "Temporary DNS (resolvectl ${iface}): ${servers[*]}"
@@ -204,19 +132,10 @@ sync_repo_to_etc() {
   log "Syncing to ${ETC_DIR}"
   sudo mkdir -p "${ETC_DIR}"
 
-  local excludes=(--exclude '.git/')
-  if [[ "${FORCE_HARDWARE}" != true ]]; then
-    excludes+=(--exclude 'hardware-configuration.nix')
-  fi
-
   if command -v rsync >/dev/null 2>&1; then
-    sudo rsync -a "${excludes[@]}" "${repo_dir}/" "${ETC_DIR}/"
+    sudo rsync -a --exclude '.git/' --exclude 'hardware-configuration.nix' "${repo_dir}/" "${ETC_DIR}/"
   else
-    local tar_excludes=(--exclude=.git)
-    if [[ "${FORCE_HARDWARE}" != true ]]; then
-      tar_excludes+=(--exclude=hardware-configuration.nix)
-    fi
-    (cd "${repo_dir}" && tar "${tar_excludes[@]}" -cf - .) | sudo tar -C "${ETC_DIR}" -xf -
+    (cd "${repo_dir}" && tar --exclude=.git --exclude=hardware-configuration.nix -cf - .) | sudo tar -C "${ETC_DIR}" -xf -
   fi
 
   success "Config synced"
@@ -236,7 +155,6 @@ rebuild_system() {
 main() {
   printf '==> %s\n' "NixOS one-step deploy"
   parse_args "$@"
-  validate_mode
   check_env
 
   local tmp_dir
@@ -250,9 +168,7 @@ main() {
   }
   trap cleanup EXIT
 
-  if [[ "${USE_ALI_DNS}" == true ]]; then
-    temp_dns_enable
-  fi
+  temp_dns_enable
 
   clone_repo "${tmp_dir}"
   sync_repo_to_etc "${tmp_dir}"

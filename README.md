@@ -37,14 +37,14 @@
 ```bash
 curl -fsSL -o run.sh https://raw.githubusercontent.com/MCB-SMART-BOY/nixos-config/master/run.sh
 chmod +x run.sh
-./run.sh --aliyun-dns
+./run.sh
 ```
 
 说明：
 - 默认从 GitHub 拉取最新代码并同步到 `/etc/nixos`
+- 默认临时使用阿里云 DNS（223.5.5.5/223.6.6.6）
 - 默认执行 `nixos-rebuild switch --show-trace --upgrade`
-- 默认保留本机 `/etc/nixos/hardware-configuration.nix`，如需覆盖请加 `--force-hardware`
-- 可选参数：`--repo`、`--branch`、`--target`、`--mode`、`--dns-iface`
+- 默认保留本机 `/etc/nixos/hardware-configuration.nix`
 
 ### 2) 日常更新
 

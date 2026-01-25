@@ -37,8 +37,8 @@ Waybar 自定义模块脚本位于 `home/scripts/waybar-*`，会安装到 `~/.lo
 ## 部署脚本
 
 - `run.sh`：一键部署（默认拉取 GitHub 最新代码、同步到 `/etc/nixos`、执行 `nixos-rebuild switch --show-trace --upgrade`）
-- 默认保留本机 `/etc/nixos/hardware-configuration.nix`，如需覆盖请加 `--force-hardware`
-- 可选参数：`--repo`、`--branch`、`--target`、`--mode`、`--aliyun-dns`、`--dns-iface`
+- 默认临时使用阿里云 DNS（223.5.5.5/223.6.6.6）
+- 默认保留本机 `/etc/nixos/hardware-configuration.nix`
 - `configuration.nix` 会联网拉取 Home Manager（首次构建需要网络）
 
 ## 常见扩展方式
