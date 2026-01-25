@@ -201,7 +201,6 @@ let
     gdb
     lldb
     # Binary tooling
-    binutils
     patchelf
     file
     # Performance and monitoring
@@ -232,6 +231,8 @@ let
     just
     entr
     ncdu
+  ] ++ lib.optionals (!cfg.enableHeavyBuilds) [
+    binutils
   ];
 
   groups = lib.concatLists [

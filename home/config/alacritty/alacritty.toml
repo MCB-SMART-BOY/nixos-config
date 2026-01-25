@@ -3,6 +3,7 @@
 # DMS/Noctalia-inspired Theme
 
 # 热更新配置（无需重启）
+[general]
 live_config_reload = true
 
 # ══════════════════════════════════════════════════════════════════
