@@ -169,7 +169,7 @@ alias oldgrep='command grep'
 # ══════════════════════════════════════════════════════════════════
 
 # --- NixOS 管理 ---
-alias nrs='sudo nixos-rebuild switch'      # 应用新配置
+alias nrs='sudo nixos-rebuild switch --flake /etc/nixos#nixos --show-trace --upgrade' # 一键更新并重建
 alias nrt='sudo nixos-rebuild test'        # 测试新配置但不设为默认
 alias nrb='sudo nixos-rebuild boot'        # 下次启动时应用
 alias nfu='nix flake update'               # 更新 flake.lock
