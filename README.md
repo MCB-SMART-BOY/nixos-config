@@ -42,7 +42,7 @@ chmod +x run.sh
 
 说明：
 - 默认从 GitHub 拉取最新代码并同步到 `/etc/nixos`
-- 默认临时使用阿里云 DNS（223.5.5.5/223.6.6.6）
+- 如遇拉取或重建失败，会临时切换阿里云 DNS（223.5.5.5/223.6.6.6）后重试
 - 默认执行 `nixos-rebuild switch --show-trace --upgrade`
 - 默认保留本机 `/etc/nixos/hardware-configuration.nix`
 

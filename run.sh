@@ -8,6 +8,7 @@ BRANCH="master"
 TARGET_NAME="nixos"
 MODE="switch"
 ETC_DIR="/etc/nixos"
+DNS_ENABLED=false
 
 msg() {
   local level="$1"
@@ -94,6 +95,7 @@ temp_dns_enable() {
         sudo resolvectl domain "${iface}" "~."
         TEMP_DNS_BACKEND="resolvectl"
         TEMP_DNS_IFACE="${iface}"
+        DNS_ENABLED=true
         return 0
       fi
     fi
@@ -106,6 +108,7 @@ temp_dns_enable() {
     printf 'nameserver %s\n' "${servers[@]}" | sudo tee /etc/resolv.conf >/dev/null
     log "临时 DNS（/etc/resolv.conf）：${servers[*]}"
     TEMP_DNS_BACKEND="resolv.conf"
+    DNS_ENABLED=true
     return 0
   fi
 
@@ -131,8 +134,12 @@ temp_dns_disable() {
 clone_repo() {
   local tmp_dir="$1"
   log "拉取仓库：${REPO_URL}（${BRANCH}）"
-  git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${tmp_dir}"
-  success "仓库拉取完成"
+  if git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${tmp_dir}"; then
+    success "仓库拉取完成"
+    return 0
+  fi
+  warn "仓库拉取失败"
+  return 1
 }
 
 sync_repo_to_etc() {
@@ -156,8 +163,12 @@ rebuild_system() {
   if [[ -n "${NIX_CONFIG:-}" ]]; then
     nix_config="${NIX_CONFIG}"$'\n'"${nix_config}"
   fi
-  sudo -E env NIX_CONFIG="${nix_config}" nixos-rebuild "${rebuild_args[@]}" --flake "${ETC_DIR}#${TARGET_NAME}"
-  success "系统重建完成"
+  if sudo -E env NIX_CONFIG="${nix_config}" nixos-rebuild "${rebuild_args[@]}" --flake "${ETC_DIR}#${TARGET_NAME}"; then
+    success "系统重建完成"
+    return 0
+  fi
+  warn "系统重建失败"
+  return 1
 }
 
 main() {
@@ -176,11 +187,27 @@ main() {
   }
   trap cleanup EXIT
 
-  temp_dns_enable
-
-  clone_repo "${tmp_dir}"
+  if ! clone_repo "${tmp_dir}"; then
+    log "尝试临时切换阿里云 DNS 后重试"
+    temp_dns_enable
+    rm -rf "${tmp_dir}"
+    tmp_dir="$(mktemp -d)"
+    if ! clone_repo "${tmp_dir}"; then
+      error "仓库拉取失败，请检查网络"
+    fi
+  fi
   sync_repo_to_etc "${tmp_dir}"
-  rebuild_system
+  if ! rebuild_system; then
+    if [[ "${DNS_ENABLED}" == false ]]; then
+      log "尝试临时切换阿里云 DNS 后重试重建"
+      temp_dns_enable
+      if ! rebuild_system; then
+        error "系统重建失败，请检查日志"
+      fi
+    else
+      error "系统重建失败，请检查日志"
+    fi
+  fi
 }
 
 main "$@"
