@@ -120,7 +120,7 @@ let
 
   heavyBuilds = with pkgs; [
     # Large builds (often compiled from source when cache misses)
-    zed
+    # zed-editor-fhs
     helix
     alacritty
     yazi
