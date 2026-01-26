@@ -22,6 +22,7 @@
             fcitx5-gtk
           ])
           ++ lib.optionals (lib.hasAttrByPath [ "fcitx5-qt" ] pkgs) [ pkgs.fcitx5-qt ]
+          ++ lib.optionals (lib.hasAttrByPath [ "libsForQt5" "fcitx5-qt" ] pkgs) [ pkgs.libsForQt5.fcitx5-qt ]
           ++ lib.optionals (lib.hasAttrByPath [ "qt6Packages" "fcitx5-qt" ] pkgs) [ pkgs.qt6Packages.fcitx5-qt ];
       };
     };

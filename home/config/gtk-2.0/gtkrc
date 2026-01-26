@@ -1,0 +1,7 @@
+# ~/.config/gtk-2.0/gtkrc
+gtk-icon-theme-name="Papirus-Dark"
+gtk-theme-name="Catppuccin-Mocha-Standard-Blue-Dark"
+gtk-font-name="Manrope 11"
+gtk-cursor-theme-name="Bibata-Modern-Ice"
+gtk-cursor-theme-size=24
+gtk-im-module="fcitx"

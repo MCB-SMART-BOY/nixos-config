@@ -7,8 +7,10 @@
   xdg.configFile."swaylock/config".source = ../config/swaylock/config;
   xdg.configFile."waybar/config".source = ../config/waybar/config;
   xdg.configFile."waybar/style.css".source = ../config/waybar/style.css;
+  xdg.configFile."gtk-2.0/gtkrc".source = ../config/gtk-2.0/gtkrc;
   xdg.configFile."gtk-3.0/settings.ini".source = ../config/gtk-3.0/settings.ini;
   xdg.configFile."gtk-4.0/settings.ini".source = ../config/gtk-4.0/settings.ini;
+  home.file.".gtkrc-2.0".source = ../config/gtk-2.0/gtkrc;
 
   home.file."Pictures/Wallpapers" = {
     source = ../assets/wallpapers;
