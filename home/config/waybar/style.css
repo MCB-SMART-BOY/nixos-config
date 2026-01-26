@@ -1,4 +1,16 @@
-/* Waybar Styles - DMS/Noctalia-inspired */
+/* Waybar Styles - Noctalia Aqua */
+
+@define-color base #0c1116;
+@define-color surface #111827;
+@define-color surface-2 #1b2430;
+@define-color border #243247;
+@define-color text #e6edf3;
+@define-color muted #9aa4b2;
+@define-color accent #5eead4;
+@define-color accent-2 #93c5fd;
+@define-color warn #fbbf24;
+@define-color good #34d399;
+@define-color crit #fb7185;
 
 * {
     font-family: "Manrope", "JetBrainsMono Nerd Font", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
@@ -9,34 +21,35 @@
 
 window#waybar {
     background-color: transparent;
-    color: #e2e8f0;
+    color: @text;
 }
 
 .modules-left,
 .modules-center,
 .modules-right {
-    margin: 4px 3px;
-    padding: 3px 5px;
-    background-color: rgba(15, 23, 42, 0.76);
-    border: 1px solid #253248;
-    border-radius: 12px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.32);
+    margin: 6px 4px;
+    padding: 4px 6px;
+    background: linear-gradient(135deg, rgba(12, 17, 22, 0.86), rgba(17, 24, 39, 0.82));
+    border: 1px solid rgba(94, 234, 212, 0.18);
+    border-radius: 14px;
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
 }
 
 .modules-center {
-    padding: 3px 8px;
-    background-color: rgba(17, 24, 39, 0.9);
-    border-color: rgba(125, 211, 252, 0.25);
+    padding: 4px 10px;
+    background: linear-gradient(135deg, rgba(17, 24, 39, 0.92), rgba(17, 24, 39, 0.72));
+    border-color: rgba(147, 197, 253, 0.28);
 }
 
 tooltip {
-    background-color: #0f172a;
-    border: 1px solid #253248;
+    background-color: @surface;
+    border: 1px solid @border;
     border-radius: 10px;
+    padding: 6px 8px;
 }
 
 tooltip label {
-    color: #e2e8f0;
+    color: @text;
 }
 
 #custom-logo,
@@ -58,21 +71,22 @@ tooltip label {
 #custom-proxy,
 #custom-power {
     padding: 0 8px;
-    margin: 2px 2px;
-    color: #e2e8f0;
-    border-radius: 9px;
-    background-color: rgba(17, 24, 39, 0.45);
-    border: 1px solid rgba(37, 50, 72, 0.45);
+    margin: 2px 3px;
+    color: @text;
+    border-radius: 10px;
+    background-color: rgba(17, 24, 39, 0.38);
+    border: 1px solid rgba(36, 50, 72, 0.4);
     transition: all 0.2s ease;
 }
 
 #custom-logo {
     font-size: 16px;
-    color: #7dd3fc;
-    padding: 0 8px;
+    color: @accent;
+    padding: 0 10px;
     margin-left: 3px;
-    background-color: rgba(125, 211, 252, 0.12);
-    border-color: rgba(125, 211, 252, 0.35);
+    background-color: rgba(94, 234, 212, 0.16);
+    border-color: rgba(94, 234, 212, 0.45);
+    border-radius: 999px;
 }
 
 #workspaces {
@@ -85,7 +99,7 @@ tooltip label {
 #workspaces button {
     padding: 0 6px;
     min-width: 20px;
-    color: #94a3b8;
+    color: @muted;
     background-color: transparent;
     border: 1px solid transparent;
     border-radius: 8px;
@@ -95,168 +109,168 @@ tooltip label {
 }
 
 #workspaces button:hover {
-    color: #e2e8f0;
-    background-color: rgba(125, 211, 252, 0.12);
-    border-color: rgba(125, 211, 252, 0.3);
+    color: @text;
+    background-color: rgba(147, 197, 253, 0.14);
+    border-color: rgba(147, 197, 253, 0.3);
 }
 
 #workspaces button.active,
 #workspaces button.focused {
-    color: #e2e8f0;
-    background-color: rgba(125, 211, 252, 0.2);
-    border-color: rgba(125, 211, 252, 0.5);
-    box-shadow: inset 0 0 0 1px rgba(125, 211, 252, 0.35);
+    color: @text;
+    background-color: rgba(94, 234, 212, 0.2);
+    border-color: rgba(94, 234, 212, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(94, 234, 212, 0.35);
 }
 
 #workspaces button.visible {
-    color: #e2e8f0;
-    border-color: rgba(125, 211, 252, 0.25);
+    color: @text;
+    border-color: rgba(94, 234, 212, 0.25);
 }
 
 #workspaces button.urgent {
-    color: #e2e8f0;
-    background-color: rgba(248, 113, 113, 0.2);
-    border-color: rgba(248, 113, 113, 0.6);
+    color: @text;
+    background-color: rgba(251, 113, 133, 0.2);
+    border-color: rgba(251, 113, 133, 0.6);
 }
 
 #clock {
-    color: #a5b4fc;
+    color: @accent-2;
     font-weight: 700;
+    font-size: 12px;
     letter-spacing: 0.4px;
 }
 
 #network {
-    color: #7dd3fc;
+    color: @accent-2;
 }
 
 #network.disconnected {
-    color: #f87171;
+    color: @crit;
 }
 
 #custom-net-speed {
-    color: #e2e8f0;
+    color: @text;
     font-size: 10px;
 }
 
 #custom-net-speed.connected {
-    color: #7dd3fc;
+    color: @accent-2;
 }
 
 #custom-net-speed.disconnected {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #bluetooth {
-    color: #a5b4fc;
+    color: @accent-2;
 }
 
 #bluetooth.off {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #pulseaudio {
-    color: #fbbf24;
+    color: @warn;
 }
 
 #pulseaudio.muted {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #cpu {
-    color: #7dd3fc;
+    color: @accent-2;
 }
 
 #memory {
-    color: #34d399;
+    color: @good;
 }
 
 #temperature {
-    color: #a5b4fc;
+    color: @accent-2;
 }
 
 #disk {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #backlight {
-    color: #a5b4fc;
+    color: @accent-2;
 }
 
 #battery {
-    color: #34d399;
+    color: @good;
 }
 
 #battery.charging,
 #battery.plugged {
-    color: #7dd3fc;
+    color: @accent;
 }
 
 #battery.warning:not(.charging) {
-    color: #fbbf24;
+    color: @warn;
 }
 
 #battery.critical:not(.charging) {
-    color: #f87171;
+    color: @crit;
     animation: blink 1s infinite;
 }
 
 #custom-updates {
-    color: #a5b4fc;
+    color: @accent-2;
 }
 
 #custom-updates.updates {
-    color: #fbbf24;
+    color: @warn;
 }
 
 #custom-updates.up-to-date {
-    color: #34d399;
+    color: @good;
 }
 
 #custom-updates.pending {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #custom-updates.error {
-    color: #f87171;
+    color: @crit;
 }
 
 #custom-proxy {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #custom-proxy.on {
-    color: #7dd3fc;
+    color: @accent;
 }
 
 #custom-proxy.off {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #custom-proxy.error {
-    color: #f87171;
+    color: @crit;
 }
 
 #idle_inhibitor {
-    color: #94a3b8;
+    color: @muted;
 }
 
 #idle_inhibitor.activated {
-    color: #7dd3fc;
+    color: @accent;
 }
 
 @keyframes blink {
     to {
-        color: #e2e8f0;
+        color: @text;
     }
 }
 
 #custom-power {
-    color: #f87171;
+    color: @crit;
     padding-right: 10px;
 }
 
 #custom-power:hover {
-    color: #e2e8f0;
-    background-color: rgba(248, 113, 113, 0.22);
-    border-color: rgba(248, 113, 113, 0.6);
+    color: @text;
+    background-color: rgba(251, 113, 133, 0.22);
 }

@@ -15,16 +15,16 @@
     }
   },
   "display": {
-    "separator": "  :  ",
+    "separator": " : ",
     "color": {
       "keys": "cyan",
       "title": "white",
       "separator": "bright_black"
     },
     "key": {
-      "type": "both-1",
-      "width": 16,
-      "paddingLeft": 2
+      "type": "string",
+      "width": 12,
+      "paddingLeft": 0
     }
   },
   "modules": [
