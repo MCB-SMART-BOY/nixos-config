@@ -15,7 +15,7 @@
     }
   },
   "display": {
-    "separator": " :: ",
+    "separator": "  :  ",
     "color": {
       "keys": "cyan",
       "title": "white",
@@ -23,8 +23,8 @@
     },
     "key": {
       "type": "both-1",
-      "width": 13,
-      "paddingLeft": 1
+      "width": 16,
+      "paddingLeft": 2
     }
   },
   "modules": [

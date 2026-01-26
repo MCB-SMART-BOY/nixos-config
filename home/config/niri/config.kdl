@@ -48,7 +48,7 @@ input {
 // ══════════════════════════════════════════════════════════════════
 
 layout {
-    gaps 16
+    gaps 6
     center-focused-column "always"
 
     preset-column-widths {
@@ -57,7 +57,7 @@ layout {
         proportion 0.70
     }
 
-    default-column-width { proportion 0.94; }
+    default-column-width { proportion 1.0; }
 
     focus-ring {
         width 2
@@ -186,10 +186,10 @@ binds {
     Mod+Shift+C { spawn "niri-run" "wallpaper-random"; }
 
     // ─── 焦点移动 (Vim 风格) ───
-    Mod+H { focus-column-left; }
-    Mod+J { focus-window-down; }
-    Mod+K { focus-window-up; }
-    Mod+L { focus-column-right; }
+    Mod+h { focus-column-left; }
+    Mod+j { focus-window-down; }
+    Mod+k { focus-window-up; }
+    Mod+l { focus-column-right; }
     
     Mod+Left { focus-column-left; }
     Mod+Down { focus-window-down; }
@@ -197,10 +197,10 @@ binds {
     Mod+Right { focus-column-right; }
 
     // ─── 窗口移动 ───
-    Mod+Shift+H { move-column-left; }
-    Mod+Shift+J { move-window-down; }
-    Mod+Shift+K { move-window-up; }
-    Mod+Shift+L { move-column-right; }
+    Mod+Shift+h { move-column-left; }
+    Mod+Shift+j { move-window-down; }
+    Mod+Shift+k { move-window-up; }
+    Mod+Shift+l { move-column-right; }
     
     Mod+Shift+Left { move-column-left; }
     Mod+Shift+Down { move-window-down; }
