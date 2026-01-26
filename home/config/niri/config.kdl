@@ -48,21 +48,21 @@ input {
 // ══════════════════════════════════════════════════════════════════
 
 layout {
-    gaps 14
+    gaps 16
     center-focused-column "always"
 
     preset-column-widths {
-        proportion 0.33333
+        proportion 0.30
         proportion 0.5
-        proportion 0.66667
+        proportion 0.70
     }
 
-    default-column-width { proportion 0.97; }
+    default-column-width { proportion 0.94; }
 
     focus-ring {
         width 2
-        active-color "#7dd3fc"     // Accent
-        inactive-color "#253248"   // Border
+        active-color "#5eead4"     // Accent
+        inactive-color "#2a3648"   // Border
     }
 
     border {
@@ -71,10 +71,10 @@ layout {
 
     shadow {
         on
-        softness 30
-        spread 5
-        offset x=0 y=5
-        color "#00000070"
+        softness 36
+        spread 4
+        offset x=0 y=6
+        color "#0b111b99"
     }
 }
 
@@ -89,32 +89,32 @@ prefer-no-csd
 // ══════════════════════════════════════════════════════════════════
 
 animations {
-    slowdown 1.0
+    slowdown 1.05
 
     workspace-switch {
-        spring damping-ratio=1.0 stiffness=1000 epsilon=0.0001
+        spring damping-ratio=0.9 stiffness=800 epsilon=0.0001
     }
 
     window-open {
-        duration-ms 200
+        duration-ms 220
         curve "ease-out-expo"
     }
 
     window-close {
-        duration-ms 150
+        duration-ms 160
         curve "ease-out-quad"
     }
 
     horizontal-view-movement {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
+        spring damping-ratio=0.9 stiffness=750 epsilon=0.0001
     }
 
     window-movement {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
+        spring damping-ratio=0.9 stiffness=750 epsilon=0.0001
     }
 
     window-resize {
-        spring damping-ratio=1.0 stiffness=800 epsilon=0.0001
+        spring damping-ratio=0.9 stiffness=750 epsilon=0.0001
     }
 
     config-notification-open-close {
@@ -146,7 +146,7 @@ spawn-at-startup "niri-run" "swayidle" "-w"
 // ══════════════════════════════════════════════════════════════════
 
 window-rule {
-    geometry-corner-radius 16
+    geometry-corner-radius 18
     clip-to-geometry true
 }
 

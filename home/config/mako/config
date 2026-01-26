@@ -3,24 +3,24 @@
 # DMS/Noctalia-inspired Theme
 
 # 基础样式
-font=Manrope 12
-background-color=#0b0f14e6
-text-color=#e2e8f0
-border-color=#7dd3fc
-border-size=1
-border-radius=16
-progress-color=over #7dd3fc
+font=Manrope 11
+background-color=#0c1116e6
+text-color=#e6edf3
+border-color=#5eead4
+border-size=2
+border-radius=18
+progress-color=over #5eead4
 
 # 尺寸与位置
-width=420
-height=160
-margin=24
-padding=18
+width=380
+height=150
+margin=22
+padding=16
 anchor=top-right
 
 # 行为
 # 通知格式：标题 + 正文（Pango）
-format=<b>%s</b>\n%b
+format=<b>%s</b>\n<span foreground="#9aa4b2">%b</span>
 default-timeout=5000
 ignore-timeout=0
 max-visible=5
@@ -39,14 +39,14 @@ icon-path=~/.nix-profile/share/icons/Papirus-Dark:~/.local/share/icons/Papirus-D
 invisible=1
 
 [urgency=low]
-background-color=#0b0f14e6
+background-color=#0c1116e6
 border-color=#34d399
 
 [urgency=normal]
-background-color=#0b0f14e6
-border-color=#7dd3fc
+background-color=#0c1116e6
+border-color=#5eead4
 
 [urgency=high]
-background-color=#0b0f14e6
-border-color=#f87171
+background-color=#0c1116e6
+border-color=#fb7185
 default-timeout=0

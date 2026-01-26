@@ -1,10 +1,10 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, osConfig ? null, ... }:
 
 let
   cfg = config.mcb.packages;
 
   baseRuntime = with pkgs; [
-    # Core runtime tools for scripts when the system profile is not on PATH
+    # 系统环境不在 PATH 时也可用的脚本运行基础工具
     bash
     coreutils
     findutils
@@ -20,69 +20,78 @@ let
   ];
 
   network = with pkgs; [
-    # Proxy core
+    # 代理核心
     clash-verge-rev
     clash-nyanpasu
     mihomo
     metacubexd
-    # Network UI
+    # 网络界面
     networkmanagerapplet
   ];
 
   shellTools = with pkgs; [
-    # Core CLI
+    # 核心命令行工具
     git
     wget
     curl
     eza
     fd
     fzf
-    # Shell workflow
+    ripgrep
+    bat
+    delta
+    # 命令行工作流
     zoxide
     starship
     direnv
     fish
-    # Monitoring and disk
+    # 监控与磁盘
     btop
+    bottom
     fastfetch
     duf
     gdu
-    # Data and crypto tools
+    dust
+    procs
+    # 数据与加密工具
     jq
     yq
     age
     sops
-    # Hardware info
+    # 硬件信息
     lm_sensors
     usbutils
+    # 终端文件管理
+    yazi
   ];
 
   waylandTools = with pkgs; [
-    # Clipboard and screenshots
+    # 剪贴板与截图
     wl-clipboard
     grim
     slurp
     swappy
-    # Notifications and wallpaper
+    # 通知与壁纸
     mako
     libnotify
-    # Session helpers
+    # 会话辅助
     swaylock
     swayidle
     waybar
     fuzzel
     fcitx5
-    # Brightness
+    # 亮度控制
     brightnessctl
   ];
 
   browsersAndMedia = with pkgs; [
-    # Terminals
+    # 终端
     foot
-    # Browsers
+    alacritty
+    # 浏览器
     firefox
     google-chrome
-    # Media and viewers
+    # 媒体与阅读
     nautilus
     mpv
     vlc
@@ -91,21 +100,24 @@ let
   ];
 
   dev = with pkgs; [
-    # Toolchains
+    # 工具链
     rustup
-    # rust-analyzer is managed via rustup (rustup component add rust-analyzer)
+    # rust-analyzer 通过 rustup 安装（rustup component add rust-analyzer）
     gnumake
     cmake
     pkg-config
     openssl
-    # Editors/IDEs
+    gcc
+    binutils
+    # 编辑器与开发环境
     neovim
+    helix
     nodePackages.typescript-language-server
     vscode-fhs
-    # Python environments
+    # Python 环境
     uv
     conda
-    # LSP and formatters
+    # 语言服务器与格式化
     nil
     marksman
     taplo
@@ -118,38 +130,21 @@ let
     shfmt
   ];
 
-  heavyBuilds = with pkgs; [
-    # Large builds (often compiled from source when cache misses)
-    # zed-editor-fhs
-    helix
-    alacritty
-    yazi
-    ripgrep
-    bat
-    delta
-    bottom
-    procs
-    dust
-    # Large toolchains
-    # clang
-    gcc
-  ];
-
   chat = with pkgs; [
-    # Messaging
+    # 社交聊天
     qq
     telegram-desktop
     discord
   ];
 
   emulation = with pkgs; [
-    # Wine stack
+    # Wine 兼容层
     wineWowPackages.stable
     winetricks
   ];
 
   entertainment = with pkgs; [
-    # Anime/video apps
+    # 影音与阅读应用
     netease-cloud-music-gtk
     kazumi
     mangayomi
@@ -158,27 +153,31 @@ let
     ++ lib.optionals (pkgs ? musicfox) [ pkgs.musicfox ]
     ++ lib.optionals (pkgs ? go-musicfox) [ pkgs.go-musicfox ];
 
-  gaming = with pkgs; [
-    # Core clients/tools
-    steam
-    mangohud
-    protonup-qt
-    lutris
-  ];
+  gaming =
+    with pkgs;
+    [
+      # 游戏客户端与工具
+      mangohud
+      protonup-qt
+      lutris
+    ]
+    ++ lib.optionals (osConfig == null || !(osConfig.programs.steam.enable or false)) [
+      steam
+    ];
 
   systemTools = with pkgs; [
-    # Storage and downloads
+    # 存储与下载
     ventoy
     qbittorrent
     aria2
     yt-dlp
-    # System utilities
+    # 系统工具
     gparted
     pavucontrol
   ];
 
   theming = with pkgs; [
-    # Icons, cursors, themes
+    # 图标、光标与主题
     adwaita-icon-theme
     gnome-themes-extra
     papirus-icon-theme
@@ -188,28 +187,28 @@ let
   ];
 
   xorgCompat = with pkgs; [
-    # Xwayland compatibility
+    # Xwayland 兼容
     xwayland
     xwayland-satellite
     xorg.xhost
   ];
 
   geekTools = with pkgs; [
-    # Debugging and tracing
+    # 调试与跟踪
     strace
     ltrace
     gdb
     lldb
-    # Binary tooling
+    # 二进制工具
     patchelf
     file
-    # Performance and monitoring
+    # 性能与监控
     htop
     iotop
     iftop
     sysstat
     lsof
-    # Network diagnostics
+    # 网络诊断
     mtr
     nmap
     tcpdump
@@ -217,22 +216,20 @@ let
     socat
     iperf3
     ethtool
-    # Benchmarking and analysis
+    # 基准测试与分析
     hyperfine
     tokei
-    # Archiving and transfer
+    # 压缩与传输
     tree
     unzip
     zip
     p7zip
     rsync
     rclone
-    # Build helpers
+    # 构建辅助
     just
     entr
     ncdu
-  ] ++ lib.optionals (!cfg.enableHeavyBuilds) [
-    binutils
   ];
 
   groups = lib.concatLists [
@@ -250,7 +247,6 @@ let
     (lib.optionals cfg.enableTheming theming)
     (lib.optionals cfg.enableXorgCompat xorgCompat)
     (lib.optionals cfg.enableGeekTools geekTools)
-    (lib.optionals cfg.enableHeavyBuilds heavyBuilds)
   ];
 in
 {
@@ -319,11 +315,6 @@ in
       type = lib.types.bool;
       default = true;
       description = "Install common geek/debug/network tooling.";
-    };
-    enableHeavyBuilds = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Install large packages that may compile from source.";
     };
   };
 

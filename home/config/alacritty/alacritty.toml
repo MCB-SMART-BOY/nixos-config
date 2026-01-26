@@ -10,9 +10,9 @@ live_config_reload = true
 # 🪟 Window
 # ══════════════════════════════════════════════════════════════════
 [window]
-padding = { x = 16, y = 16 }
+padding = { x = 18, y = 18 }
 decorations = "None" # 无边框，适合平铺窗口管理器
-opacity = 0.95 # 轻微透明，减少压迫感
+opacity = 0.96 # 轻微透明，减少压迫感
 blur = true    # 需要合成器支持
 dynamic_padding = true
 dynamic_title = true
@@ -54,77 +54,77 @@ style = "Bold Italic"
 # 垂直偏移 (微调字体行距)
 [font.offset]
 x = 0
-y = 1
+y = 2
 
 # ══════════════════════════════════════════════════════════════════
 # 🎨 Colors - DMS/Noctalia-inspired
 # ══════════════════════════════════════════════════════════════════
 [colors.primary]
-background = "#0b0f14"
-foreground = "#e2e8f0"
-dim_foreground = "#9aa5b1"
-bright_foreground = "#e2e8f0"
+background = "#0c1116"
+foreground = "#e6edf3"
+dim_foreground = "#9aa4b2"
+bright_foreground = "#f1f5f9"
 
 [colors.cursor]
-text = "#0b0f14"
-cursor = "#7dd3fc"
+text = "#0c1116"
+cursor = "#5eead4"
 
 [colors.vi_mode_cursor]
-text = "#0b0f14"
-cursor = "#a5b4fc"
+text = "#0c1116"
+cursor = "#fbbf24"
 
 [colors.search.matches]
-foreground = "#0b0f14"
-background = "#a5b4fc"
+foreground = "#0c1116"
+background = "#fbbf24"
 
 [colors.search.focused_match]
-foreground = "#0b0f14"
-background = "#34d399"
+foreground = "#0c1116"
+background = "#5eead4"
 
 [colors.footer_bar]
-foreground = "#0b0f14"
-background = "#94a3b8"
+foreground = "#0c1116"
+background = "#9aa4b2"
 
 [colors.hints.start]
-foreground = "#0b0f14"
+foreground = "#0c1116"
 background = "#fbbf24"
 
 [colors.hints.end]
-foreground = "#0b0f14"
-background = "#94a3b8"
+foreground = "#0c1116"
+background = "#9aa4b2"
 
 [colors.selection]
-text = "#0b0f14"
-background = "#7dd3fc"
+text = "#e6edf3"
+background = "#1f2937"
 
 [colors.normal]
-black = "#1f2937"
-red = "#f87171"
+black = "#1b2430"
+red = "#fb7185"
 green = "#34d399"
 yellow = "#fbbf24"
-blue = "#7dd3fc"
-magenta = "#a5b4fc"
+blue = "#60a5fa"
+magenta = "#f472b6"
 cyan = "#5eead4"
 white = "#e2e8f0"
 
 [colors.bright]
 black = "#334155"
-red = "#fca5a5"
+red = "#fda4af"
 green = "#6ee7b7"
-yellow = "#fcd34d"
-blue = "#bae6fd"
-magenta = "#c7d2fe"
+yellow = "#fde68a"
+blue = "#93c5fd"
+magenta = "#f9a8d4"
 cyan = "#99f6e4"
 white = "#f8fafc"
 
 [colors.dim]
-black = "#111827"
-red = "#ef4444"
+black = "#0f172a"
+red = "#e87979"
 green = "#22c55e"
-yellow = "#f59e0b"
-blue = "#38bdf8"
-magenta = "#818cf8"
-cyan = "#14b8a6"
+yellow = "#eab308"
+blue = "#3b82f6"
+magenta = "#ec4899"
+cyan = "#2dd4bf"
 white = "#cbd5e1"
 
 # ══════════════════════════════════════════════════════════════════

@@ -7,7 +7,7 @@
 - 用户入口：`home/home.nix`
 - 典型模块：
   - `home/modules/base.nix`：环境变量与 PATH
-  - `home/modules/packages.nix`：包组控制开关（`mcb.packages.*`，含 `enableGeekTools`、`enableHeavyBuilds`）
+  - `home/modules/packages.nix`：包组控制开关（`mcb.packages.*`，含 `enableGeekTools` 等）
   - `home/modules/programs.nix`：Alacritty/Helix 等程序配置接入
   - `home/modules/desktop.nix`：niri/fuzzel/mako/waybar/swaylock/gtk 配置接入（含 Waybar 自定义脚本）
   - `home/modules/shell.nix`：zsh/direnv/zoxide/starship/tmux/fastfetch/btop 接入

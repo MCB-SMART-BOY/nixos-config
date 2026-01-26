@@ -2,10 +2,9 @@
 
 let
   homeDir = config.home.homeDirectory;
-  heavy = config.mcb.packages.enableHeavyBuilds;
-  editor = if heavy then "hx" else "nvim";
-  manpager = if heavy then "sh -c 'col -bx | bat -l man -p'" else "less -R";
-  terminal = if heavy then "alacritty" else "foot";
+  editor = "hx";
+  manpager = "sh -c 'col -bx | bat -l man -p'";
+  terminal = "alacritty";
 in
 {
   home.sessionVariables = {

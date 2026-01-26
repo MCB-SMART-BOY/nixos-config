@@ -4,10 +4,10 @@
     "type": "builtin",
     "source": "nixos",
     "color": {
-      "1": "blue",
-      "2": "cyan",
-      "3": "magenta",
-      "4": "blue"
+      "1": "cyan",
+      "2": "blue",
+      "3": "bright_cyan",
+      "4": "cyan"
     },
     "padding": {
       "top": 1,
@@ -15,15 +15,15 @@
     }
   },
   "display": {
-    "separator": " : ",
+    "separator": " :: ",
     "color": {
-      "keys": "blue",
-      "title": "cyan",
+      "keys": "cyan",
+      "title": "white",
       "separator": "bright_black"
     },
     "key": {
       "type": "both-1",
-      "width": 12,
+      "width": 13,
       "paddingLeft": 1
     }
   },
@@ -33,17 +33,17 @@
     {
       "type": "os",
       "key": "OS",
-      "keyColor": "blue"
+      "keyColor": "cyan"
     },
     {
       "type": "host",
       "key": "Host",
-      "keyColor": "blue"
+      "keyColor": "cyan"
     },
     {
       "type": "kernel",
       "key": "Kernel",
-      "keyColor": "magenta"
+      "keyColor": "blue"
     },
     {
       "type": "uptime",
@@ -58,7 +58,7 @@
     {
       "type": "shell",
       "key": "Shell",
-      "keyColor": "green"
+      "keyColor": "cyan"
     },
     {
       "type": "terminal",
@@ -73,12 +73,12 @@
     {
       "type": "wm",
       "key": "WM",
-      "keyColor": "blue"
+      "keyColor": "cyan"
     },
     {
       "type": "display",
       "key": "Display",
-      "keyColor": "blue"
+      "keyColor": "cyan"
     },
     "break",
     {
