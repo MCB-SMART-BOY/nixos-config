@@ -22,7 +22,6 @@
     initContent = builtins.readFile ../config/zsh/.zshrc;
   };
 
-  home.file.".zshrc".force = true;
 
   programs.direnv = {
     enable = true;
