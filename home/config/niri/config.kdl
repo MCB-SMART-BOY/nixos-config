@@ -139,7 +139,7 @@ spawn-at-startup "niri-run" "waybar"
 spawn-at-startup "niri-run" "nm-applet"
 spawn-at-startup "niri-run" "mako"
 spawn-at-startup "niri-run" "fcitx5" "-d" "-r" // -r 替换现有实例
-spawn-at-startup "niri-run" "swayidle" "-w"
+spawn-at-startup "niri-run" "swayidle" "-w" "timeout" "300" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || swaylock" "timeout" "600" "niri" "msg" "action" "power-off-monitors" "before-sleep" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || swaylock"
 
 // ══════════════════════════════════════════════════════════════════
 // 🪟 Window Rules
@@ -187,8 +187,8 @@ binds {
 
     // ─── 焦点移动 (Vim 风格) ───
     Mod+h { focus-column-left; }
-    Mod+j { focus-window-down; }
-    Mod+k { focus-window-up; }
+    Mod+Alt+j { focus-window-down; }
+    Mod+Alt+k { focus-window-up; }
     Mod+l { focus-column-right; }
     
     Mod+Left { focus-column-left; }
@@ -218,9 +218,11 @@ binds {
     Mod+BracketRight { consume-or-expel-window-right; }
     Mod+R { switch-preset-column-width; }
     Mod+Shift+R { reset-window-height; }
-    Mod+Shift+F { maximize-column; }
+    Mod+Ctrl+F { maximize-column; }
     Mod+F { fullscreen-window; }
+    Mod+M { maximize-window-to-edges; }
     Mod+C { center-column; }
+    Mod+W { toggle-column-tabbed-display; }
 
     // 微调大小
     Mod+Minus { set-column-width "-10%"; }
@@ -249,8 +251,17 @@ binds {
     Mod+Shift+8 { move-column-to-workspace 8; }
     Mod+Shift+9 { move-column-to-workspace 9; }
 
-    Mod+Tab { focus-workspace-down; }
+    Mod+j { focus-workspace-down; }
+    Mod+k { focus-workspace-up; }
+    Mod+Grave { focus-workspace-previous; }
+    Mod+Tab { toggle-overview; }
     Mod+Shift+Tab { focus-workspace-up; }
+    Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
+    Mod+WheelScrollUp cooldown-ms=150 { focus-workspace-up; }
+
+    // ─── 浮动窗口 ───
+    Mod+Shift+F { toggle-window-floating; }
+    Mod+Shift+V { switch-focus-between-floating-and-tiling; }
 
     // ─── 截图 (高级模式) ───
     // 依赖: grim, slurp, swappy (需在 systemPackages 中安装)
