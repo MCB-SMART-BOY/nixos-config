@@ -114,6 +114,7 @@ let
     helix
     nodePackages.typescript-language-server
     vscode-fhs
+    zed-editor-fhs
     # Python 环境
     uv
     conda
