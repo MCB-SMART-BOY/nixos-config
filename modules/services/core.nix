@@ -68,6 +68,18 @@ in
 
   programs.nix-ld.enable = true;
 
+  systemd.tmpfiles.rules = lib.optionals proxyServiceEnabled (
+    lib.concatLists (map (user: [
+      "d /run/clash-verge-rev-${user} 0700 ${user} users -"
+      "d /home/${user}/.config/clash-verge 2775 ${user} users -"
+      "d /home/${user}/.config/clash-verge-rev 2775 ${user} users -"
+      "d /home/${user}/.local/share/clash-verge 2775 ${user} users -"
+      "d /home/${user}/.local/share/clash-verge-rev 2775 ${user} users -"
+      "d /home/${user}/.cache/clash-verge-rev 2775 ${user} users -"
+      "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} users -"
+    ]) userList)
+  );
+
   # Clash Verge service uses runtime IPC; isolate per-user runtime dirs to avoid conflicts.
   systemd.services = lib.mkMerge [
     (lib.mkIf (proxyServiceEnabled && !perUserTunEnabled) {
