@@ -57,15 +57,15 @@ let
               "${clashData}/clash-verge-rev" \
               "${clashCache}/clash-verge-rev" \
               "${clashState}/clash-verge-rev"; do
-              ${pkgs.coreutils}/bin/install -d -m 2775 -o ${user} -g ${user} "${dir}"
+              ${pkgs.coreutils}/bin/install -d -m 2775 -o ${user} -g ${user} "''${dir}"
             done
             ${pkgs.coreutils}/bin/chown -R ${user}:${user} \
-              "${clashConfig}/clash-verge" \
-              "${clashConfig}/clash-verge-rev" \
-              "${clashData}/clash-verge" \
-              "${clashData}/clash-verge-rev" \
-              "${clashCache}/clash-verge-rev" \
-              "${clashState}/clash-verge-rev" \
+              "''${clashConfig}/clash-verge" \
+              "''${clashConfig}/clash-verge-rev" \
+              "''${clashData}/clash-verge" \
+              "''${clashData}/clash-verge-rev" \
+              "''${clashCache}/clash-verge-rev" \
+              "''${clashState}/clash-verge-rev" \
               2>/dev/null || true
             rm -f "''${runtime_dir}"/*.sock 2>/dev/null || true
           '')
