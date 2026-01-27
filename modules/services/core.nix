@@ -43,21 +43,26 @@ let
         User = user;
         WorkingDirectory = clashHome;
         UMask = "0002";
-      Environment = [
-        "HOME=${clashHome}"
-        "XDG_CONFIG_HOME=${clashConfig}"
-        "XDG_DATA_HOME=${clashData}"
-        "XDG_CACHE_HOME=${clashCache}"
-        "XDG_STATE_HOME=${clashState}"
-        "XDG_RUNTIME_DIR=/run/clash-verge-rev-${user}"
-        "TMPDIR=/run/clash-verge-rev-${user}"
-        "PATH=${clashPath}:/run/wrappers/bin"
-      ];
+        PermissionsStartOnly = true;
+        ExecStartPre = [
+          "${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} /run/clash-verge-rev-${user}"
+        ];
+        Environment = [
+          "HOME=${clashHome}"
+          "XDG_CONFIG_HOME=${clashConfig}"
+          "XDG_DATA_HOME=${clashData}"
+          "XDG_CACHE_HOME=${clashCache}"
+          "XDG_STATE_HOME=${clashState}"
+          "XDG_RUNTIME_DIR=/run/clash-verge-rev-${user}"
+          "TMPDIR=/run/clash-verge-rev-${user}"
+          "PATH=${clashPath}:/run/wrappers/bin"
+        ];
         Restart = "on-failure";
         RestartSec = "2s";
         ExecStart = "${pkgs.clash-verge-rev}/bin/clash-verge-service";
         RuntimeDirectory = "clash-verge-rev-${user}";
-      RuntimeDirectoryMode = "0700";
+        RuntimeDirectoryMode = "0700";
+        RuntimeDirectoryPreserve = "yes";
         CapabilityBoundingSet = netCaps;
         AmbientCapabilities = netCaps;
       };
