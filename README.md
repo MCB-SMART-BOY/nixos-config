@@ -42,9 +42,12 @@ chmod +x run.sh
 
 说明：
 - 默认从 GitHub 拉取最新代码并同步到 `/etc/nixos`
+- 拉取顺序：Gitee 优先，其次 GitHub
 - 如遇拉取或重建失败，会临时切换阿里云 DNS（223.5.5.5/223.6.6.6）后重试
 - 默认执行 `nixos-rebuild switch --show-trace --upgrade`
-- 默认保留本机 `/etc/nixos/hardware-configuration.nix`
+- 默认保留本机硬件配置（`hardware-configuration.nix` 或 `hosts/<hostname>/hardware-configuration.nix`）
+- 默认主机 `nixos`，默认用户 `mcbnixos`，默认覆盖 `/etc/nixos`
+- 可使用 `--host` / `--user` / `--users` / `--backup` / `--overwrite` / `--ask`
 
 ### 2) 日常更新
 
@@ -69,15 +72,21 @@ nixos-config/
 ├── run.sh                    # 一键部署脚本
 ├── flake.nix                  # Flake 入口
 ├── flake.lock                 # 版本锁定（可复现）
-├── host.nix                   # 主机入口（单主机）
-├── hardware-configuration.nix # 硬件配置
+├── hosts/                     # 主机配置目录
+│   ├── profiles/              # 主机配置组合
+│   ├── laptop/                # 笔记本模板
+│   └── server/                # 服务器模板
 ├── modules/                   # 系统模块（default.nix 聚合）
 ├── home/                      # Home Manager 用户入口
-│   ├── home.nix               # 入口模块
+│   ├── profiles/              # 用户配置组合
+│   │   ├── full.nix
+│   │   └── minimal.nix        # 精简 profile（服务器用）
 │   ├── modules/               # 子模块拆分
-│   ├── config/                # 应用配置文件
-│   ├── assets/                # 资源文件（壁纸等）
-│   └── scripts/               # 用户侧脚本
+│   └── users/                 # 用户入口（私有配置）
+│       └── <user>/            # 用户目录
+│           ├── config/         # 用户应用配置
+│           ├── assets/         # 用户资源文件
+│           └── scripts/        # 用户侧脚本
 ├── configuration.nix          # 非 Flake 兼容入口
 ├── docs/                      # 说明文档
 └── README.md
@@ -87,24 +96,27 @@ nixos-config/
 
 ### 系统层（NixOS）
 
-- 主机入口：`host.nix`
-- 入口：`modules/default.nix`
+- 主机入口：`hosts/<hostname>/default.nix`
+- 主机 Profiles：`hosts/profiles/desktop.nix` / `hosts/profiles/server.nix`
+  - 服务器建议搭配用户 `home/profiles/minimal.nix`
 - 网络/代理：`modules/networking.nix`、`modules/services.nix`
 - 字体/输入法/桌面：`modules/fonts.nix`、`modules/i18n.nix`、`modules/desktop.nix`
 
 ### 用户层（Home Manager）
 
-- 入口：`home/home.nix`
-- 应用配置：`home/config/*`
+- 入口：`home/users/<user>/default.nix`
+  - 用户专属配置放在 `home/users/<user>/`（如 git 身份、files.nix）
+- 应用配置：`home/users/<user>/config/*`
 - 具体模块：`home/modules/*.nix`
 
 ### 主机变量
 
-- `host.nix`：用户名、代理地址、TUN 网卡名、CPU 类型、代理开关等统一入口
+- `hosts/<hostname>/default.nix`：用户名、代理地址、TUN 网卡名、CPU 类型、代理开关等统一入口
+- 多用户时请设置 `mcb.users = [ "user1" "user2" ];`
 
 ## 🧩 包组开关
 
-用户层包组可按需开关，位置：`home/modules/packages.nix`
+系统包组可按需开关，定义在 `modules/packages.nix`，建议在 `hosts/profiles/*.nix` 中设置 `mcb.packages`。
 
 ```nix
 mcb.packages.enableGaming = false;
@@ -137,15 +149,17 @@ mcb.system.enableGaming = false;
 
 Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管理：
 
-- 编辑 `home/config/niri/config.kdl` 的 `spawn-at-startup`
+- 编辑 `home/users/<user>/config/niri/config.kdl` 的 `spawn-at-startup`
 - 壁纸由 `wallpaper-random` 登录时随机设置（目录：`~/Pictures/Wallpapers`）
-- Waybar 自定义模块脚本位于 `home/scripts/waybar-*`，会安装到 `~/.local/bin/`
+- Waybar 自定义模块脚本位于 `home/users/<user>/scripts/waybar-*`，会安装到 `~/.local/bin/`
 
 ## 🧰 日常维护
 
-- 修改主机配置：编辑 `host.nix`
-- 修改用户名：更新 `host.nix` 与 `home/` 路径
-- 跨机器部署：调整 `host.nix` 中 `vars.user`、`vars.proxyUrl`、`vars.tunInterface`、`vars.cpuVendor`、`vars.enableProxy`，并同步硬件配置
+- 修改主机配置：编辑 `hosts/<hostname>/default.nix`
+- 修改用户名：更新 `hosts/<hostname>/default.nix` 与 `home/users/<user>/` 路径
+- 跨机器部署：调整 `hosts/<hostname>/default.nix` 中 `mcb.user`、`mcb.proxyMode`、`mcb.proxyUrl`、`mcb.enableProxyDns`、`mcb.proxyDnsAddr`、`mcb.proxyDnsPort`、`mcb.tunInterface`、`mcb.perUserTun`、`mcb.cpuVendor`，并同步硬件配置
+- 新增主机：在 `hosts/` 新建目录并放置 `default.nix`，flake 会自动发现
+- 多用户：新增 `home/users/<user>/default.nix`，并把用户加到 `mcb.users`
 - 传统非 Flake 入口：
 
 ```bash
@@ -200,22 +214,22 @@ sudo nixos-rebuild switch
 wallpaper-random
 ```
 
-要纳入仓库管理的壁纸，请放入 `home/assets/wallpapers` 后重建。
+要纳入仓库管理的壁纸，请放入 `home/users/<user>/assets/wallpapers` 后重建。
 
 ### 修改显示器配置
 
-编辑 `home/config/niri/config.kdl`，调整 output 段落。
+编辑 `home/users/<user>/config/niri/config.kdl`，调整 output 段落。
 
 ### Fastfetch / btop 美化
 
-- fastfetch：`home/config/fastfetch/config.jsonc`
-- btop 配置：`home/config/btop/btop.conf`
-- btop 主题：`home/config/btop/themes/noctalia.theme`
+- fastfetch：`home/users/<user>/config/fastfetch/config.jsonc`
+- btop 配置：`home/users/<user>/config/btop/btop.conf`
+- btop 主题：`home/users/<user>/config/btop/themes/noctalia.theme`
 
 ### 添加更多 LSP
 
-1. 在 `home/config/helix/languages.toml` 添加语言配置
-2. 在 `home/modules/packages.nix` 添加对应 LSP 包
+1. 在 `home/users/<user>/config/helix/languages.toml` 添加语言配置
+2. 在 `modules/packages.nix` 添加对应 LSP 包
 
 ## 🧯 故障排除
 

@@ -15,6 +15,9 @@ if command -v systemctl >/dev/null 2>&1; then
   if systemctl --user is-active --quiet clash-verge-service 2>/dev/null; then
     service_name="clash-verge-service (user)"
     status="on"
+  elif systemctl is-active --quiet "clash-verge-service@${USER}" 2>/dev/null; then
+    service_name="clash-verge-service@${USER}"
+    status="on"
   elif systemctl is-active --quiet clash-verge-service 2>/dev/null; then
     service_name="clash-verge-service"
     status="on"

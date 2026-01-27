@@ -1,17 +1,28 @@
 # Legacy compatibility entrypoint for non-flake workflows.
-{ vars, ... }:
+{ config, ... }:
 
 let
   home-manager = builtins.fetchTarball "https://github.com/nix-community/home-manager/archive/release-25.11.tar.gz";
 in
 {
   imports = [
-    ./host.nix
+    ./hosts/nixos
     (import "${home-manager}/nixos")
   ];
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
-  home-manager.extraSpecialArgs = { inherit vars; };
-  home-manager.users.${vars.user} = import ./home/home.nix;
+  home-manager.users =
+    let
+      userList =
+        if config.mcb.users != [ ] then
+          config.mcb.users
+        else
+          [ config.mcb.user ];
+      mkUser = name: {
+        inherit name;
+        value = import (./home/users + "/${name}");
+      };
+    in
+    builtins.listToAttrs (map mkUser userList);
 }

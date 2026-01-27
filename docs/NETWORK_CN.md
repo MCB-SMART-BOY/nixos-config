@@ -2,35 +2,70 @@
 
 ## 当前默认行为（基于本仓库配置）
 
-- `host.nix` 中 `vars.proxyUrl` 非空时：
-  - 启用系统代理（`networking.proxy`）
-  - DNS 首选 `127.0.0.1`（需要本机 Clash 提供 DNS）
-- `vars.proxyUrl` 为空时：
-  - 不启用系统代理
-  - DNS 直接走公网解析（不依赖 Clash）
-- `vars.enableProxy = true` 时仍会启用代理相关服务/TUN DNS（即使 `proxyUrl` 为空）
+- `mcb.proxyMode = "tun"`：
+  - 启用 TUN 相关服务
+  - DNS 强制指向本地地址（默认 `127.0.0.1:53`，可通过 `proxyDnsAddr`/`proxyDnsPort` 调整）
+  - 不配置公网 fallback DNS（避免泄漏）
+- `mcb.proxyMode = "http"`：
+  - 启用系统 HTTP 代理（`networking.proxy`）
+  - DNS 走系统默认解析（可使用 fallback）
+- `mcb.proxyMode = "off"`：
+  - 不启用代理
+  - DNS 走系统默认解析
+- `mcb.enableProxyDns = false` 时，即使处于 TUN 模式也不会强制本地 DNS
 
 ## Clash Verge 排查清单
 
 1. 服务是否正常：
    ```bash
    systemctl status clash-verge-service
+   # 多用户 TUN 模式：
+   systemctl status clash-verge-service@<user>
+   systemctl status mcb-tun-route@<user>
    ```
 2. TUN 网卡名是否匹配：
    ```bash
    ip link
    ```
-   如果接口名不是 `clash0`，请修改 `host.nix` 的 `vars.tunInterface`，或使用 `vars.tunInterfaces` 配置多个候选名称。
+   如果接口名不是 `clash0`，请修改 `hosts/<hostname>/default.nix` 的 `mcb.tunInterface`，或使用 `mcb.tunInterfaces` 配置多个候选名称。
 3. DNS 是否由 Clash 提供：
    ```bash
    cat /etc/resolv.conf
    ```
    如果只有 `127.0.0.1` 但 Clash DNS 未启用，会导致解析失败。
+   如果 Clash DNS 监听的是其他端口（如 1053），请在 `hosts/<hostname>/default.nix` 设置 `mcb.proxyDnsPort = 1053;`。
 
 ## Waybar 代理指示
 
-Waybar 的代理图标由 `home/scripts/waybar-proxy-status` 提供，默认检测 `clash-verge-service` / `mihomo`。
+Waybar 的代理图标由 `home/users/<user>/scripts/waybar-proxy-status` 提供，默认检测 `clash-verge-service@<user>` / `clash-verge-service` / `mihomo`。
 如果使用其他服务名，请修改脚本后重建。
+
+## 多用户 TUN（按用户路由）
+
+当需要“每个用户走不同的 TUN/节点”时，可开启 per-user 方案：
+
+```nix
+mcb.proxyMode = "tun";
+mcb.enableProxyDns = false;
+mcb.users = [ "mcbnixos" "mcblaptopnixos" ];
+mcb.perUserTun.enable = true;
+mcb.perUserTun.redirectDns = true;
+mcb.perUserTun.interfaces = {
+  mcbnixos = "Meta";
+  mcblaptopnixos = "Mihomo";
+};
+mcb.perUserTun.dnsPorts = {
+  mcbnixos = 1053;
+  mcblaptopnixos = 1054;
+};
+```
+
+说明：
+- 每个用户的 Clash 配置里，`tun.device` 必须与上面的接口名一致
+- per-user 方案通过 `ip rule` 按 UID 路由，不支持全局强制 DNS
+ - 若启用 `redirectDns`，会通过 iptables OUTPUT 按 UID 重定向 DNS，请确保 Clash 的 DNS 监听端口与 `dnsPorts` 一致
+- 如果只启用一个用户，依然可用，但没有“多用户分流”的效果
+- 多实例同时运行时，需确保各用户的 `mixed-port` / `socks-port` / `http-port` / `external-controller` / `dns.listen` 端口不冲突
 
 ## 方案 1：使用国内镜像（可选）
 
@@ -70,7 +105,7 @@ sudo nix-channel --update
 ## 方案 4：透明代理（Clash/V2Ray）
 
 1. 开启 Clash TUN + DNS
-2. 确认 `vars.tunInterface` 与实际 TUN 名一致
+2. 确认 `mcb.tunInterface` 与实际 TUN 名一致
 3. 重建后自动生效
 
 ## 常见错误
@@ -82,7 +117,7 @@ sudo nix-channel --update
 
 ### DNS 解析失败（ping 域名不通）
 
-- Clash 未启用 DNS：把 `vars.proxyUrl` 置空，或在 Clash 开启 DNS
+- Clash 未启用 DNS：把 `mcb.proxyMode` 改为 `"http"` 或 `"off"`，或在 Clash 开启 DNS
 - 检查 `resolv.conf` 是否仅指向 `127.0.0.1`
 
 ### hash mismatch

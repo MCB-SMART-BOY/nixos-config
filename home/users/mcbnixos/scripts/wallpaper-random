@@ -75,7 +75,6 @@ if [[ -n "${WALLPAPER_DIR:-}" ]]; then
 fi
 candidates+=(
   "${HOME}/Pictures/Wallpapers"
-  "/etc/nixos/home/assets/wallpapers"
 )
 
 wallpaper_dir=""

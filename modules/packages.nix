@@ -1,10 +1,10 @@
-{ config, lib, pkgs, osConfig ? null, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   cfg = config.mcb.packages;
 
   baseRuntime = with pkgs; [
-    # 系统环境不在 PATH 时也可用的脚本运行基础工具
+    # 基础运行时工具
     bash
     coreutils
     findutils
@@ -14,9 +14,6 @@ let
     procps
     util-linux
     systemd
-    pipewire
-    niri
-    swaybg
   ];
 
   network = with pkgs; [
@@ -80,6 +77,9 @@ let
     waybar
     fuzzel
     fcitx5
+    niri
+    swaybg
+    pipewire
     # 亮度控制
     brightnessctl
   ];
@@ -162,7 +162,7 @@ let
       protonup-qt
       lutris
     ]
-    ++ lib.optionals (osConfig == null || !(osConfig.programs.steam.enable or false)) [
+    ++ lib.optionals (!config.programs.steam.enable) [
       steam
     ];
 
@@ -254,70 +254,70 @@ in
   options.mcb.packages = {
     enableNetwork = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install network/proxy tooling.";
     };
     enableShellTools = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install CLI and shell utilities.";
     };
     enableWaylandTools = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install Wayland-related tooling.";
     };
     enableBrowsersAndMedia = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install browsers and media apps.";
     };
     enableDev = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install development toolchain packages.";
     };
     enableChat = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install chat clients.";
     };
     enableEmulation = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install emulation/Wine tooling.";
     };
     enableEntertainment = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install entertainment apps.";
     };
     enableGaming = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install gaming tools.";
     };
     enableSystemTools = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install system utilities.";
     };
     enableTheming = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install theming packages.";
     };
     enableXorgCompat = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install Xorg compatibility tools.";
     };
     enableGeekTools = lib.mkOption {
       type = lib.types.bool;
-      default = true;
+      default = false;
       description = "Install common geek/debug/network tooling.";
     };
   };
 
-  config.home.packages = groups;
+  config.environment.systemPackages = groups;
 }

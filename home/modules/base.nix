@@ -13,12 +13,6 @@ in
     TERMINAL = terminal;
     BROWSER = "firefox";
     MANPAGER = manpager;
-    GTK_IM_MODULE = "fcitx";
-    QT_IM_MODULE = "fcitx";
-    SDL_IM_MODULE = "fcitx";
-    GLFW_IM_MODULE = "fcitx";
-    XMODIFIERS = "@im=fcitx";
-    XIM_SERVERS = "fcitx";
 
     XDG_CONFIG_HOME = "${homeDir}/.config";
     XDG_DATA_HOME = "${homeDir}/.local/share";

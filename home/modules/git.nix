@@ -8,10 +8,6 @@ in
     enable = true;
     lfs.enable = true;
     settings = {
-      user = {
-        name = "MCB-SMART-BOY";
-        email = "mcb2720838051@gmail.com";
-      };
       core = {
         editor = editor;
         pager = "delta";

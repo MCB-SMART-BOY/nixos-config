@@ -1,16 +1,12 @@
-{ vars, ... }:
+{ ... }:
 
 let
-  user = vars.user;
+  user = "mcbservernixos";
 in
 {
   imports = [
-    ./modules/base.nix
-    ./modules/packages.nix
-    ./modules/programs.nix
-    ./modules/desktop.nix
-    ./modules/shell.nix
-    ./modules/git.nix
+    ../../profiles/minimal.nix
+    ./git.nix
   ];
 
   home.username = user;

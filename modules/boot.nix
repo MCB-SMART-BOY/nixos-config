@@ -1,7 +1,7 @@
-{ pkgs, lib, vars, ... }:
+{ config, pkgs, lib, ... }:
 
 let
-  cpuVendor = if vars ? cpuVendor then vars.cpuVendor else "intel";
+  cpuVendor = config.mcb.cpuVendor;
   kvmModule =
     if cpuVendor == "amd" then
       "kvm-amd"
