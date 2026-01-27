@@ -49,6 +49,9 @@ let
         PermissionsStartOnly = true;
         RuntimeDirectory = runtimeDirName;
         RuntimeDirectoryMode = "0700";
+        BindPaths = [
+          "/run/${runtimeDirName}:/run/clash-verge-rev"
+        ];
         ExecStartPre = [
           (pkgs.writeShellScript "clash-verge-prestart-${user}" ''
             set -euo pipefail
@@ -84,8 +87,8 @@ let
           "XDG_DATA_HOME=${clashData}"
           "XDG_CACHE_HOME=${clashCache}"
           "XDG_STATE_HOME=${clashState}"
-          "XDG_RUNTIME_DIR=/run/${runtimeDirName}"
-          "TMPDIR=/run/${runtimeDirName}"
+          "XDG_RUNTIME_DIR=/run/clash-verge-rev"
+          "TMPDIR=/run/clash-verge-rev"
           "PATH=${clashPath}:/run/wrappers/bin"
         ];
         Restart = "on-failure";
