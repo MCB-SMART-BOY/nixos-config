@@ -85,6 +85,17 @@ in
         http_proxy = proxyUrl;
       };
     })
+    (lib.mkIf config.services.mihomo.enable {
+      mihomo = {
+        after = [ "network-online.target" ];
+        wants = [ "network-online.target" ];
+        serviceConfig = {
+          CapabilityBoundingSet = netCaps;
+          AmbientCapabilities = netCaps;
+          WorkingDirectory = "/var/lib/mihomo";
+        };
+      };
+    })
   ];
 
   services.mihomo = {
@@ -92,13 +103,5 @@ in
     configFile = "/etc/mihomo/config.yaml";
   };
 
-  systemd.services.mihomo = lib.mkIf config.services.mihomo.enable {
-    after = [ "network-online.target" ];
-    wants = [ "network-online.target" ];
-    serviceConfig = {
-      CapabilityBoundingSet = netCaps;
-      AmbientCapabilities = netCaps;
-      WorkingDirectory = "/var/lib/mihomo";
-    };
-  };
+  # systemd.services.mihomo merged above to avoid duplicate attribute definitions.
 }
