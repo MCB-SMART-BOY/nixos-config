@@ -117,7 +117,9 @@ let
         "network-online.target"
         "clash-verge-service@${user}.service"
       ];
-      wantedBy = [ "multi-user.target" ];
+      unitConfig = {
+        ConditionPathExists = "/sys/class/net/${iface}";
+      };
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -205,6 +207,23 @@ in
       name = "mcb-tun-route@${user}";
       value = mkRouteService idx user;
     }) userList)
+  );
+
+  systemd.paths = lib.mkIf (proxyServiceEnabled && perUserTunEnabled) (
+    lib.listToAttrs (lib.imap0 (idx: user:
+      let
+        iface = perUserInterfaces.${user};
+      in
+      {
+        name = "mcb-tun-route@${user}";
+        value = {
+          wantedBy = [ "multi-user.target" ];
+          pathConfig = {
+            PathExists = "/sys/class/net/${iface}";
+            Unit = "mcb-tun-route@${user}.service";
+          };
+        };
+      }) userList)
   );
 
   services.resolved =
