@@ -77,7 +77,6 @@ candidates+=(
   "${HOME}/Pictures/Wallpapers"
 )
 
-wallpaper_dir=""
 wallpapers=()
 
 for dir in "${candidates[@]}"; do
@@ -88,7 +87,6 @@ for dir in "${candidates[@]}"; do
         -readable \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) -print0
     )
     if [[ ${#found[@]} -gt 0 ]]; then
-      wallpaper_dir="${dir}"
       wallpapers=("${found[@]}")
       break
     fi
