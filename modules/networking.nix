@@ -73,11 +73,11 @@ let
           exit 1
         fi
 
-        if ! ${ip} rule show | ${grep} -q "uidrange ''${uid}-''${uid}.*lookup ${tableId}"; then
-          ${ip} rule add priority ${toString priority} uidrange ''${uid}-''${uid} lookup ${tableId}
+        if ! ${ip} rule show | ${grep} -q "uidrange ''${uid}-''${uid}.*lookup ${toString tableId}"; then
+          ${ip} rule add priority ${toString priority} uidrange ''${uid}-''${uid} lookup ${toString tableId}
         fi
 
-        ${ip} route replace default dev "${iface}" table ${tableId}
+        ${ip} route replace default dev "${iface}" table ${toString tableId}
 
         if [[ "${dnsRedirectFlag}" == "1" ]]; then
           if [[ "${dnsPortStr}" == "0" ]]; then
@@ -95,9 +95,9 @@ let
       stopScript = pkgs.writeShellScript "mcb-tun-route-${user}-stop" ''
         set -euo pipefail
         uid="$(${id} -u ${user} 2>/dev/null || true)"
-        ${ip} route del default dev "${iface}" table ${tableId} >/dev/null 2>&1 || true
+        ${ip} route del default dev "${iface}" table ${toString tableId} >/dev/null 2>&1 || true
         if [[ -n "''${uid}" ]]; then
-          ${ip} rule del uidrange ''${uid}-''${uid} lookup ${tableId} >/dev/null 2>&1 || true
+          ${ip} rule del uidrange ''${uid}-''${uid} lookup ${toString tableId} >/dev/null 2>&1 || true
           if [[ "${dnsRedirectFlag}" == "1" ]]; then
             ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
             ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
