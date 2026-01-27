@@ -570,19 +570,19 @@ write_local_override() {
   done
 
   {
-    echo "{ ... }:"
+    echo "{ lib, ... }:"
     echo ""
     echo "{"
-    echo "  mcb.user = \"${primary}\";"
-    echo "  mcb.users = [${list} ];"
+    echo "  mcb.user = lib.mkForce \"${primary}\";"
+    echo "  mcb.users = lib.mkForce [${list} ];"
 
     if [[ "${PER_USER_TUN_ENABLED}" == "true" && ${#USER_TUN[@]} -gt 0 ]]; then
-      echo "  mcb.perUserTun.interfaces = {"
+      echo "  mcb.perUserTun.interfaces = lib.mkForce {"
       for user in "${TARGET_USERS[@]}"; do
         echo "    ${user} = \"${USER_TUN[${user}]}\";"
       done
       echo "  };"
-      echo "  mcb.perUserTun.dnsPorts = {"
+      echo "  mcb.perUserTun.dnsPorts = lib.mkForce {"
       for user in "${TARGET_USERS[@]}"; do
         echo "    ${user} = ${USER_DNS[${user}]};"
       done
