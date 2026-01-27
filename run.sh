@@ -287,7 +287,7 @@ self_check_scripts() {
   fi
 
   for file in "${scripts[@]}"; do
-    local rel="${file#${repo_dir}/}"
+    local rel="${file#"${repo_dir}"/}"
     local shebang=""
 
     if [[ ! -s "${file}" ]]; then

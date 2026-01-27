@@ -22,7 +22,14 @@ get_iface() {
 
 iface="$(get_iface)"
 if [[ -z "${iface}" ]]; then
-  iface="$(ls -1 /sys/class/net 2>/dev/null | grep -v '^lo$' | head -n1 || true)"
+  for path in /sys/class/net/*; do
+    iface="$(basename "${path}")"
+    [[ "${iface}" == "lo" ]] && continue
+    break
+  done
+  if [[ "${iface}" == "lo" ]]; then
+    iface=""
+  fi
 fi
 
 if [[ -z "${iface}" ]]; then
