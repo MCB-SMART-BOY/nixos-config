@@ -69,8 +69,8 @@ let
         done
 
         if ! ${ip} link show dev "${iface}" >/dev/null 2>&1; then
-          echo "Interface ${iface} not ready" >&2
-          exit 1
+          echo "Interface ${iface} not ready; skip route setup" >&2
+          exit 0
         fi
 
         if ! ${ip} rule show | ${grep} -q "uidrange $uid-$uid.*lookup ${toString tableId}"; then
