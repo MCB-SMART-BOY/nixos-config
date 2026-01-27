@@ -73,8 +73,8 @@ let
           exit 1
         fi
 
-        if ! ${ip} rule show | ${grep} -q "uidrange ${uid}-${uid}.*lookup ${tableId}"; then
-          ${ip} rule add priority ${toString priority} uidrange ${uid}-${uid} lookup ${tableId}
+        if ! ${ip} rule show | ${grep} -q "uidrange ''${uid}-''${uid}.*lookup ${tableId}"; then
+          ${ip} rule add priority ${toString priority} uidrange ''${uid}-''${uid} lookup ${tableId}
         fi
 
         ${ip} route replace default dev "${iface}" table ${tableId}
@@ -84,11 +84,11 @@ let
             echo "DNS redirect enabled but no port configured for ${user}" >&2
             exit 1
           fi
-          if ! ${iptables} -t nat -C OUTPUT -p udp --dport 53 -m owner --uid-owner "${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
-            ${iptables} -t nat -A OUTPUT -p udp --dport 53 -m owner --uid-owner "${uid}" -j REDIRECT --to-ports ${dnsPortStr}
+          if ! ${iptables} -t nat -C OUTPUT -p udp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
+            ${iptables} -t nat -A OUTPUT -p udp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr}
           fi
-          if ! ${iptables} -t nat -C OUTPUT -p tcp --dport 53 -m owner --uid-owner "${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
-            ${iptables} -t nat -A OUTPUT -p tcp --dport 53 -m owner --uid-owner "${uid}" -j REDIRECT --to-ports ${dnsPortStr}
+          if ! ${iptables} -t nat -C OUTPUT -p tcp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
+            ${iptables} -t nat -A OUTPUT -p tcp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr}
           fi
         fi
       '';
@@ -96,11 +96,11 @@ let
         set -euo pipefail
         uid="$(${id} -u ${user} 2>/dev/null || true)"
         ${ip} route del default dev "${iface}" table ${tableId} >/dev/null 2>&1 || true
-        if [[ -n "${uid}" ]]; then
-          ${ip} rule del uidrange ${uid}-${uid} lookup ${tableId} >/dev/null 2>&1 || true
+        if [[ -n "''${uid}" ]]; then
+          ${ip} rule del uidrange ''${uid}-''${uid} lookup ${tableId} >/dev/null 2>&1 || true
           if [[ "${dnsRedirectFlag}" == "1" ]]; then
-            ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
-            ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
+            ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
+            ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "''${uid}" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
           fi
         fi
       '';
