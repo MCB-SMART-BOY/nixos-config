@@ -11,22 +11,44 @@ BRANCH="master"
 TARGET_NAME=""
 TARGET_USERS=()
 OVERWRITE_MODE="overwrite"
+OVERWRITE_MODE_SET=false
 PER_USER_TUN_ENABLED=false
 declare -A USER_TUN
 declare -A USER_DNS
 MODE="switch"
 ETC_DIR="/etc/nixos"
 DNS_ENABLED=false
+PROGRESS_TOTAL=6
+PROGRESS_CURRENT=0
+WIZARD_ACTION=""
+
+if command -v tput >/dev/null 2>&1 && [[ -t 1 ]]; then
+  COLOR_RESET="$(tput sgr0)"
+  COLOR_BOLD="$(tput bold)"
+  COLOR_DIM="$(tput dim)"
+  COLOR_GREEN="$(tput setaf 2)"
+  COLOR_YELLOW="$(tput setaf 3)"
+  COLOR_RED="$(tput setaf 1)"
+  COLOR_CYAN="$(tput setaf 6)"
+else
+  COLOR_RESET=""
+  COLOR_BOLD=""
+  COLOR_DIM=""
+  COLOR_GREEN=""
+  COLOR_YELLOW=""
+  COLOR_RED=""
+  COLOR_CYAN=""
+fi
 
 msg() {
   local level="$1"
   local label
   shift
   case "${level}" in
-    INFO) label="信息" ;;
-    OK) label="完成" ;;
-    WARN) label="警告" ;;
-    ERROR) label="错误" ;;
+    INFO) label="${COLOR_CYAN}信息${COLOR_RESET}" ;;
+    OK) label="${COLOR_GREEN}完成${COLOR_RESET}" ;;
+    WARN) label="${COLOR_YELLOW}警告${COLOR_RESET}" ;;
+    ERROR) label="${COLOR_RED}错误${COLOR_RESET}" ;;
     *) label="${level}" ;;
   esac
   printf '[%s] %s\n' "${label}" "$*"
@@ -38,6 +60,102 @@ warn() { msg WARN "$*"; }
 error() {
   msg ERROR "$*"
   exit 1
+}
+
+banner() {
+  printf '%s\n' "${COLOR_BOLD}==========================================${COLOR_RESET}"
+  printf '%s\n' "${COLOR_BOLD}        NixOS 一键部署（run.sh）           ${COLOR_RESET}"
+  printf '%s\n' "${COLOR_BOLD}==========================================${COLOR_RESET}"
+}
+
+section() {
+  printf '\n%s%s%s\n' "${COLOR_BOLD}" "$*" "${COLOR_RESET}"
+}
+
+note() {
+  printf '%s%s%s\n' "${COLOR_DIM}" "$*" "${COLOR_RESET}"
+}
+
+ask_input() {
+  local prompt="$1"
+  local default="$2"
+  local input=""
+  if is_tty; then
+    read -r -p "${prompt}（默认 ${default}）： " input
+  fi
+  if [[ -z "${input}" ]]; then
+    printf '%s' "${default}"
+  else
+    printf '%s' "${input}"
+  fi
+}
+
+progress_step() {
+  local label="$1"
+  PROGRESS_CURRENT=$((PROGRESS_CURRENT + 1))
+  local width=24
+  local filled=$((PROGRESS_CURRENT * width / PROGRESS_TOTAL))
+  local empty=$((width - filled))
+  local bar
+  bar="$(printf "%${filled}s" | tr ' ' '#')"
+  bar+=$(printf "%${empty}s" | tr ' ' '-')
+  printf '%s进度: [%s] %s/%s %s%s\n' "${COLOR_CYAN}" "${bar}" "${PROGRESS_CURRENT}" "${PROGRESS_TOTAL}" "${label}" "${COLOR_RESET}"
+}
+
+confirm_continue() {
+  local prompt="$1"
+  if ! is_tty; then
+    return 0
+  fi
+  local answer
+  read -r -p "${prompt} [Y/n] " answer
+  case "${answer}" in
+    n|N) error "已退出" ;;
+    *) return 0 ;;
+  esac
+}
+
+menu_prompt() {
+  local title="$1"
+  local default_index="$2"
+  shift 2
+  local options=("$@")
+  local choice=""
+  local total=${#options[@]}
+
+  while true; do
+    section "${title}"
+    local i=1
+    for opt in "${options[@]}"; do
+      printf '  %s) %s\n' "${i}" "${opt}"
+      i=$((i + 1))
+    done
+    read -r -p "请选择 [1-${total}]（默认 ${default_index}）： " choice
+    if [[ -z "${choice}" ]]; then
+      choice="${default_index}"
+    fi
+    if [[ "${choice}" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= total)); then
+      printf '%s' "${choice}"
+      return 0
+    fi
+    echo "无效选择，请重试。"
+  done
+}
+
+wizard_back_or_quit() {
+  local prompt="$1"
+  local answer=""
+  read -r -p "${prompt} [c继续/b返回/q退出]（默认 c）： " answer
+  case "${answer}" in
+    b|B) WIZARD_ACTION="back" ;;
+    q|Q) error "已退出" ;;
+    *) WIZARD_ACTION="continue" ;;
+  esac
+}
+
+reset_tun_maps() {
+  USER_TUN=()
+  USER_DNS=()
 }
 
 usage() {
@@ -78,14 +196,17 @@ parse_args() {
         ;;
       --backup)
         OVERWRITE_MODE="backup"
+        OVERWRITE_MODE_SET=true
         shift
         ;;
       --ask)
         OVERWRITE_MODE="ask"
+        OVERWRITE_MODE_SET=true
         shift
         ;;
       --overwrite)
         OVERWRITE_MODE="overwrite"
+        OVERWRITE_MODE_SET=true
         shift
         ;;
       -h|--help)
@@ -149,7 +270,27 @@ list_hosts() {
 select_host() {
   local repo_dir="$1"
   if [[ -z "${TARGET_NAME}" ]]; then
-    TARGET_NAME="nixos"
+    if is_tty; then
+      local hosts=()
+      mapfile -t hosts < <(list_hosts "${repo_dir}")
+      if [[ ${#hosts[@]} -eq 0 ]]; then
+        error "未找到可用的 hosts 目录。"
+      fi
+      local default_index=1
+      local i=1
+      for h in "${hosts[@]}"; do
+        if [[ "${h}" == "nixos" ]]; then
+          default_index="${i}"
+          break
+        fi
+        i=$((i + 1))
+      done
+      local pick
+      pick="$(menu_prompt "选择主机" "${default_index}" "${hosts[@]}")"
+      TARGET_NAME="${hosts[$((pick - 1))]}"
+    else
+      TARGET_NAME="nixos"
+    fi
   fi
 }
 
@@ -192,6 +333,41 @@ configure_per_user_tun() {
     return 0
   fi
 
+  if is_tty; then
+    local pick
+    pick="$(menu_prompt "TUN 配置方式" 1 "使用默认接口/端口" "逐个设置" "返回")"
+    case "${pick}" in
+      3)
+        WIZARD_ACTION="back"
+        return 0
+        ;;
+      1)
+        reset_tun_maps
+        local idx=0
+        local user
+        for user in "${TARGET_USERS[@]}"; do
+          USER_TUN["${user}"]="tun${idx}"
+          USER_DNS["${user}"]=$((1053 + idx))
+          idx=$((idx + 1))
+        done
+        return 0
+        ;;
+      2)
+        reset_tun_maps
+        ;;
+    esac
+  else
+    reset_tun_maps
+    local idx=0
+    local user
+    for user in "${TARGET_USERS[@]}"; do
+      USER_TUN["${user}"]="tun${idx}"
+      USER_DNS["${user}"]=$((1053 + idx))
+      idx=$((idx + 1))
+    done
+    return 0
+  fi
+
   local idx=0
   local user
   for user in "${TARGET_USERS[@]}"; do
@@ -226,7 +402,34 @@ configure_per_user_tun() {
 
 prompt_users() {
   if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
-    TARGET_USERS=("mcbnixos")
+    if is_tty; then
+      local pick
+      pick="$(menu_prompt "选择用户" 1 "使用默认用户 (mcbnixos)" "输入用户列表" "返回" "退出")"
+      case "${pick}" in
+        1)
+          TARGET_USERS=("mcbnixos")
+          ;;
+        2)
+          local input
+          read -r -p "用户名列表（空格或逗号分隔）： " input
+          input="${input//,/ }"
+          if [[ -n "${input}" ]]; then
+            read -r -a TARGET_USERS <<< "${input}"
+          else
+            TARGET_USERS=("mcbnixos")
+          fi
+          ;;
+        3)
+          WIZARD_ACTION="back"
+          return 0
+          ;;
+        4)
+          error "已退出"
+          ;;
+      esac
+    else
+      TARGET_USERS=("mcbnixos")
+    fi
   fi
 }
 
@@ -312,39 +515,64 @@ backup_etc() {
 
 prepare_etc_dir() {
   if [[ -d "${ETC_DIR}" && -n "$(ls -A "${ETC_DIR}" 2>/dev/null)" ]]; then
-    case "${OVERWRITE_MODE}" in
-      backup)
-        backup_etc
-        ;;
-      overwrite)
-        ;;
-      ask)
-        if is_tty; then
-          while true; do
-            read -r -p "检测到 ${ETC_DIR} 已存在，选择 [b]备份并覆盖/[o]直接覆盖/[q]退出（默认 b）： " answer
-            case "${answer}" in
-              b|B|"")
-                backup_etc
-                break
-                ;;
-              o|O)
-                break
-                ;;
-              q|Q)
-                error "已退出"
-                ;;
-              *)
-                echo "无效选择，请重试。"
-                ;;
-            esac
-          done
-        else
+    if [[ "${OVERWRITE_MODE_SET}" == "true" ]]; then
+      case "${OVERWRITE_MODE}" in
+        backup)
           backup_etc
-        fi
-        ;;
-      *)
-        ;;
-    esac
+          ;;
+        overwrite)
+          note "将覆盖 ${ETC_DIR}（未启用备份）"
+          ;;
+        ask)
+          if is_tty; then
+            while true; do
+              read -r -p "检测到 ${ETC_DIR} 已存在，选择 [b]备份并覆盖/[o]直接覆盖/[q]退出（默认 o）： " answer
+              case "${answer}" in
+                b|B)
+                  backup_etc
+                  break
+                  ;;
+                o|O|"")
+                  break
+                  ;;
+                q|Q)
+                  error "已退出"
+                  ;;
+                *)
+                  echo "无效选择，请重试。"
+                  ;;
+              esac
+            done
+          fi
+          ;;
+        *)
+          ;;
+      esac
+    else
+      if is_tty; then
+        while true; do
+          read -r -p "检测到 ${ETC_DIR} 已存在，选择 [o]直接覆盖/[b]备份并覆盖/[q]退出（默认 o）： " answer
+          case "${answer}" in
+            b|B)
+              backup_etc
+              break
+              ;;
+            o|O|"")
+              note "将覆盖 ${ETC_DIR}（未启用备份）"
+              break
+              ;;
+            q|Q)
+              error "已退出"
+              ;;
+            *)
+              echo "无效选择，请重试。"
+              ;;
+          esac
+        done
+      else
+        note "将覆盖 ${ETC_DIR}（未启用备份）"
+      fi
+    fi
   fi
 }
 
@@ -466,10 +694,92 @@ rebuild_system() {
   return 1
 }
 
+print_summary() {
+  section "部署概要"
+  printf '%s主机：%s%s\n' "${COLOR_BOLD}" "${TARGET_NAME}" "${COLOR_RESET}"
+  printf '%s用户：%s%s\n' "${COLOR_BOLD}" "${TARGET_USERS[*]}" "${COLOR_RESET}"
+  printf '%s覆盖策略：%s%s\n' "${COLOR_BOLD}" "${OVERWRITE_MODE}" "${COLOR_RESET}"
+  if [[ "${PER_USER_TUN_ENABLED}" == "true" && ${#USER_TUN[@]} -gt 0 ]]; then
+    printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
+    local user
+    for user in "${TARGET_USERS[@]}"; do
+      printf '  - %s -> %s (DNS %s)\n' "${user}" "${USER_TUN[${user}]}" "${USER_DNS[${user}]}"
+    done
+  else
+    printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "未启用" "${COLOR_RESET}"
+  fi
+}
+
+wizard_flow() {
+  local step=1
+  WIZARD_ACTION=""
+
+  while true; do
+    case "${step}" in
+      1)
+        select_host "${tmp_dir}"
+        validate_host "${tmp_dir}"
+        step=2
+        ;;
+      2)
+        WIZARD_ACTION=""
+        prompt_users
+        if [[ "${WIZARD_ACTION}" == "back" ]]; then
+          step=1
+          continue
+        fi
+        dedupe_users
+        validate_users
+        step=3
+        ;;
+      3)
+        if detect_per_user_tun "${tmp_dir}"; then
+          PER_USER_TUN_ENABLED=true
+        else
+          PER_USER_TUN_ENABLED=false
+        fi
+        WIZARD_ACTION=""
+        if [[ "${PER_USER_TUN_ENABLED}" == "true" ]]; then
+          configure_per_user_tun
+          if [[ "${WIZARD_ACTION}" == "back" ]]; then
+            step=2
+            continue
+          fi
+        fi
+        step=4
+        ;;
+      4)
+        print_summary
+        if is_tty; then
+          wizard_back_or_quit "确认以上配置"
+          case "${WIZARD_ACTION}" in
+            back)
+              step=3
+              ;;
+            continue)
+              return 0
+              ;;
+            *)
+              return 0
+              ;;
+          esac
+        else
+          return 0
+        fi
+        ;;
+    esac
+  done
+}
+
 main() {
-  printf '==> %s\n' "NixOS 一键部署"
+  banner
   parse_args "$@"
+  if [[ "${OVERWRITE_MODE_SET}" == "false" ]]; then
+    note "未指定覆盖策略，默认覆盖 /etc/nixos（可用 --backup 或 --ask）"
+  fi
+  section "环境检查"
   check_env
+  progress_step "环境检查"
 
   local tmp_dir
   tmp_dir="$(mktemp -d)"
@@ -482,6 +792,7 @@ main() {
   }
   trap cleanup EXIT
 
+  section "拉取仓库"
   if ! clone_repo_any "${tmp_dir}"; then
     log "尝试临时切换阿里云 DNS 后重试"
     temp_dns_enable
@@ -491,22 +802,19 @@ main() {
       error "仓库拉取失败，请检查网络"
     fi
   fi
+  progress_step "拉取仓库"
 
-  select_host "${tmp_dir}"
-  validate_host "${tmp_dir}"
-  if detect_per_user_tun "${tmp_dir}"; then
-    PER_USER_TUN_ENABLED=true
-  fi
-  prompt_users
-  dedupe_users
-  validate_users
-  if [[ ${#TARGET_USERS[@]} -gt 0 ]]; then
-    configure_per_user_tun
-  fi
+  wizard_flow
   write_local_override "${tmp_dir}"
+  progress_step "收集配置"
+  confirm_continue "确认以上配置并继续同步？"
+  section "同步与构建"
   prepare_etc_dir
+  progress_step "准备覆盖策略"
 
   sync_repo_to_etc "${tmp_dir}"
+  progress_step "同步配置"
+  confirm_continue "配置已同步，继续重建系统？"
   if ! rebuild_system; then
     if [[ "${DNS_ENABLED}" == false ]]; then
       log "尝试临时切换阿里云 DNS 后重试重建"
@@ -518,6 +826,7 @@ main() {
       error "系统重建失败，请检查日志"
     fi
   fi
+  progress_step "系统重建"
 }
 
 main "$@"
