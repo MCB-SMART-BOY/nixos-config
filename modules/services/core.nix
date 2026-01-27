@@ -79,12 +79,13 @@ in
         value = mkClashService user;
       }) userList)
     ))
+    (lib.mkIf proxyEnabled {
+      nix-daemon.environment = {
+        https_proxy = proxyUrl;
+        http_proxy = proxyUrl;
+      };
+    })
   ];
-
-  systemd.services.nix-daemon.environment = lib.mkIf proxyEnabled {
-    https_proxy = proxyUrl;
-    http_proxy = proxyUrl;
-  };
 
   services.mihomo = {
     enable = false;
