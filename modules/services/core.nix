@@ -44,8 +44,38 @@ let
         User = user;
         WorkingDirectory = clashHome;
         UMask = "0002";
+        PermissionsStartOnly = true;
         RuntimeDirectory = runtimeDirName;
         RuntimeDirectoryMode = "0700";
+        ExecStartPre = [
+          (pkgs.writeShellScript "clash-verge-prestart-${user}" ''
+            set -euo pipefail
+            uid="$(${pkgs.coreutils}/bin/id -u ${user})"
+            runtime_dir="/run/${runtimeDirName}"
+            user_runtime_dir="/run/user/$uid"
+            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} "$runtime_dir"
+            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} "$user_runtime_dir"
+            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} "$user_runtime_dir/clash-verge-rev"
+            for dir in \
+              "${clashConfig}/clash-verge" \
+              "${clashConfig}/clash-verge-rev" \
+              "${clashData}/clash-verge" \
+              "${clashData}/clash-verge-rev" \
+              "${clashCache}/clash-verge-rev" \
+              "${clashState}/clash-verge-rev"; do
+              ${pkgs.coreutils}/bin/install -d -m 2775 -o ${user} -g ${user} "$dir"
+            done
+            ${pkgs.coreutils}/bin/chown -R ${user}:${user} \
+              "${clashConfig}/clash-verge" \
+              "${clashConfig}/clash-verge-rev" \
+              "${clashData}/clash-verge" \
+              "${clashData}/clash-verge-rev" \
+              "${clashCache}/clash-verge-rev" \
+              "${clashState}/clash-verge-rev" \
+              2>/dev/null || true
+            rm -f "$runtime_dir"/*.sock "$user_runtime_dir/clash-verge-rev"/*.sock 2>/dev/null || true
+          '')
+        ];
         Environment = [
           "HOME=${clashHome}"
           "XDG_CONFIG_HOME=${clashConfig}"
