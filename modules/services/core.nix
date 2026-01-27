@@ -33,6 +33,7 @@ let
       clashCache = "${clashHome}/.cache";
       clashState = "${clashHome}/.local/state";
       runtimeDirName = "clash-verge-rev-${user}";
+      userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
     in
     {
       description = "Clash Verge Service Mode Daemon (${user})";
@@ -42,6 +43,7 @@ let
       serviceConfig = {
         Type = "simple";
         User = user;
+        Group = userGroup;
         WorkingDirectory = clashHome;
         UMask = "0002";
         PermissionsStartOnly = true;
@@ -53,9 +55,9 @@ let
             uid="$(${pkgs.coreutils}/bin/id -u ${user})"
             runtime_dir="/run/${runtimeDirName}"
             user_runtime_dir="/run/user/$uid"
-            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} "$runtime_dir"
-            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} "$user_runtime_dir"
-            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} "$user_runtime_dir/clash-verge-rev"
+            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$runtime_dir"
+            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$user_runtime_dir"
+            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$user_runtime_dir/clash-verge-rev"
             for dir in \
               "${clashConfig}/clash-verge" \
               "${clashConfig}/clash-verge-rev" \
@@ -63,9 +65,9 @@ let
               "${clashData}/clash-verge-rev" \
               "${clashCache}/clash-verge-rev" \
               "${clashState}/clash-verge-rev"; do
-              ${pkgs.coreutils}/bin/install -d -m 2775 -o ${user} -g ${user} "$dir"
+              ${pkgs.coreutils}/bin/install -d -m 2775 -o ${user} -g ${userGroup} "$dir"
             done
-            ${pkgs.coreutils}/bin/chown -R ${user}:${user} \
+            ${pkgs.coreutils}/bin/chown -R ${user}:${userGroup} \
               "${clashConfig}/clash-verge" \
               "${clashConfig}/clash-verge-rev" \
               "${clashData}/clash-verge" \
@@ -101,14 +103,18 @@ in
   programs.nix-ld.enable = true;
 
   systemd.tmpfiles.rules = lib.optionals proxyServiceEnabled (
-    lib.concatLists (map (user: [
-      "d /home/${user}/.config/clash-verge 2775 ${user} users -"
-      "d /home/${user}/.config/clash-verge-rev 2775 ${user} users -"
-      "d /home/${user}/.local/share/clash-verge 2775 ${user} users -"
-      "d /home/${user}/.local/share/clash-verge-rev 2775 ${user} users -"
-      "d /home/${user}/.cache/clash-verge-rev 2775 ${user} users -"
-      "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} users -"
-    ]) userList)
+    lib.concatLists (map (user:
+      let
+        userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
+      in
+      [
+        "d /home/${user}/.config/clash-verge 2775 ${user} ${userGroup} -"
+        "d /home/${user}/.config/clash-verge-rev 2775 ${user} ${userGroup} -"
+        "d /home/${user}/.local/share/clash-verge 2775 ${user} ${userGroup} -"
+        "d /home/${user}/.local/share/clash-verge-rev 2775 ${user} ${userGroup} -"
+        "d /home/${user}/.cache/clash-verge-rev 2775 ${user} ${userGroup} -"
+        "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} ${userGroup} -"
+      ]) userList)
   );
 
   # Clash Verge service uses runtime IPC; isolate per-user runtime dirs to avoid conflicts.
