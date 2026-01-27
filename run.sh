@@ -432,13 +432,17 @@ configure_per_user_tun() {
 
   if is_tty; then
     local pick
-    pick="$(menu_prompt "TUN 配置方式" 1 "使用默认接口/端口" "逐个设置" "返回")"
+    pick="$(menu_prompt "TUN 配置方式" 1 "沿用主机配置" "使用默认接口/端口" "逐个设置" "返回")"
     case "${pick}" in
-      3)
+      4)
         WIZARD_ACTION="back"
         return 0
         ;;
       1)
+        reset_tun_maps
+        return 0
+        ;;
+      2)
         reset_tun_maps
         local idx=0
         local user
@@ -449,19 +453,12 @@ configure_per_user_tun() {
         done
         return 0
         ;;
-      2)
+      3)
         reset_tun_maps
         ;;
     esac
   else
     reset_tun_maps
-    local idx=0
-    local user
-    for user in "${TARGET_USERS[@]}"; do
-      USER_TUN["${user}"]="tun${idx}"
-      USER_DNS["${user}"]=$((1053 + idx))
-      idx=$((idx + 1))
-    done
     return 0
   fi
 
@@ -774,12 +771,16 @@ print_summary() {
   printf '%s主机：%s%s\n' "${COLOR_BOLD}" "${TARGET_NAME}" "${COLOR_RESET}"
   printf '%s用户：%s%s\n' "${COLOR_BOLD}" "${TARGET_USERS[*]}" "${COLOR_RESET}"
   printf '%s覆盖策略：%s%s\n' "${COLOR_BOLD}" "${OVERWRITE_MODE}" "${COLOR_RESET}"
-  if [[ "${PER_USER_TUN_ENABLED}" == "true" && ${#USER_TUN[@]} -gt 0 ]]; then
-    printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
-    local user
-    for user in "${TARGET_USERS[@]}"; do
-      printf '  - %s -> %s (DNS %s)\n' "${user}" "${USER_TUN[${user}]}" "${USER_DNS[${user}]}"
-    done
+  if [[ "${PER_USER_TUN_ENABLED}" == "true" ]]; then
+    if [[ ${#USER_TUN[@]} -gt 0 ]]; then
+      printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
+      local user
+      for user in "${TARGET_USERS[@]}"; do
+        printf '  - %s -> %s (DNS %s)\n' "${user}" "${USER_TUN[${user}]}" "${USER_DNS[${user}]}"
+      done
+    else
+      printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用（沿用主机配置）" "${COLOR_RESET}"
+    fi
   else
     printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "未启用" "${COLOR_RESET}"
   fi
