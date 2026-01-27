@@ -18,7 +18,7 @@ declare -A USER_DNS
 MODE="switch"
 ETC_DIR="/etc/nixos"
 DNS_ENABLED=false
-PROGRESS_TOTAL=6
+PROGRESS_TOTAL=7
 PROGRESS_CURRENT=0
 WIZARD_ACTION=""
 
@@ -243,6 +243,103 @@ check_env() {
   if [[ ! -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
     error "缺少 ${ETC_DIR}/hardware-configuration.nix；请先运行 nixos-generate-config。"
   fi
+}
+
+script_shebang_shell() {
+  local line="$1"
+  case "${line}" in
+    *"/bash"*|*"env bash"*|*"/sh"*|*"env sh"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+self_check_scripts() {
+  local repo_dir="$1"
+  local search_dir="${repo_dir}/home/users"
+  local scripts=()
+
+  if [[ -d "${search_dir}" ]]; then
+    mapfile -d '' -t scripts < <(
+      find "${search_dir}" -type f -path "*/scripts/*" -print0 2>/dev/null
+    )
+  fi
+
+  if [[ -f "${repo_dir}/run.sh" ]]; then
+    scripts+=("${repo_dir}/run.sh")
+  fi
+
+  if [[ ${#scripts[@]} -eq 0 ]]; then
+    warn "未找到可自检脚本（home/users/*/scripts 或 run.sh）"
+    return 0
+  fi
+
+  log "脚本自检..."
+
+  local errors=0
+  local warnings=0
+  local file
+  local shellcheck_available=false
+
+  if command -v shellcheck >/dev/null 2>&1; then
+    shellcheck_available=true
+  else
+    warn "未检测到 shellcheck，跳过 Lint 检查"
+  fi
+
+  for file in "${scripts[@]}"; do
+    local rel="${file#${repo_dir}/}"
+    local shebang=""
+
+    if [[ ! -s "${file}" ]]; then
+      warn "脚本为空：${rel}"
+      warnings=$((warnings + 1))
+      continue
+    fi
+
+    if [[ ! -x "${file}" ]]; then
+      warn "脚本缺少可执行权限：${rel}"
+      errors=$((errors + 1))
+    fi
+
+    if LC_ALL=C grep -q $'\r' "${file}"; then
+      warn "检测到 CRLF：${rel}"
+      errors=$((errors + 1))
+    fi
+
+    shebang="$(head -n1 "${file}" 2>/dev/null || true)"
+    if [[ "${shebang}" != "#!"* ]]; then
+      warn "缺少 shebang：${rel}"
+      errors=$((errors + 1))
+      continue
+    fi
+
+    if script_shebang_shell "${shebang}"; then
+      if ! bash -n "${file}" 2>/tmp/mcb-script-check.$$; then
+        warn "语法检查失败：${rel}"
+        sed 's/^/  /' /tmp/mcb-script-check.$$ >&2 || true
+        errors=$((errors + 1))
+      fi
+      rm -f /tmp/mcb-script-check.$$ 2>/dev/null || true
+
+      if [[ "${shellcheck_available}" == "true" ]]; then
+        if ! shellcheck -x "${file}" >/tmp/mcb-shellcheck.$$ 2>&1; then
+          warn "shellcheck 警告：${rel}"
+          sed 's/^/  /' /tmp/mcb-shellcheck.$$ >&2 || true
+          warnings=$((warnings + 1))
+        fi
+        rm -f /tmp/mcb-shellcheck.$$ 2>/dev/null || true
+      fi
+    else
+      warn "非 bash/sh 脚本，跳过语法检查：${rel}"
+      warnings=$((warnings + 1))
+    fi
+  done
+
+  if (( errors > 0 )); then
+    error "脚本自检失败：${errors} 个错误（请修复后再继续）"
+  fi
+
+  success "脚本自检完成（${warnings} 个警告）"
 }
 
 is_tty() {
@@ -787,6 +884,10 @@ main() {
     fi
   fi
   progress_step "拉取仓库"
+
+  section "脚本自检"
+  self_check_scripts "${tmp_dir}"
+  progress_step "脚本自检"
 
   wizard_flow
   write_local_override "${tmp_dir}"
