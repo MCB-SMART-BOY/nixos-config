@@ -35,34 +35,27 @@ let
     in
     {
       description = "Clash Verge Service Mode Daemon (${user})";
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
+      after = [ "network-online.target" "user-runtime-dir@%U.service" ];
+      wants = [ "network-online.target" "user-runtime-dir@%U.service" ];
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
         User = user;
         WorkingDirectory = clashHome;
         UMask = "0002";
-        PermissionsStartOnly = true;
-        ExecStartPre = [
-          "${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} /run/clash-verge-rev-${user}"
-        ];
         Environment = [
           "HOME=${clashHome}"
           "XDG_CONFIG_HOME=${clashConfig}"
           "XDG_DATA_HOME=${clashData}"
           "XDG_CACHE_HOME=${clashCache}"
           "XDG_STATE_HOME=${clashState}"
-          "XDG_RUNTIME_DIR=/run/clash-verge-rev-${user}"
-          "TMPDIR=/run/clash-verge-rev-${user}"
+          "XDG_RUNTIME_DIR=/run/user/%U"
+          "TMPDIR=/run/user/%U"
           "PATH=${clashPath}:/run/wrappers/bin"
         ];
         Restart = "on-failure";
         RestartSec = "2s";
         ExecStart = "${pkgs.clash-verge-rev}/bin/clash-verge-service";
-        RuntimeDirectory = "clash-verge-rev-${user}";
-        RuntimeDirectoryMode = "0700";
-        RuntimeDirectoryPreserve = "yes";
         CapabilityBoundingSet = netCaps;
         AmbientCapabilities = netCaps;
       };
@@ -75,7 +68,6 @@ in
 
   systemd.tmpfiles.rules = lib.optionals proxyServiceEnabled (
     lib.concatLists (map (user: [
-      "d /run/clash-verge-rev-${user} 0700 ${user} users -"
       "d /home/${user}/.config/clash-verge 2775 ${user} users -"
       "d /home/${user}/.config/clash-verge-rev 2775 ${user} users -"
       "d /home/${user}/.local/share/clash-verge 2775 ${user} users -"
