@@ -32,7 +32,7 @@ let
       clashData = "${clashHome}/.local/share";
       clashCache = "${clashHome}/.cache";
       clashState = "${clashHome}/.local/state";
-      runtimeDirName = "clash-verge-rev-${user}";
+      runtimeDirName = "clash-verge-rev";
       userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
     in
     {
@@ -49,18 +49,11 @@ let
         PermissionsStartOnly = true;
         RuntimeDirectory = runtimeDirName;
         RuntimeDirectoryMode = "0700";
-        BindPaths = [
-          "/run/${runtimeDirName}:/run/clash-verge-rev"
-        ];
         ExecStartPre = [
           (pkgs.writeShellScript "clash-verge-prestart-${user}" ''
             set -euo pipefail
             uid="$(${pkgs.coreutils}/bin/id -u ${user})"
             runtime_dir="/run/${runtimeDirName}"
-            user_runtime_dir="/run/user/$uid"
-            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$runtime_dir"
-            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$user_runtime_dir"
-            ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$user_runtime_dir/clash-verge-rev"
             for dir in \
               "${clashConfig}/clash-verge" \
               "${clashConfig}/clash-verge-rev" \
@@ -78,7 +71,7 @@ let
               "${clashCache}/clash-verge-rev" \
               "${clashState}/clash-verge-rev" \
               2>/dev/null || true
-            rm -f "$runtime_dir"/*.sock "$user_runtime_dir/clash-verge-rev"/*.sock 2>/dev/null || true
+            rm -f "$runtime_dir"/*.sock 2>/dev/null || true
           '')
         ];
         Environment = [
@@ -87,8 +80,8 @@ let
           "XDG_DATA_HOME=${clashData}"
           "XDG_CACHE_HOME=${clashCache}"
           "XDG_STATE_HOME=${clashState}"
-          "XDG_RUNTIME_DIR=/run/clash-verge-rev"
-          "TMPDIR=/run/clash-verge-rev"
+          "XDG_RUNTIME_DIR=/run/${runtimeDirName}"
+          "TMPDIR=/run/${runtimeDirName}"
           "PATH=${clashPath}:/run/wrappers/bin"
         ];
         Restart = "on-failure";
