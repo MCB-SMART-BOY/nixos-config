@@ -56,7 +56,7 @@ let
         set -euo pipefail
 
         uid="$(${id} -u ${user})"
-        if [[ -z "${uid}" ]]; then
+        if [[ -z "''${uid}" ]]; then
           echo "User ${user} not found" >&2
           exit 1
         fi
