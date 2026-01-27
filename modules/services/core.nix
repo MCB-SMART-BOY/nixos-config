@@ -48,7 +48,7 @@ let
           (pkgs.writeShellScript "clash-verge-prestart-${user}" ''
             set -euo pipefail
             uid="$(${pkgs.coreutils}/bin/id -u ${user})"
-            runtime_dir="/run/user/${uid}/clash-verge-rev"
+            runtime_dir="/run/user/''${uid}/clash-verge-rev"
             ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${user} "${runtime_dir}"
             for dir in \
               "${clashConfig}/clash-verge" \
