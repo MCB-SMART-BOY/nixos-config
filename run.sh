@@ -124,10 +124,10 @@ menu_prompt() {
   local total=${#options[@]}
 
   while true; do
-    section "${title}"
+    printf '\n%s%s%s\n' "${COLOR_BOLD}" "${title}" "${COLOR_RESET}" >&2
     local i=1
     for opt in "${options[@]}"; do
-      printf '  %s) %s\n' "${i}" "${opt}"
+      printf '  %s) %s\n' "${i}" "${opt}" >&2
       i=$((i + 1))
     done
     read -r -p "请选择 [1-${total}]（默认 ${default_index}）： " choice
@@ -138,7 +138,7 @@ menu_prompt() {
       printf '%s' "${choice}"
       return 0
     fi
-    echo "无效选择，请重试。"
+    echo "无效选择，请重试。" >&2
   done
 }
 
@@ -549,29 +549,7 @@ prepare_etc_dir() {
           ;;
       esac
     else
-      if is_tty; then
-        while true; do
-          read -r -p "检测到 ${ETC_DIR} 已存在，选择 [o]直接覆盖/[b]备份并覆盖/[q]退出（默认 o）： " answer
-          case "${answer}" in
-            b|B)
-              backup_etc
-              break
-              ;;
-            o|O|"")
-              note "将覆盖 ${ETC_DIR}（未启用备份）"
-              break
-              ;;
-            q|Q)
-              error "已退出"
-              ;;
-            *)
-              echo "无效选择，请重试。"
-              ;;
-          esac
-        done
-      else
-        note "将覆盖 ${ETC_DIR}（未启用备份）"
-      fi
+      note "将覆盖 ${ETC_DIR}（未启用备份）"
     fi
   fi
 }
@@ -725,6 +703,9 @@ wizard_flow() {
         WIZARD_ACTION=""
         prompt_users
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
+          TARGET_USERS=()
+          reset_tun_maps
+          TARGET_NAME=""
           step=1
           continue
         fi
@@ -742,9 +723,12 @@ wizard_flow() {
         if [[ "${PER_USER_TUN_ENABLED}" == "true" ]]; then
           configure_per_user_tun
           if [[ "${WIZARD_ACTION}" == "back" ]]; then
+            reset_tun_maps
             step=2
             continue
           fi
+        else
+          reset_tun_maps
         fi
         step=4
         ;;

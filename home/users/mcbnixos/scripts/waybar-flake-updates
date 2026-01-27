@@ -1,26 +1,48 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+resolve_repo_root() {
+  local dir
+  local flake_path=""
 
-find_repo_root() {
-  local dir="$1"
-  while [[ "${dir}" != "/" ]]; do
+  if [[ -f "/etc/nixos/flake.lock" ]]; then
+    printf '%s\n' "/etc/nixos"
+    return 0
+  fi
+
+  if [[ -n "${MCB_FLAKE_ROOT:-}" && -f "${MCB_FLAKE_ROOT}/flake.lock" ]]; then
+    printf '%s\n' "${MCB_FLAKE_ROOT}"
+    return 0
+  fi
+
+  if [[ -n "${NIXOS_FLAKE:-}" ]]; then
+    flake_path="${NIXOS_FLAKE%%#*}"
+    if [[ -f "${flake_path}/flake.lock" ]]; then
+      printf '%s\n' "${flake_path}"
+      return 0
+    fi
+  fi
+
+  for dir in \
+    "${HOME}/nixos-config" \
+    "${HOME}/.dotfiles/nixos-config" \
+    "${HOME}/dev/nixos-config" \
+    "${HOME}/.config/nixos"; do
     if [[ -f "${dir}/flake.lock" ]]; then
       printf '%s\n' "${dir}"
       return 0
     fi
-    dir="$(dirname "${dir}")"
   done
+
+  if [[ -f "${PWD}/flake.lock" ]]; then
+    printf '%s\n' "${PWD}"
+    return 0
+  fi
+
   return 1
 }
 
-if [[ -f "/etc/nixos/flake.lock" ]]; then
-  REPO_ROOT="/etc/nixos"
-else
-  REPO_ROOT="$(find_repo_root "${SCRIPT_DIR}" || true)"
-fi
-
+REPO_ROOT="$(resolve_repo_root || true)"
 LOCK_FILE="${REPO_ROOT}/flake.lock"
 
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
