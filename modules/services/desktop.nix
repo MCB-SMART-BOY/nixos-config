@@ -20,6 +20,13 @@
     binfmt = true;
   };
 
+  # F*ck you, Nv*dia(笑)
+  services.xserver.videoDrivers = [
+    "modesetting"
+    "nvidia"
+  ];
+  hardware.nvidia.open = true;
+
   hardware.graphics = {
     # 3D/视频硬件加速（Intel 默认）
     enable = true;
