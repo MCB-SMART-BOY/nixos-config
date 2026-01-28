@@ -5,42 +5,44 @@
 
 let
   # nixpkgs 新版本将 fcitx5-* 顶层包改为 qt6Packages.*，旧名会 throw。
-  # 使用 tryEval 避免访问到 throw 别名导致构建失败。
-  fcitx5ChineseAddonsQt =
-    if lib.hasAttrByPath [ "qt6Packages" "fcitx5-chinese-addons" ] pkgs then
-      builtins.tryEval pkgs.qt6Packages.fcitx5-chinese-addons
-    else
-      { success = false; value = null; };
-  fcitx5ChineseAddonsLegacy =
-    if lib.hasAttrByPath [ "fcitx5-chinese-addons" ] pkgs then
-      builtins.tryEval pkgs.fcitx5-chinese-addons
-    else
-      { success = false; value = null; };
-  fcitx5ChineseAddons =
-    if fcitx5ChineseAddonsQt.success then
-      fcitx5ChineseAddonsQt.value
-    else if fcitx5ChineseAddonsLegacy.success then
-      fcitx5ChineseAddonsLegacy.value
-    else
-      null;
+  # 使用 tryEval + getAttrFromPath 避免访问到 throw 别名导致构建失败。
+  resolvePkg = path:
+    let
+      eval =
+        if lib.hasAttrByPath path pkgs then
+          builtins.tryEval (lib.getAttrFromPath path pkgs)
+        else
+          { success = false; value = null; };
+    in
+    if eval.success then eval.value else null;
 
-  fcitx5ConfigtoolQt =
-    if lib.hasAttrByPath [ "qt6Packages" "fcitx5-configtool" ] pkgs then
-      builtins.tryEval pkgs.qt6Packages.fcitx5-configtool
-    else
-      { success = false; value = null; };
-  fcitx5ConfigtoolLegacy =
-    if lib.hasAttrByPath [ "fcitx5-configtool" ] pkgs then
-      builtins.tryEval pkgs.fcitx5-configtool
-    else
-      { success = false; value = null; };
-  fcitx5Configtool =
-    if fcitx5ConfigtoolQt.success then
-      fcitx5ConfigtoolQt.value
-    else if fcitx5ConfigtoolLegacy.success then
-      fcitx5ConfigtoolLegacy.value
-    else
-      null;
+  pickFirst = list: lib.findFirst (x: x != null) null list;
+
+  fcitx5ChineseAddons = pickFirst [
+    (resolvePkg [ "qt6Packages" "fcitx5-chinese-addons" ])
+    (resolvePkg [ "fcitx5-chinese-addons" ])
+  ];
+
+  fcitx5Configtool = pickFirst [
+    (resolvePkg [ "qt6Packages" "fcitx5-configtool" ])
+    (resolvePkg [ "fcitx5-configtool" ])
+  ];
+
+  fcitx5Rime = pickFirst [
+    (resolvePkg [ "qt6Packages" "fcitx5-rime" ])
+    (resolvePkg [ "fcitx5-rime" ])
+  ];
+
+  fcitx5Gtk = pickFirst [
+    (resolvePkg [ "qt6Packages" "fcitx5-gtk" ])
+    (resolvePkg [ "fcitx5-gtk" ])
+  ];
+
+  fcitx5Qt = pickFirst [
+    (resolvePkg [ "qt6Packages" "fcitx5-qt" ])
+    (resolvePkg [ "libsForQt5" "fcitx5-qt" ])
+    (resolvePkg [ "fcitx5-qt" ])
+  ];
 in
 {
   # 时区（影响系统时间显示）
@@ -62,14 +64,10 @@ in
         # 输入法插件：Rime/Pinyin/GTK 支持等
         addons =
           (lib.optionals (fcitx5ChineseAddons != null) [ fcitx5ChineseAddons ])
-          ++ (with pkgs; [
-            fcitx5-rime
-            fcitx5-gtk
-          ])
+          ++ lib.optionals (fcitx5Rime != null) [ fcitx5Rime ]
+          ++ lib.optionals (fcitx5Gtk != null) [ fcitx5Gtk ]
           ++ lib.optionals (fcitx5Configtool != null) [ fcitx5Configtool ]
-          ++ lib.optionals (lib.hasAttrByPath [ "fcitx5-qt" ] pkgs) [ pkgs.fcitx5-qt ]
-          ++ lib.optionals (lib.hasAttrByPath [ "libsForQt5" "fcitx5-qt" ] pkgs) [ pkgs.libsForQt5.fcitx5-qt ]
-          ++ lib.optionals (lib.hasAttrByPath [ "qt6Packages" "fcitx5-qt" ] pkgs) [ pkgs.qt6Packages.fcitx5-qt ];
+          ++ lib.optionals (fcitx5Qt != null) [ fcitx5Qt ];
       };
     };
   };
