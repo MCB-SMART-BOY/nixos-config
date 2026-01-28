@@ -81,7 +81,6 @@ let
     swayidle
     waybar
     fuzzel
-    fcitx5
     niri
     swaybg
     pipewire

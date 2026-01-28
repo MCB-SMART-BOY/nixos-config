@@ -2,7 +2,7 @@
 # 影响图形登录与 Wayland 应用的基础环境。
 # 注意：输入法变量在 Home Manager 也会设置一份，保证 GUI 会话可见。
 
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 {
   programs.niri.enable = true;
@@ -38,6 +38,8 @@
     GLFW_IM_MODULE = "fcitx";
     XMODIFIERS = "@im=fcitx";
     XIM_SERVERS = "fcitx";
+    # 修复 fcitx5 插件未被发现：让 GUI 会话能找到系统共享数据目录
+    XDG_DATA_DIRS = lib.mkDefault "/run/current-system/sw/share";
   };
 
   xdg.portal = {
