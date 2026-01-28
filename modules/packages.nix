@@ -150,13 +150,11 @@ let
 
   entertainment = with pkgs; [
     # 影音与阅读应用
-    netease-cloud-music-gtk
     kazumi
     mangayomi
     bilibili
-  ] ++ lib.optionals (pkgs ? yesplaymusic) [ pkgs.yesplaymusic ]
-    ++ lib.optionals (pkgs ? musicfox) [ pkgs.musicfox ]
-    ++ lib.optionals (pkgs ? go-musicfox) [ pkgs.go-musicfox ];
+    go-musicfox
+  ];
 
   gaming =
     with pkgs;
