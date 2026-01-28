@@ -1,23 +1,24 @@
-// Niri Configuration
+// Niri 配置文件（Wayland 平铺窗口管理器）
 // ~/.config/niri/config.kdl
-// A beautiful scrollable tiling Wayland compositor
+// 由 Home Manager 管理：home/users/mcbnixos/files.nix
 
 // ══════════════════════════════════════════════════════════════════
-// 🖥️ Output Configuration
+// 🖥️ 输出配置
 // ══════════════════════════════════════════════════════════════════
 
 // 建议删除特定 output 配置，让 Niri 自动检测
-// 如果必须指定，请确保名称 (eDP-1) 是准确的
-output "eDP-1" {
-    mode "2560x1600@60"
-    scale 2 // 推荐高分屏设置缩放
-}
+// 如果必须指定，请确保名称 (eDP-1) 是准确的（可通过 `niri msg outputs` 查看）
+// output "eDP-1" {
+//     mode "2560x1600@60"
+//     scale 2 // 推荐高分屏设置缩放
+// }
 
 // ══════════════════════════════════════════════════════════════════
-// ⌨️ Input Configuration
+// ⌨️ 输入配置
 // ══════════════════════════════════════════════════════════════════
 
 input {
+    // 键盘布局与重复输入速度
     keyboard {
         xkb {
             layout "us"
@@ -27,6 +28,7 @@ input {
         repeat-rate 50
     }
 
+    // 触控板配置（tap=轻触点击，dwt=打字时禁用触控板）
     touchpad {
         tap
         dwt
@@ -35,22 +37,26 @@ input {
         accel-profile "adaptive"
     }
 
+    // 鼠标加速度
     mouse {
         accel-speed 0.0
         accel-profile "flat"
     }
 
+    // 鼠标跟随聚焦
     focus-follows-mouse max-scroll-amount="0%"
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 🎨 Layout Configuration
+// 🎨 布局配置
 // ══════════════════════════════════════════════════════════════════
 
 layout {
+    // 窗口间距与居中策略
     gaps 6
     center-focused-column "always"
 
+    // 常用列宽预设（快捷切换）
     preset-column-widths {
         proportion 0.30
         proportion 0.5
@@ -79,16 +85,18 @@ layout {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 🖼️ Window Decorations
+// 🖼️ 窗口装饰
 // ══════════════════════════════════════════════════════════════════
 
+// 禁用客户端自绘标题栏（统一外观）
 prefer-no-csd
 
 // ══════════════════════════════════════════════════════════════════
-// ✨ Animations (优化版)
+// ✨ 动画（优化版）
 // ══════════════════════════════════════════════════════════════════
 
 animations {
+    // 全局动画速度（越小越快）
     slowdown 1.05
 
     workspace-switch {
@@ -123,16 +131,17 @@ animations {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// 📸 Screenshot (Niri 原生)
+// 📸 截图（Niri 原生）
 // ══════════════════════════════════════════════════════════════════
 // 注意：更高级的截图在下面的 Key Bindings 里配置了 grim+slurp
 
 screenshot-path "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
 
 // ══════════════════════════════════════════════════════════════════
-// 🚀 Autostart (自启动)
+// 🚀 自启动
 // ══════════════════════════════════════════════════════════════════
 
+// niri-run 会补齐 PATH，避免找不到命令
 spawn-at-startup "niri-run" "waybar"
 // 随机壁纸脚本改由 systemd 用户服务启动（graphical-session.target），更稳定
 // NetworkManager 托盘（可在 Waybar 托盘显示）
@@ -142,7 +151,7 @@ spawn-at-startup "niri-run" "fcitx5" "-d" "-r" // -r 替换现有实例
 spawn-at-startup "niri-run" "swayidle" "-w" "timeout" "300" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || swaylock" "timeout" "600" "niri" "msg" "action" "power-off-monitors" "before-sleep" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || swaylock"
 
 // ══════════════════════════════════════════════════════════════════
-// 🪟 Window Rules
+// 🪟 窗口规则
 // ══════════════════════════════════════════════════════════════════
 
 window-rule {
@@ -161,10 +170,11 @@ window-rule {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// ⌨️ Key Bindings
+// ⌨️ 快捷键
 // ══════════════════════════════════════════════════════════════════
 
 binds {
+    // Mod 默认是 Super/Win 键（可在 niri 文档中调整）
     // ─── 应用启动 ───
     Mod+Return { spawn "niri-run" "sh" "-c" "${TERMINAL:-foot}"; }
     Mod+Space { spawn "niri-run" "fuzzel"; }
@@ -176,10 +186,10 @@ binds {
     Mod+Q { close-window; }
     Mod+Shift+Q { quit; } // 退出 Niri 会话
     Mod+Shift+Slash { show-hotkey-overlay; }
-    
+
     // 锁屏
     Mod+Escape { spawn "niri-run" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || swaylock"; }
-    
+
     // 电源管理
     Mod+Shift+P { power-off-monitors; }
     // 切换壁纸
@@ -190,7 +200,7 @@ binds {
     Mod+Alt+j { focus-window-down; }
     Mod+Alt+k { focus-window-up; }
     Mod+l { focus-column-right; }
-    
+
     Mod+Left { focus-column-left; }
     Mod+Down { focus-window-down; }
     Mod+Up { focus-window-up; }
@@ -201,7 +211,7 @@ binds {
     Mod+Shift+j { move-window-down; }
     Mod+Shift+k { move-window-up; }
     Mod+Shift+l { move-column-right; }
-    
+
     Mod+Shift+Left { move-column-left; }
     Mod+Shift+Down { move-window-down; }
     Mod+Shift+Up { move-window-up; }
@@ -214,14 +224,22 @@ binds {
     Mod+Shift+End { move-column-to-last; }
 
     // ─── 布局操作 ───
+    // 把当前窗口吸入/弹出到相邻列（适合整理列结构）
     Mod+BracketLeft { consume-or-expel-window-left; }
     Mod+BracketRight { consume-or-expel-window-right; }
+    // 在预设列宽之间循环切换
     Mod+R { switch-preset-column-width; }
+    // 重置窗口高度（恢复默认比例）
     Mod+Shift+R { reset-window-height; }
+    // 最大化当前列（纵向填满）
     Mod+Ctrl+F { maximize-column; }
+    // 全屏当前窗口
     Mod+F { fullscreen-window; }
+    // 把窗口扩展到边缘（不是真全屏）
     Mod+M { maximize-window-to-edges; }
+    // 把焦点列居中显示
     Mod+C { center-column; }
+    // 切换列内 Tab 显示（适合同一列多个窗口）
     Mod+W { toggle-column-tabbed-display; }
 
     // 微调大小
@@ -240,7 +258,7 @@ binds {
     Mod+7 { focus-workspace 7; }
     Mod+8 { focus-workspace 8; }
     Mod+9 { focus-workspace 9; }
-    
+
     Mod+Shift+1 { move-column-to-workspace 1; }
     Mod+Shift+2 { move-column-to-workspace 2; }
     Mod+Shift+3 { move-column-to-workspace 3; }
@@ -256,14 +274,17 @@ binds {
     Mod+Grave { focus-workspace-previous; }
     Mod+Tab { toggle-overview; }
     Mod+Shift+Tab { focus-workspace-up; }
+    // 鼠标滚轮切换工作区（带冷却避免过快）
     Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
     Mod+WheelScrollUp cooldown-ms=150 { focus-workspace-up; }
 
     // ─── 浮动窗口 ───
+    // 把当前窗口从平铺切换为浮动（或反向）
     Mod+Shift+F { toggle-window-floating; }
+    // 在浮动与平铺窗口之间切换焦点
     Mod+Shift+V { switch-focus-between-floating-and-tiling; }
 
-    // ─── 截图 (高级模式) ───
+    // ─── 截图（高级模式） ───
     // 依赖: grim, slurp, swappy (需在 systemPackages 中安装)
     // 截图全屏
     Print { spawn "niri-run" "sh" "-c" "grim - | swappy -f -"; }

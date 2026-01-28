@@ -1,6 +1,9 @@
+# 桌面 profile：启用桌面模块与常用包组。
+
 { ... }:
 
 {
+  # 桌面主机引入完整的系统模块
   imports = [
     ./base.nix
     ../../modules/i18n.nix
@@ -12,6 +15,7 @@
   ];
 
   mcb.packages = {
+    # 桌面常用包组全部开启
     enableNetwork = true;
     enableShellTools = true;
     enableWaylandTools = true;

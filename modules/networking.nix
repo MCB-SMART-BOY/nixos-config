@@ -1,6 +1,11 @@
+# 网络与代理核心逻辑：DNS、proxy、TUN 路由、策略路由。
+# 是本项目最复杂的模块之一，改动前务必理解流程。
+# 新手提示：大部分输入来自 hosts/*/default.nix 的 mcb.* 选项。
+
 { config, lib, options, pkgs, ... }:
 
 let
+  # === 读取 mcb.* 基础选项 ===
   tunInterface = config.mcb.tunInterface;
   tunInterfaces = config.mcb.tunInterfaces;
   perUserTunEnabled = config.mcb.perUserTun.enable;
@@ -12,6 +17,7 @@ let
       config.mcb.users
     else
       [ config.mcb.user ];
+  # 合并所有可被信任的 TUN 接口（用于防火墙与策略路由）
   tunInterfacesEffective = lib.unique (
     (lib.optionals (tunInterface != "") [ tunInterface ])
     ++ tunInterfaces
@@ -33,11 +39,13 @@ let
       "${proxyDnsAddr}:${toString proxyDnsPort}";
   resolvedHasDns = lib.hasAttrByPath [ "services" "resolved" "dns" ] options;
   resolvedHasFallback = lib.hasAttrByPath [ "services" "resolved" "fallbackDns" ] options;
+  # systemd-resolved 额外配置（避免与已有选项重复）
   resolvedExtraConfig = ''
     ${lib.optionalString (!resolvedHasDns && proxyDnsEnabled) "DNS=${proxyDnsTarget}"}
     ${lib.optionalString (!resolvedHasFallback && !proxyDnsEnabled) "FallbackDNS=223.5.5.5 1.1.1.1"}
   '';
 
+  # 为“每个用户单独 TUN”生成 systemd oneshot 服务
   mkRouteService = idx: user:
     let
       iface = perUserInterfaces.${user};
@@ -61,6 +69,7 @@ let
           exit 1
         fi
 
+        # 等待 TUN 接口就绪
         for _ in $(${seq} 1 50); do
           if ${ip} link show dev "${iface}" >/dev/null 2>&1; then
             break
@@ -73,12 +82,15 @@ let
           exit 0
         fi
 
+        # 为该用户添加专用路由表
         if ! ${ip} rule show | ${grep} -q "uidrange $uid-$uid.*lookup ${toString tableId}"; then
           ${ip} rule add priority ${toString priority} uidrange $uid-$uid lookup ${toString tableId}
         fi
 
+        # 设置该用户的默认路由走指定 TUN
         ${ip} route replace default dev "${iface}" table ${toString tableId}
 
+        # 可选：把该用户的 DNS 请求重定向到本地端口
         if [[ "${dnsRedirectFlag}" == "1" ]]; then
           if [[ "${dnsPortStr}" == "0" ]]; then
             echo "DNS redirect enabled but no port configured for ${user}" >&2
@@ -95,9 +107,11 @@ let
       stopScript = pkgs.writeShellScript "mcb-tun-route-${user}-stop" ''
         set -euo pipefail
         uid="$(${id} -u ${user} 2>/dev/null || true)"
+        # 清理默认路由与 ip rule
         ${ip} route del default dev "${iface}" table ${toString tableId} >/dev/null 2>&1 || true
         if [[ -n "$uid" ]]; then
           ${ip} rule del uidrange $uid-$uid lookup ${toString tableId} >/dev/null 2>&1 || true
+          # 清理 DNS 重定向规则
           if [[ "${dnsRedirectFlag}" == "1" ]]; then
             ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
             ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
@@ -129,6 +143,7 @@ let
     };
 in
 {
+  # === 参数校验：开启 per-user TUN 时必须满足的前置条件 ===
   assertions = lib.optionals perUserTunEnabled [
     {
       assertion = proxyMode == "tun";
@@ -167,11 +182,13 @@ in
       dns = "systemd-resolved";
     };
 
+    # HTTP 代理模式（仅 proxyMode = http 时启用）
     proxy = lib.mkIf proxyEnabled {
       default = proxyUrl;
       noProxy = "127.0.0.1,localhost,internal.domain";
     };
 
+    # 防火墙：允许代理 DNS/本地面板端口，同时信任 TUN 接口
     firewall = {
       enable = true;
       checkReversePath = "loose";

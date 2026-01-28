@@ -1,6 +1,6 @@
-# Mako Configuration
+# Mako 通知配置
 # ~/.config/mako/config
-# DMS/Noctalia-inspired Theme
+# DMS/Noctalia 风格主题
 
 # 基础样式
 font=Manrope 11
@@ -34,19 +34,23 @@ icons=1
 max-icon-size=48
 icon-path=~/.nix-profile/share/icons/Papirus-Dark:~/.local/share/icons/Papirus-Dark
 
-# 进度条 (例如音量调节)
+# 进度条（例如音量调节）
 [mode=do-not-disturb]
+# 勿扰模式：完全隐藏通知
 invisible=1
 
 [urgency=low]
+# 低优先级通知
 background-color=#0c1116e6
 border-color=#34d399
 
 [urgency=normal]
+# 普通通知
 background-color=#0c1116e6
 border-color=#5eead4
 
 [urgency=high]
+# 高优先级通知（不自动消失）
 background-color=#0c1116e6
 border-color=#fb7185
 default-timeout=0

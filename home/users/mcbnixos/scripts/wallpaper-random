@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Random wallpaper setter for swaybg.
+# 随机壁纸切换（swaybg）。用于 Wayland 桌面美化。
 
 set -euo pipefail
 
@@ -11,7 +11,7 @@ add_path() {
   esac
 }
 
-# Ensure common user profiles are available when launched by the compositor.
+# 从合成器启动时，补齐常见 PATH
 add_path "/run/wrappers/bin"
 add_path "${HOME}/.local/bin"
 add_path "${HOME}/.nix-profile/bin"
@@ -34,6 +34,7 @@ wait_for_wayland() {
   local interval="0.2"
   local sock=""
 
+  # 等待 Wayland socket 可用
   for _ in $(seq 1 "${attempts}"); do
     if [[ -n "${WAYLAND_DISPLAY:-}" && -n "${XDG_RUNTIME_DIR:-}" ]]; then
       sock="${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY}"
@@ -98,12 +99,12 @@ if [[ ${#wallpapers[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# Keep a stable lockscreen image path.
+# 保持锁屏图像路径稳定，便于 swaylock 读取
 cache_dir="${HOME}/.cache"
 lock_image="${cache_dir}/wallpaper-lock.png"
 current_image="${cache_dir}/wallpaper-current"
 
-# Pick a random wallpaper, avoid immediate repeats when possible.
+# 随机选择壁纸，尽量避免与上一张重复
 current_target=""
 if [[ -e "${current_image}" ]]; then
   current_target="$(readlink -f "${current_image}" 2>/dev/null || true)"
@@ -126,7 +127,7 @@ mkdir -p "${cache_dir}"
 ln -sf "${choice}" "${lock_image}"
 ln -sf "${choice}" "${current_image}"
 
-# Restart swaybg to apply the new wallpaper.
+# 重启 swaybg 以应用新壁纸
 if command -v pkill >/dev/null 2>&1; then
   pkill swaybg >/dev/null 2>&1 || true
 fi

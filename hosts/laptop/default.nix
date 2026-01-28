@@ -1,3 +1,5 @@
+# 主机配置（laptop）：按需覆盖 profile 与主机参数。
+
 { config, lib, pkgs, ... }:
 
 let
@@ -21,6 +23,7 @@ in
     ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   mcb = {
+    # 笔记本用户与代理设置
     user = "mcblaptopnixos";
     users = [ "mcblaptopnixos" ];
     tunInterface = "Meta";
@@ -52,6 +55,7 @@ in
 
   programs.zsh.enable = true;
 
+  # 创建系统用户
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;

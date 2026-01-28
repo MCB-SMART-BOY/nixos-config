@@ -1,3 +1,6 @@
+# 安全相关配置：polkit/sudo 等系统权限策略。
+# 这里允许 wheel 组管理 NetworkManager。
+
 { ... }:
 
 {

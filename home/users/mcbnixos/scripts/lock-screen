@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
+# 用 swaylock 锁屏；如果有缓存壁纸就作为背景图。
+
 set -euo pipefail
 
+# wallpaper-random 会维护此缓存路径
 lock_image="${HOME}/.cache/wallpaper-lock.png"
 
 if [[ -f "${lock_image}" ]]; then
   exec swaylock -i "${lock_image}"
 fi
 
+# 没有缓存图就使用默认锁屏
 exec swaylock

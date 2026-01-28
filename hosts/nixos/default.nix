@@ -1,3 +1,6 @@
+# 主机配置（nixos）：指定用户、代理模式与主机级参数。
+# 新手提示：这里是“主机层”的总入口，会导入 profiles + 硬件配置。
+
 { config, lib, pkgs, ... }:
 
 let
@@ -21,11 +24,13 @@ in
     ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   mcb = {
+    # 主用户与用户列表（影响 Home Manager 与权限）
     user = "mcbnixos";
     users = [
       "mcbnixos"
       "mcblaptopnixos"
     ];
+    # 代理与 TUN 相关参数
     tunInterface = "Meta";
     tunInterfaces = [
       "Meta"
@@ -38,6 +43,7 @@ in
     enableProxyDns = false;
     proxyDnsAddr = "127.0.0.1";
     proxyDnsPort = 53;
+    # 每个用户独立 TUN（高级用法）
     perUserTun = {
       enable = true;
       redirectDns = true;
@@ -57,6 +63,7 @@ in
 
   programs.zsh.enable = true;
 
+  # 创建系统用户并加入常用组
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;

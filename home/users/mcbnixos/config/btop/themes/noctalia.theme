@@ -1,10 +1,10 @@
-# Noctalia theme for btop
-# Based on the palette used across the NixOS config
+# btop 主题：Noctalia
+# 与整套 NixOS 配色保持一致
 
-# Main background, empty for terminal default
+# 主背景色（为空表示使用终端默认）
 theme[main_bg]=""
 
-# Main text color
+# 主文本颜色
 theme[main_fg]="#e2e8f0"
 
 # Title color for boxes

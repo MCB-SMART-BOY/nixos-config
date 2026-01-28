@@ -1,3 +1,5 @@
+# Fcitx5 输入法配置：默认输入法列表与顺序。
+# 由 Home Manager 管理：home/users/mcbnixos/files.nix -> ~/.config/fcitx5/profile
 [Groups/0]
 Name=Default
 Default Layout=us

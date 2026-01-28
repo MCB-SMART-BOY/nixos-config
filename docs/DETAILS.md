@@ -2,6 +2,14 @@
 
 该文档用于说明本仓库的关键配置点与联动关系，便于维护与扩展。
 
+## 快速定位（新手常见需求）
+
+- **改默认用户/多用户**：`hosts/<hostname>/default.nix` -> `mcb.user` / `mcb.users`
+- **改系统包组**：`hosts/profiles/desktop.nix`（开关） + `modules/packages.nix`（包列表）
+- **改桌面快捷键**：`home/users/<user>/config/niri/config.kdl`
+- **改应用主题**：`home/users/<user>/config/`（waybar/foot/alacritty/gtk）
+- **改输入法**：`modules/i18n.nix` + `home/users/<user>/config/fcitx5/profile`
+
 ## Home Manager 体系
 
 - 用户入口：`home/users/<user>/default.nix`

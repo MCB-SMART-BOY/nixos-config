@@ -4,6 +4,25 @@
 
 > 适合希望用模块化方式管理系统与用户环境的人，默认走 Niri + Wayland 路线。
 
+## 🧭 新手导航（从哪改、怎么改）
+
+如果你是第一次接触该仓库，建议按下面顺序理解：
+
+1. **主机入口**：`hosts/<hostname>/default.nix`  
+   - 这里决定“这台机器”的用户、代理、硬件配置与 profile。
+2. **系统模块**：`modules/`  
+   - 系统层功能（网络/字体/输入法/服务/包组开关）都在这里。
+3. **用户入口**：`home/users/<user>/default.nix`  
+   - 决定某个用户使用 full/minimal profile，以及私有配置。
+4. **应用配置**：`home/users/<user>/config/`  
+   - Waybar / Niri / Alacritty 等配置都在这里，通过 `files.nix` 链接到 `~/.config`。
+
+**最常改的几个地方：**
+- 改默认用户/多用户：`hosts/<hostname>/default.nix` 中的 `mcb.user` 和 `mcb.users`
+- 改系统包组：`hosts/profiles/desktop.nix`（开关） + `modules/packages.nix`（包列表）
+- 改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
+- 改输入法/中文：`modules/i18n.nix` + `home/users/<user>/config/fcitx5/profile`
+
 ## 📌 目录
 
 - [✨ 亮点](#-亮点)

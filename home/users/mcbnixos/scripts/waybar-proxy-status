@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Waybar 自定义模块：显示代理服务状态（clash/mihomo）。
+
 set -euo pipefail
 
 emit_json() {
@@ -12,6 +14,7 @@ service_name=""
 status="off"
 
 if command -v systemctl >/dev/null 2>&1; then
+  # 依次检查用户级与系统级代理服务
   if systemctl --user is-active --quiet clash-verge-service 2>/dev/null; then
     service_name="clash-verge-service (user)"
     status="on"
@@ -30,5 +33,6 @@ fi
 if [[ "${status}" == "on" ]]; then
   emit_json "ON" "Proxy: ${service_name}" "on"
 else
+  # 关闭时显示空文本，仅保留 tooltip
   emit_json "" "Proxy: off" "off"
 fi

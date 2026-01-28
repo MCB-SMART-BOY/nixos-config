@@ -2,6 +2,14 @@
 
 本项目采用标准 Flake 布局，区分系统层（NixOS）与用户层（Home Manager），并保留 `configuration.nix` 作为非 Flake 兼容入口。主机相关内容统一放入 `hosts/` 目录，方便后续扩展多主机。
 
+## 新手提示
+
+- **主机入口**：`hosts/<hostname>/default.nix`（先看这里）
+- **系统模块**：`modules/`（网络、字体、输入法、服务、包组）
+- **用户入口**：`home/users/<user>/default.nix`
+- **应用配置**：`home/users/<user>/config/`（Waybar/Niri/终端）
+- **链接规则**：`home/users/<user>/files.nix` 决定哪些配置生效
+
 ## 顶层结构
 
 ```

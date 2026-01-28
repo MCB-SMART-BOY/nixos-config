@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
+# Waybar 自定义模块：显示当前网速（下行/上行）。
+
 set -euo pipefail
 
+# 使用缓存文件保存上一次的流量读数
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
 state_file="${cache_dir}/waybar-net-speed.state"
 
@@ -14,6 +17,7 @@ emit_json() {
 }
 
 get_iface() {
+  # 优先使用默认路由对应的网卡
   if command -v ip >/dev/null 2>&1; then
     ip -4 route list default 2>/dev/null \
       | awk '{for (i=1; i<=NF; i++) if ($i == "dev") {print $(i+1); exit}}'
@@ -22,6 +26,7 @@ get_iface() {
 
 iface="$(get_iface)"
 if [[ -z "${iface}" ]]; then
+  # 回退：随便取一个非 lo 网卡
   for path in /sys/class/net/*; do
     iface="$(basename "${path}")"
     [[ "${iface}" == "lo" ]] && continue
@@ -37,6 +42,7 @@ if [[ -z "${iface}" ]]; then
   exit 0
 fi
 
+ # 统计路径来自 /sys/class/net
 rx_path="/sys/class/net/${iface}/statistics/rx_bytes"
 tx_path="/sys/class/net/${iface}/statistics/tx_bytes"
 state_path="/sys/class/net/${iface}/operstate"
@@ -51,6 +57,7 @@ if [[ -f "${state_path}" ]]; then
   operstate="$(cat "${state_path}")"
 fi
 
+ # 记录当前时间与字节数，用于计算速率
 now="$(date +%s)"
 rx_now="$(cat "${rx_path}")"
 tx_now="$(cat "${tx_path}")"
@@ -63,6 +70,7 @@ else
   time_prev="${now}"
 fi
 
+ # 计算时间差与流量差，得到速率
 dt=$(( now - time_prev ))
 (( dt > 0 )) || dt=1
 

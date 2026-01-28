@@ -1,5 +1,6 @@
-/* Waybar Styles - Noctalia Aqua */
+/* Waybar 样式 - Noctalia Aqua */
 
+/* 主题色板（可按喜好替换） */
 @define-color base #0c1116;
 @define-color surface #111827;
 @define-color surface-2 #1b2430;
@@ -13,6 +14,7 @@
 @define-color crit #fb7185;
 
 * {
+    /* 字体回退顺序：英文字体 → Nerd Font → 中文字体 */
     font-family: "Manrope", "JetBrainsMono Nerd Font", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
     font-size: 11px;
     font-weight: 600;
@@ -25,6 +27,7 @@ window#waybar {
 }
 
 .modules-left,
+/* 中间/右侧模块容器样式 */
 .modules-center,
 .modules-right {
     margin: 6px 4px;
@@ -41,6 +44,7 @@ window#waybar {
     border-color: rgba(147, 197, 253, 0.28);
 }
 
+/* Tooltip 气泡样式 */
 tooltip {
     background-color: @surface;
     border: 1px solid @border;
@@ -52,6 +56,7 @@ tooltip label {
     color: @text;
 }
 
+/* 通用模块按钮样式 */
 #custom-logo,
 #workspaces,
 #clock,
@@ -79,6 +84,7 @@ tooltip label {
     transition: all 0.2s ease;
 }
 
+/* 左侧 Logo 样式 */
 #custom-logo {
     font-size: 16px;
     color: @accent;
@@ -89,6 +95,7 @@ tooltip label {
     border-radius: 999px;
 }
 
+/* 工作区按钮容器 */
 #workspaces {
     padding: 0 4px;
     background-color: transparent;
@@ -96,6 +103,7 @@ tooltip label {
     margin-left: 2px;
 }
 
+/* 单个工作区按钮 */
 #workspaces button {
     padding: 0 6px;
     min-width: 20px;

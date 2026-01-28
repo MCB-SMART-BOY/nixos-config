@@ -1,7 +1,8 @@
-# Helix Editor Configuration
+# Helix 编辑器配置
 # ~/.config/helix/config.toml
-# Target: Helix 25.07 (Bleeding Edge)
+# 目标版本：Helix 25.07（预览版）
 
+# 主题配色
 theme = "nord-night"
 
 [editor]
@@ -9,12 +10,14 @@ theme = "nord-night"
 line-number = "relative"
 cursorline = true
 cursorcolumn = true
+# 自动保存/格式化（保存时触发）
 auto-save = true
 auto-format = true
 scrolloff = 8
 scroll-lines = 3
 mouse = true
 true-color = true
+# 空闲刷新间隔（影响插件/LSP 提示）
 idle-timeout = 100
 # 标尺（默认 100 列提示）
 rulers = [100]
@@ -36,7 +39,7 @@ default-line-ending = "lf"
 #enable = true
 #indicator = true
 
-# 状态栏 (Statusline)
+# 状态栏（Statusline）
 [editor.statusline]
 left = ["mode", "spinner", "file-name", "read-only-indicator", "file-modification-indicator"]
 center = ["diagnostics"]
@@ -62,6 +65,7 @@ select = "underline"
 
 # 文件选择器
 [editor.file-picker]
+# 是否显示隐藏文件
 hidden = false
 git-ignore = true
 git-global = true
@@ -78,11 +82,13 @@ git-exclude = true
 
 # 搜索
 [editor.search]
+# 智能大小写：有大写才区分大小写
 smart-case = true
 wrap-around = true
 
 # 空白字符 (默认隐藏，按需开启)
 [editor.whitespace]
+# 空白符显示策略
 render = "none"
 
 [editor.whitespace.characters]
@@ -99,6 +105,7 @@ skip-levels = 0
 
 # 侧边栏 (Gutters)
 [editor.gutters]
+# 侧边栏：诊断、行号、diff 等
 layout = ["diagnostics", "spacer", "line-numbers", "spacer", "diff"]
 
 [editor.gutters.line-numbers]
@@ -117,22 +124,22 @@ enable = true
 supersede-menu = false
 
 # ══════════════════════════════════════════════════════════════════
-# ⌨️ Key Bindings (快捷键)
+# ⌨️ 快捷键
 # ══════════════════════════════════════════════════════════════════
 
 [keys.normal]
 # 系统操作
 "C-s" = ":w"
 "C-q" = ":q"
-"backspace" = { r = ":sh cargo run" }
+"backspace" = { r = ":sh cargo run" } # 示例：一键运行 Rust 项目
 
-# 窗口导航 (类 Tmux/Vim)
+# 窗口导航（类 Tmux/Vim）
 "C-h" = "jump_view_left"
 "C-j" = "jump_view_down"
 "C-k" = "jump_view_up"
 "C-l" = "jump_view_right"
 
-# Buffer 切换
+# 缓冲区切换
 "H" = "goto_previous_buffer"
 "L" = "goto_next_buffer"
 
@@ -149,7 +156,7 @@ supersede-menu = false
 # Go 模式增强
 "g" = { l = "goto_line_end", h = "goto_line_start", d = "goto_definition", r = "goto_reference", i = "goto_implementation", t = "goto_type_definition" }
 
-# Leader 键 (Space)
+# Leader 键（Space）
 [keys.normal.space]
 f = "file_picker"
 F = "file_picker_in_current_directory"

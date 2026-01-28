@@ -1,12 +1,17 @@
+# Nix 本体配置：flakes、缓存、GC、zram 等系统级设置。
+# 这些设置影响构建性能与磁盘占用。
+
 { ... }:
 
 {
   nix = {
     settings = {
+      # 启用新命令与 Flakes
       experimental-features = [
         "nix-command"
         "flakes"
       ];
+      # 二进制缓存源（优先就近镜像）
       substituters = [
         "https://cache.nixos.org"
         "https://mirrors.ustc.edu.cn/nix-channels/store"
@@ -20,11 +25,13 @@
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
         "nixpkgs-wayland.cachix.org-1:3lwxaILxMRkVhehr5StQprHdEo4IrE8sRho9R9HOLYA="
       ];
+      # 并行编译设置（按机器性能调整）
       max-jobs = 1;
       cores = 4;
       auto-optimise-store = true;
     };
     gc = {
+      # 自动垃圾回收，避免 /nix/store 过大
       automatic = true;
       dates = "weekly";
       options = "--delete-older-than 7d";
@@ -32,11 +39,13 @@
   };
 
   nixpkgs.config = {
+    # 允许非自由软件（如 Chrome）
     allowUnfree = true;
     permittedInsecurePackages = [ "ventoy-1.1.10" ];
   };
 
   zramSwap = {
+    # 启用 zram，提高低内存场景可用性
     enable = true;
   };
 }

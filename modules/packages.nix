@@ -1,6 +1,11 @@
+# 包组与开关：集中定义 systemPackages，按功能开关组合。
+# 通过 mcb.packages.* 控制不同机器的包集合。
+# 新手提示：hosts/profiles/*.nix 里会统一开启/关闭这些组。
+
 { config, lib, pkgs, ... }:
 
 let
+  # 读取 mcb.packages.* 开关
   cfg = config.mcb.packages;
 
   baseRuntime = with pkgs; [
@@ -233,6 +238,7 @@ let
     ncdu
   ];
 
+  # 按开关拼装最终包组
   groups = lib.concatLists [
     baseRuntime
     (lib.optionals cfg.enableNetwork network)
@@ -252,6 +258,7 @@ let
 in
 {
   options.mcb.packages = {
+    # 每个开关控制一个包组，便于不同主机复用
     enableNetwork = lib.mkOption {
       type = lib.types.bool;
       default = false;

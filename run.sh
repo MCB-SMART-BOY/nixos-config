@@ -1,27 +1,41 @@
 #!/usr/bin/env bash
-# One-step NixOS deploy from GitHub. No arguments.
+# 一键部署 NixOS 配置（从 GitHub/Gitee 拉取）。无参数默认流程。
 
 set -euo pipefail
 
+# 仓库地址与分支
 REPO_URLS=(
   "https://gitee.com/MCB-SMART-BOY/nixos-config.git"
   "https://github.com/MCB-SMART-BOY/nixos-config.git"
 )
 BRANCH="master"
+
+# 运行参数（由命令行或向导填充）
 TARGET_NAME=""
 TARGET_USERS=()
 OVERWRITE_MODE="overwrite"
 OVERWRITE_MODE_SET=false
 PER_USER_TUN_ENABLED=false
+# 每用户 TUN 临时映射（用户 -> 接口 / DNS 端口）
 declare -A USER_TUN
 declare -A USER_DNS
+# nixos-rebuild 模式（switch/test/build）
 MODE="switch"
+# 目标配置目录（默认 /etc/nixos）
 ETC_DIR="/etc/nixos"
+# 临时 DNS 是否已开启
 DNS_ENABLED=false
+
+# 进度条控制
 PROGRESS_TOTAL=7
 PROGRESS_CURRENT=0
 WIZARD_ACTION=""
 
+# 脚本流程概览：
+# 1) 检查环境 2) 选择主机/用户 3) 拉取仓库
+# 4) 同步到 /etc/nixos 5) nixos-rebuild 6) 打印摘要
+
+# 检测终端是否支持颜色输出
 if command -v tput >/dev/null 2>&1 && [[ -t 1 ]]; then
   COLOR_RESET="$(tput sgr0)"
   COLOR_BOLD="$(tput bold)"
@@ -40,6 +54,7 @@ else
   COLOR_CYAN=""
 fi
 
+# 统一输出带颜色的日志。
 msg() {
   local level="$1"
   local label
@@ -54,28 +69,36 @@ msg() {
   printf '[%s] %s\n' "${label}" "$*"
 }
 
+# 输出普通信息。
 log() { msg INFO "$*"; }
+# 输出成功信息。
 success() { msg OK "$*"; }
+# 输出警告信息。
 warn() { msg WARN "$*"; }
+# 输出错误并退出。
 error() {
   msg ERROR "$*"
   exit 1
 }
 
+# 打印脚本标题。
 banner() {
   printf '%s\n' "${COLOR_BOLD}==========================================${COLOR_RESET}"
   printf '%s\n' "${COLOR_BOLD}        NixOS 一键部署（run.sh）           ${COLOR_RESET}"
   printf '%s\n' "${COLOR_BOLD}==========================================${COLOR_RESET}"
 }
 
+# 打印章节标题。
 section() {
   printf '\n%s%s%s\n' "${COLOR_BOLD}" "$*" "${COLOR_RESET}"
 }
 
+# 打印灰色提示。
 note() {
   printf '%s%s%s\n' "${COLOR_DIM}" "$*" "${COLOR_RESET}"
 }
 
+# 读取用户输入，支持默认值。
 ask_input() {
   local prompt="$1"
   local default="$2"
@@ -90,6 +113,7 @@ ask_input() {
   fi
 }
 
+# 更新并显示进度条。
 progress_step() {
   local label="$1"
   PROGRESS_CURRENT=$((PROGRESS_CURRENT + 1))
@@ -102,6 +126,7 @@ progress_step() {
   printf '%s进度: [%s] %s/%s %s%s\n' "${COLOR_CYAN}" "${bar}" "${PROGRESS_CURRENT}" "${PROGRESS_TOTAL}" "${label}" "${COLOR_RESET}"
 }
 
+# 确认是否继续执行。
 confirm_continue() {
   local prompt="$1"
   if ! is_tty; then
@@ -115,6 +140,7 @@ confirm_continue() {
   esac
 }
 
+# 显示菜单并读取选择。
 menu_prompt() {
   local title="$1"
   local default_index="$2"
@@ -124,6 +150,7 @@ menu_prompt() {
   local total=${#options[@]}
 
   while true; do
+    # 打印菜单选项
     printf '\n%s%s%s\n' "${COLOR_BOLD}" "${title}" "${COLOR_RESET}" >&2
     local i=1
     for opt in "${options[@]}"; do
@@ -142,9 +169,11 @@ menu_prompt() {
   done
 }
 
+# 向导中处理返回/退出。
 wizard_back_or_quit() {
   local prompt="$1"
   local answer=""
+  # c=继续，b=返回，q=退出
   read -r -p "${prompt} [c继续/b返回/q退出]（默认 c）： " answer
   case "${answer}" in
     b|B) WIZARD_ACTION="back" ;;
@@ -153,11 +182,13 @@ wizard_back_or_quit() {
   esac
 }
 
+# 清空每用户 TUN 临时配置。
 reset_tun_maps() {
   USER_TUN=()
   USER_DNS=()
 }
 
+# 显示使用帮助。
 usage() {
   cat <<EOF_USAGE
 用法: run.sh [选项]
@@ -173,7 +204,9 @@ usage() {
 EOF_USAGE
 }
 
+# 解析命令行参数。
 parse_args() {
+  # 逐个解析命令行参数
   while [[ $# -gt 0 ]]; do
     case "$1" in
       -H|--host)
@@ -189,6 +222,7 @@ parse_args() {
       -U|--users)
         [[ $# -ge 2 ]] || { usage; error "缺少参数：--users"; }
         raw_users="$2"
+        # 支持逗号或空格分隔
         raw_users="${raw_users//,/ }"
         read -r -a more_users <<< "${raw_users}"
         TARGET_USERS+=("${more_users[@]}")
@@ -221,13 +255,16 @@ parse_args() {
   done
 }
 
+# 检查环境依赖与权限。
 check_env() {
   log "检查环境..."
 
+  # 必须普通用户运行（需要时内部 sudo）
   if [[ "$(whoami)" == "root" ]]; then
     error "请以普通用户运行（需要时会调用 sudo）。"
   fi
 
+  # 基础依赖检查
   if ! command -v sudo >/dev/null 2>&1; then
     error "未找到 sudo。"
   fi
@@ -236,16 +273,20 @@ check_env() {
     error "未找到 git。"
   fi
 
+  # 确保当前环境是 NixOS
   if ! command -v nixos-rebuild >/dev/null 2>&1; then
     error "未找到 nixos-rebuild。"
   fi
 
+  # /etc/nixos 必须包含硬件配置（避免覆盖后无法启动）
   if [[ ! -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
     error "缺少 ${ETC_DIR}/hardware-configuration.nix；请先运行 nixos-generate-config。"
   fi
 }
 
+# 检测脚本的 shebang shell。
 script_shebang_shell() {
+  # 只允许 bash/sh 作为 shebang，避免执行失败
   local line="$1"
   case "${line}" in
     *"/bash"*|*"env bash"*|*"/sh"*|*"env sh"*) return 0 ;;
@@ -253,17 +294,21 @@ script_shebang_shell() {
   esac
 }
 
+# 自检脚本的 shebang 兼容性。
 self_check_scripts() {
+  # 遍历仓库脚本，确保第一行 shebang 合法
   local repo_dir="$1"
   local search_dir="${repo_dir}/home/users"
   local scripts=()
 
+  # 收集 home/users/*/scripts 下的脚本
   if [[ -d "${search_dir}" ]]; then
     mapfile -d '' -t scripts < <(
       find "${search_dir}" -type f -path "*/scripts/*" -print0 2>/dev/null
     )
   fi
 
+  # 也检查本脚本本身
   if [[ -f "${repo_dir}/run.sh" ]]; then
     scripts+=("${repo_dir}/run.sh")
   fi
@@ -342,15 +387,18 @@ self_check_scripts() {
   success "脚本自检完成（${warnings} 个警告）"
 }
 
+# 判断是否为交互式终端。
 is_tty() {
   [[ -t 0 && -t 1 ]]
 }
 
+# 列出可用主机。
 list_hosts() {
   local repo_dir="$1"
   local host_dir="${repo_dir}/hosts"
   local hosts=()
 
+  # hosts/ 下每个目录都是一个主机（profiles 除外）
   if [[ -d "${host_dir}" ]]; then
     for entry in "${host_dir}"/*; do
       [[ -d "${entry}" ]] || continue
@@ -364,9 +412,11 @@ list_hosts() {
   printf '%s\n' "${hosts[@]}"
 }
 
+# 选择目标主机。
 select_host() {
   local repo_dir="$1"
   if [[ -z "${TARGET_NAME}" ]]; then
+    # 交互式终端优先走菜单
     if is_tty; then
       local hosts=()
       mapfile -t hosts < <(list_hosts "${repo_dir}")
@@ -386,21 +436,25 @@ select_host() {
       pick="$(menu_prompt "选择主机" "${default_index}" "${hosts[@]}")"
       TARGET_NAME="${hosts[$((pick - 1))]}"
     else
+      # 非交互式则默认使用 nixos
       TARGET_NAME="nixos"
     fi
   fi
 }
 
+# 校验主机名合法性。
 validate_host() {
   local repo_dir="$1"
   if [[ -z "${TARGET_NAME}" ]]; then
     error "未指定主机名称。"
   fi
+  # 确保 hosts/<name> 存在
   if [[ ! -d "${repo_dir}/hosts/${TARGET_NAME}" ]]; then
     error "主机不存在：hosts/${TARGET_NAME}"
   fi
 }
 
+# 检测每用户 TUN 配置是否完整。
 detect_per_user_tun() {
   local host_file="$1/hosts/${TARGET_NAME}/default.nix"
   local in_block=0
@@ -410,6 +464,7 @@ detect_per_user_tun() {
     return 1
   fi
 
+  # 简单扫描 perUserTun.enable = true
   while IFS= read -r line; do
     if [[ "${line}" == *perUserTun* ]]; then
       in_block=1
@@ -425,12 +480,14 @@ detect_per_user_tun() {
   return 1
 }
 
+# 交互式配置每用户 TUN。
 configure_per_user_tun() {
   if [[ "${PER_USER_TUN_ENABLED}" != "true" ]]; then
     return 0
   fi
 
   if is_tty; then
+    # 让用户选择配置方式
     local pick
     pick="$(menu_prompt "TUN 配置方式" 1 "沿用主机配置" "使用默认接口/端口" "逐个设置" "返回")"
     case "${pick}" in
@@ -443,6 +500,7 @@ configure_per_user_tun() {
         return 0
         ;;
       2)
+        # 自动分配 tun0/tun1 + 1053/1054 ...
         reset_tun_maps
         local idx=0
         local user
@@ -471,6 +529,7 @@ configure_per_user_tun() {
     local dns_port="${default_dns}"
 
     if is_tty; then
+      # 逐个询问每个用户的接口/端口
       read -r -p "用户 ${user} 的 TUN 接口名（默认 ${default_iface}）： " iface_input
       if [[ -n "${iface_input}" ]]; then
         iface="${iface_input}"
@@ -494,9 +553,11 @@ configure_per_user_tun() {
   done
 }
 
+# 交互式输入用户列表。
 prompt_users() {
   if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
     if is_tty; then
+      # 提供默认用户或手动输入
       local pick
       pick="$(menu_prompt "选择用户" 1 "使用默认用户 (mcbnixos)" "输入用户列表" "返回" "退出")"
       case "${pick}" in
@@ -504,6 +565,7 @@ prompt_users() {
           TARGET_USERS=("mcbnixos")
           ;;
         2)
+          # 支持空格或逗号分隔
           local input
           read -r -p "用户名列表（空格或逗号分隔）： " input
           input="${input//,/ }"
@@ -522,11 +584,13 @@ prompt_users() {
           ;;
       esac
     else
+      # 非交互模式默认 mcbnixos
       TARGET_USERS=("mcbnixos")
     fi
   fi
 }
 
+# 用户列表去重并保持顺序。
 dedupe_users() {
   local user
   local -A seen=()
@@ -540,15 +604,18 @@ dedupe_users() {
   TARGET_USERS=("${unique[@]}")
 }
 
+# 校验用户列表与格式。
 validate_users() {
   local user
   for user in "${TARGET_USERS[@]}"; do
+    # 只允许 linux 用户名格式
     if [[ ! "${user}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
       error "用户名不合法：${user}"
     fi
   done
 }
 
+# 写入 hosts/<host>/local.nix 覆盖项。
 write_local_override() {
   local repo_dir="$1"
   local host_dir="${repo_dir}/hosts/${TARGET_NAME}"
@@ -558,6 +625,8 @@ write_local_override() {
     return 0
   fi
 
+  # 只在需要时生成 local.nix（不会覆盖已有文件）
+
   if [[ ! -d "${host_dir}" ]]; then
     error "主机目录不存在：${host_dir}"
   fi
@@ -565,11 +634,13 @@ write_local_override() {
   local primary="${TARGET_USERS[0]}"
   local list=""
   local user
+  # 生成用户列表字符串
   for user in "${TARGET_USERS[@]}"; do
     list="${list} \"${user}\""
   done
 
   {
+    # local.nix 会覆盖 mcb.user/mcb.users 等配置
     echo "{ lib, ... }:"
     echo ""
     echo "{"
@@ -593,7 +664,9 @@ write_local_override() {
   } > "${file}"
 }
 
+# 备份 /etc/nixos 到时间戳目录。
 backup_etc() {
+  # 备份目录按时间戳命名，便于回滚
   local timestamp
   timestamp="$(date +%Y%m%d-%H%M%S)"
   local backup_dir="${ETC_DIR}.backup-${timestamp}"
@@ -607,7 +680,9 @@ backup_etc() {
   success "备份完成"
 }
 
+# 准备 /etc/nixos 目录。
 prepare_etc_dir() {
+  # 当目录已存在时，根据策略决定是否备份/覆盖
   if [[ -d "${ETC_DIR}" && -n "$(ls -A "${ETC_DIR}" 2>/dev/null)" ]]; then
     if [[ "${OVERWRITE_MODE_SET}" == "true" ]]; then
       case "${OVERWRITE_MODE}" in
@@ -648,7 +723,9 @@ prepare_etc_dir() {
   fi
 }
 
+# 检测默认网卡名称。
 detect_default_iface() {
+  # 读取默认路由对应的网卡
   if command -v ip >/dev/null 2>&1; then
     ip route show default 2>/dev/null | awk 'NR==1 {print $5; exit}'
   fi
@@ -658,10 +735,12 @@ TEMP_DNS_BACKEND=""
 TEMP_DNS_BACKUP=""
 TEMP_DNS_IFACE=""
 
+# 临时启用 DNS 以修复网络。
 temp_dns_enable() {
   local servers=("223.5.5.5" "223.6.6.6")
   local iface=""
 
+  # 优先通过 systemd-resolved 临时设置 DNS
   if command -v resolvectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1; then
     if systemctl is-active --quiet systemd-resolved; then
       iface="$(detect_default_iface)"
@@ -678,6 +757,7 @@ temp_dns_enable() {
     fi
   fi
 
+  # 兜底方案：直接写 /etc/resolv.conf
   if [[ -f /etc/resolv.conf ]]; then
     TEMP_DNS_BACKUP="$(mktemp)"
     sudo cp -a /etc/resolv.conf "${TEMP_DNS_BACKUP}"
@@ -692,6 +772,7 @@ temp_dns_enable() {
   error "无法设置临时 DNS（无 resolvectl 且缺少 /etc/resolv.conf）。"
 }
 
+# 恢复系统 DNS 设置。
 temp_dns_disable() {
   if [[ "${TEMP_DNS_BACKEND}" == "resolvectl" ]]; then
     if [[ -n "${TEMP_DNS_IFACE}" ]]; then
@@ -708,10 +789,12 @@ temp_dns_disable() {
   fi
 }
 
+# 克隆配置仓库。
 clone_repo() {
   local tmp_dir="$1"
   local url="$2"
   log "拉取仓库：${url}（${BRANCH}）"
+  # 使用浅克隆加快速度
   if git clone --depth 1 --branch "${BRANCH}" "${url}" "${tmp_dir}"; then
     success "仓库拉取完成"
     return 0
@@ -720,9 +803,11 @@ clone_repo() {
   return 1
 }
 
+# 尝试多个镜像地址克隆。
 clone_repo_any() {
   local tmp_dir="$1"
   local url
+  # 依次尝试 Gitee / GitHub
   for url in "${REPO_URLS[@]}"; do
     rm -rf "${tmp_dir}"
     mkdir -p "${tmp_dir}"
@@ -733,11 +818,13 @@ clone_repo_any() {
   return 1
 }
 
+# 同步仓库到 /etc/nixos。
 sync_repo_to_etc() {
   local repo_dir="$1"
   log "同步到 ${ETC_DIR}"
   sudo mkdir -p "${ETC_DIR}"
 
+  # 同步时排除 .git 与硬件配置，避免覆盖本机硬件配置
   if command -v rsync >/dev/null 2>&1; then
     sudo rsync -a \
       --exclude '.git/' \
@@ -751,10 +838,13 @@ sync_repo_to_etc() {
   success "配置同步完成"
 }
 
+# 执行 nixos-rebuild（switch/test/build）。
 rebuild_system() {
   log "重建系统（${MODE}），目标：${TARGET_NAME}"
   local nix_config="experimental-features = nix-command flakes"
+  # 默认带 --upgrade 拉取新包
   local rebuild_args=("${MODE}" "--show-trace" "--upgrade")
+  # 合并外部 NIX_CONFIG（如用户自定义缓存）
   if [[ -n "${NIX_CONFIG:-}" ]]; then
     nix_config="${NIX_CONFIG}"$'\n'"${nix_config}"
   fi
@@ -766,6 +856,7 @@ rebuild_system() {
   return 1
 }
 
+# 打印部署摘要与提示。
 print_summary() {
   section "部署概要"
   printf '%s主机：%s%s\n' "${COLOR_BOLD}" "${TARGET_NAME}" "${COLOR_RESET}"
@@ -786,6 +877,7 @@ print_summary() {
   fi
 }
 
+# 交互式向导主流程。
 wizard_flow() {
   local step=1
   WIZARD_ACTION=""
@@ -793,11 +885,13 @@ wizard_flow() {
   while true; do
     case "${step}" in
       1)
+        # 选择主机
         select_host "${tmp_dir}"
         validate_host "${tmp_dir}"
         step=2
         ;;
       2)
+        # 选择用户列表
         WIZARD_ACTION=""
         prompt_users
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
@@ -812,6 +906,7 @@ wizard_flow() {
         step=3
         ;;
       3)
+        # 检测并配置 per-user TUN
         if detect_per_user_tun "${tmp_dir}"; then
           PER_USER_TUN_ENABLED=true
         else
@@ -831,6 +926,7 @@ wizard_flow() {
         step=4
         ;;
       4)
+        # 最终确认
         print_summary
         if is_tty; then
           wizard_back_or_quit "确认以上配置"
@@ -853,6 +949,7 @@ wizard_flow() {
   done
 }
 
+# 脚本主入口。
 main() {
   banner
   parse_args "$@"
@@ -874,6 +971,7 @@ main() {
   }
   trap cleanup EXIT
 
+  # 先拉取仓库（失败时尝试临时 DNS）
   section "拉取仓库"
   if ! clone_repo_any "${tmp_dir}"; then
     log "尝试临时切换阿里云 DNS 后重试"
@@ -890,6 +988,7 @@ main() {
   self_check_scripts "${tmp_dir}"
   progress_step "脚本自检"
 
+  # 交互式向导：选择主机/用户/TUN
   wizard_flow
   write_local_override "${tmp_dir}"
   progress_step "收集配置"

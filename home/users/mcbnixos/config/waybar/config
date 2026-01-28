@@ -1,8 +1,8 @@
-// Waybar Configuration
+// Waybar 配置（状态栏）
 // ~/.config/waybar/config
-// JSONC (comments supported by Waybar)
+// JSONC（Waybar 支持注释）
 {
-    // Global layout
+    // 全局布局
     "layer": "top",
     "position": "top",
     "height": 32,
@@ -11,7 +11,7 @@
     "margin-left": 12,
     "margin-right": 12,
 
-    // Module order
+    // 模块排列顺序（左/中/右）
     "modules-left": [
         "custom/logo",
         "niri/workspaces"
@@ -37,14 +37,14 @@
         "custom/power"
     ],
 
-    // Logo launcher
+    // Logo 启动器（点击打开应用启动器）
     "custom/logo": {
         "format": " ",
         "tooltip": false,
         "on-click": "fuzzel"
     },
 
-    // Niri workspaces with Chinese numerals
+    // Niri 工作区（用中文数字显示）
     "niri/workspaces": {
         "format": "{icon}",
         "format-icons": {
@@ -62,7 +62,7 @@
         "on-click": "activate"
     },
 
-    // Clock with calendar tooltip
+    // 时钟（带日历提示）
     "clock": {
         "format": "{:%H:%M}",
         "format-alt": "{:%Y-%m-%d %A}",
@@ -87,8 +87,9 @@
         }
     },
 
-    // Flake updates
+    // Flake 更新提示（使用脚本返回 JSON）
     "custom/updates": {
+        // 依赖：home/users/*/scripts/waybar-flake-updates
         "exec": "sh -c \"$HOME/.local/bin/waybar-flake-updates\"",
         "interval": 900,
         "return-type": "json",
@@ -96,26 +97,27 @@
         "tooltip": true
     },
 
-    // System tray
+    // 系统托盘
     "tray": {
         "icon-size": 16,
         "spacing": 8
     },
 
-    // Network indicator (click to edit connections)
+    // 网络指示（点击打开连接编辑器）
     "network": {
         "format-wifi": "󰤨 {signalStrength}%",
         "format-ethernet": "󰈀 {ifname}",
         "format-disconnected": "󰤭",
         "tooltip-format-wifi": "{essid} ({signalStrength}%)\n{ipaddr}\n↑{bandwidthUpBits} ↓{bandwidthDownBits}",
         "tooltip-format-ethernet": "{ifname}\n{ipaddr}\n↑{bandwidthUpBits} ↓{bandwidthDownBits}",
-        // Simple status for offline state
+        // 离线时的提示文本
         "tooltip-format-disconnected": "disconnected",
         "on-click": "nm-connection-editor"
     },
 
-    // Live network speed
+    // 实时网速（脚本输出 JSON）
     "custom/net-speed": {
+        // 依赖：home/users/*/scripts/waybar-net-speed
         "exec": "sh -c \"$HOME/.local/bin/waybar-net-speed\"",
         "interval": 2,
         "return-type": "json",
@@ -123,7 +125,7 @@
         "tooltip": true
     },
 
-    // Bluetooth status
+    // 蓝牙状态
     "bluetooth": {
         "format": "󰂯",
         "format-disabled": "󰂲",
@@ -133,7 +135,7 @@
         "tooltip-format": "{status}"
     },
 
-    // Audio volume (PipeWire/Pulse)
+    // 音量（PipeWire/Pulse）
     "pulseaudio": {
         "format": "{icon} {volume}%",
         "tooltip-format": "Volume {volume}% ({desc})",
@@ -147,20 +149,20 @@
             ]
         },
         "on-click": "pavucontrol",
-        // Right click to toggle mute
+        // 右键切换静音
         "on-click-right": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
         "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
         "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
     },
 
-    // CPU usage
+    // CPU 使用率
     "cpu": {
         "format": " {usage}%",
         "tooltip-format": "CPU {usage}% (avg {avg_frequency}GHz)",
         "interval": 2
     },
 
-    // Memory usage
+    // 内存使用
     "memory": {
         "format": "󰍛 {percentage}%",
         "format-alt": "󰍛 {used}/{total}",
@@ -168,7 +170,7 @@
         "interval": 2
     },
 
-    // Temperature (requires lm_sensors)
+    // 温度（需要 lm_sensors）
     "temperature": {
         "format": "󰔏 {temperatureC}°C",
         "tooltip-format": "Temp {temperatureC}°C",
@@ -176,7 +178,7 @@
         "interval": 5
     },
 
-    // Disk usage
+    // 磁盘使用
     "disk": {
         "format": "󰋊 {percentage}%",
         "path": "/",
@@ -184,7 +186,7 @@
         "interval": 60
     },
 
-    // Backlight control
+    // 屏幕亮度
     "backlight": {
         "format": "{icon} {percent}%",
         "tooltip-format": "Brightness {percent}%",
@@ -197,14 +199,15 @@
         "on-scroll-down": "brightnessctl set 5%-"
     },
 
-    // Battery status
+    // 电池状态
     "battery": {
+        // 低电量阈值
         "states": {
             "warning": 30,
             "critical": 15
         },
         "format": "{icon}{capacity}%",
-        // Alt format shows time remaining
+        // 备用格式显示剩余时间
         "format-alt": "{icon} {timeTo}",
         "format-charging": "󰂄 {capacity}%",
         "format-plugged": "󰂄 {capacity}%",
@@ -224,8 +227,9 @@
         "tooltip-format": "{timeTo}\nPower: {power}W"
     },
 
-    // Proxy status
+    // 代理状态（脚本输出 JSON）
     "custom/proxy": {
+        // 依赖：home/users/*/scripts/waybar-proxy-status
         "exec": "sh -c \"$HOME/.local/bin/waybar-proxy-status\"",
         "interval": 5,
         "return-type": "json",
@@ -233,15 +237,16 @@
         "tooltip": true
     },
 
-    // Idle inhibitor
+    // 防休眠开关
     "idle_inhibitor": {
+        // 防休眠状态显示
         "format": "󰈈",
         "format-activated": "󰈉",
         "tooltip-format": "Idle allowed",
         "tooltip-format-activated": "Idle inhibited"
     },
 
-    // Power action (exit Niri session)
+    // 电源按钮（退出 Niri 会话）
     "custom/power": {
         "format": "⏻",
         "tooltip": false,

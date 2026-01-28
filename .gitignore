@@ -1,3 +1,4 @@
+## NixOS 安装/重建时生成的本地文件（不应提交）
 hardware-configuration.nix
 hosts/*/hardware-configuration.nix
 hosts/*/local.nix

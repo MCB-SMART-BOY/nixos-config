@@ -1,6 +1,6 @@
-# Swaylock Configuration
+# Swaylock 锁屏配置
 # ~/.config/swaylock/config
-# DMS/Noctalia-inspired Theme
+# DMS/Noctalia 风格主题
 
 # 只有在没有图片时才使用纯色背景
 color=0b0f14
@@ -28,13 +28,13 @@ ring-clear-color=fbbf24
 inside-clear-color=0b0f14
 text-clear-color=fbbf24
 
-# 杂项
+# 杂项（尺寸与行为）
 indicator-radius=94
 indicator-thickness=6
 font=Manrope
 show-failed-attempts
 daemonize # 后台运行，避免阻塞 Niri
-ignore-empty-password
+ignore-empty-password # 空密码不允许解锁
 
 # 时间与日期（更直观）
 clock

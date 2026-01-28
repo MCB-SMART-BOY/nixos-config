@@ -1,3 +1,6 @@
+# 启动与内核相关设置：引导器、内核模块、sysctl 等。
+# CPU 厂商相关的 KVM 模块由 mcb.cpuVendor 决定。
+
 { config, pkgs, lib, ... }:
 
 let
@@ -13,6 +16,7 @@ in
 {
   boot = {
     loader = {
+      # systemd-boot 适合 UEFI 环境
       systemd-boot = {
         enable = true;
         editor = false;
@@ -21,6 +25,7 @@ in
       efi.canTouchEfiVariables = true;
     };
 
+    # 使用最新内核（更好的硬件支持）
     kernelPackages = pkgs.linuxPackages_latest;
     kernelModules =
       [
@@ -28,6 +33,7 @@ in
       ]
       ++ lib.optional (kvmModule != null) kvmModule;
 
+    # 内核网络参数优化（BBR、队列、转发等）
     kernel.sysctl = {
       "net.core.default_qdisc" = "fq";
       "net.ipv4.tcp_congestion_control" = "bbr";

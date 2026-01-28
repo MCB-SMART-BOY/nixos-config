@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
+# Waybar 自定义模块：检查 flake 输入是否有更新。
+
 set -euo pipefail
 
 resolve_repo_root() {
   local dir
   local flake_path=""
 
+  # 优先使用 /etc/nixos 作为系统配置根目录
   if [[ -f "/etc/nixos/flake.lock" ]]; then
     printf '%s\n' "/etc/nixos"
     return 0
@@ -45,6 +48,7 @@ resolve_repo_root() {
 REPO_ROOT="$(resolve_repo_root || true)"
 LOCK_FILE="${REPO_ROOT}/flake.lock"
 
+ # 缓存结果，避免每次刷新都跑 git
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
 cache_file="${cache_dir}/waybar-flake-updates.json"
 lock_file="${cache_dir}/waybar-flake-updates.lock"
@@ -60,6 +64,7 @@ emit_json() {
 }
 
 if [[ -f "${cache_file}" ]]; then
+  # 缓存未过期则直接返回
   cache_age=$(( $(date +%s) - $(stat -c %Y "${cache_file}") ))
   if (( cache_age < ttl_seconds )); then
     cat "${cache_file}"
@@ -68,6 +73,7 @@ if [[ -f "${cache_file}" ]]; then
 fi
 
 if command -v flock >/dev/null 2>&1; then
+  # 使用锁避免并发更新
   exec 9>"${lock_file}"
   if ! flock -n 9; then
     cat "${cache_file}" 2>/dev/null || emit_json "" "Update check in progress" "pending"
