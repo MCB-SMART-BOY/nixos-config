@@ -164,7 +164,7 @@ let
   office = with pkgs; [
     # 办公软件
     libreoffice-still
-    wps-office
+    wpsoffice-cn
     xournalpp
   ];
 
