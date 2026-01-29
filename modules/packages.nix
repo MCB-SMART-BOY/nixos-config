@@ -127,7 +127,7 @@ let
     helix
     nodePackages.typescript-language-server
     vscode-fhs
-    # zed-editor-fhs
+    zed-editor-fhs
     # Python 环境
     uv
     conda
@@ -158,11 +158,14 @@ let
   ];
 
   entertainment = with pkgs; [
-    # 影音与阅读应用
-    kazumi
-    mangayomi
-    bilibili
-    go-musicfox
+    # 影音与阅读应用（保留占位，避免未来扩展破坏开关结构）
+  ];
+
+  office = with pkgs; [
+    # 办公软件
+    libreoffice-still
+    wps-office
+    xournalpp
   ];
 
   gaming =
@@ -242,6 +245,46 @@ let
     just
     entr
     ncdu
+    # 逆向/分析辅助
+    binwalk
+    radare2
+    # 网络抓包
+    wireshark
+    # 开发协作
+    gh
+    # 二进制查看
+    hexyl
+  ];
+
+  life = with pkgs; [
+    # 生活类工具
+    gnome-calendar
+    gnome-clocks
+    gnome-calculator
+    gnome-weather
+    gnome-maps
+    gnome-contacts
+    baobab
+    keepassxc
+    simple-scan
+  ];
+
+  anime = with pkgs; [
+    # 动漫/漫画
+    kazumi
+    mangayomi
+    bilibili
+    ani-cli
+    mangal
+  ];
+
+  music = with pkgs; [
+    # 音乐播放
+    go-musicfox
+    ncspot
+    mpd
+    ncmpcpp
+    playerctl
   ];
 
   # 按开关拼装最终包组
@@ -260,6 +303,10 @@ let
     (lib.optionals cfg.enableTheming theming)
     (lib.optionals cfg.enableXorgCompat xorgCompat)
     (lib.optionals cfg.enableGeekTools geekTools)
+    (lib.optionals cfg.enableOffice office)
+    (lib.optionals cfg.enableLife life)
+    (lib.optionals cfg.enableAnime anime)
+    (lib.optionals cfg.enableMusic music)
   ];
 in
 {
@@ -329,6 +376,26 @@ in
       type = lib.types.bool;
       default = false;
       description = "Install common geek/debug/network tooling.";
+    };
+    enableOffice = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install office productivity tools.";
+    };
+    enableLife = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install life/utility desktop apps.";
+    };
+    enableAnime = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install anime/manga apps.";
+    };
+    enableMusic = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install music players.";
     };
   };
 
