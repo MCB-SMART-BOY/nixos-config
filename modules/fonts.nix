@@ -15,6 +15,13 @@ let
       builtins.tryEval pkgs."google-fonts"
     else
       { success = false; value = null; };
+  emojiFontsEval =
+    if pkgs ? "noto-fonts-color-emoji" then
+      builtins.tryEval pkgs."noto-fonts-color-emoji"
+    else if pkgs ? "noto-fonts-emoji" then
+      builtins.tryEval pkgs."noto-fonts-emoji"
+    else
+      { success = false; value = null; };
 in {
   fonts = {
     # 系统字体包（中英日韩 + 等宽 + 图标字体）
@@ -23,14 +30,14 @@ in {
       nerd-fonts.fira-code
       noto-fonts-cjk-sans
       noto-fonts-cjk-serif
-      noto-fonts-emoji
       source-han-sans
       source-han-serif
       lxgw-wenkai
       font-awesome
       wqy_zenhei
       wqy_microhei
-    ] ++ lib.optionals manropeEval.success [ manropeEval.value ]
+    ] ++ lib.optionals emojiFontsEval.success [ emojiFontsEval.value ]
+      ++ lib.optionals manropeEval.success [ manropeEval.value ]
       ++ lib.optionals (!manropeEval.success && googleFontsEval.success) [ googleFontsEval.value ];
     fontconfig = {
       # 默认字体映射（应用层会自动使用）
