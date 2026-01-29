@@ -11,6 +11,12 @@
     pulse.enable = true;
   };
 
+  # bluetooth
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+
   # 笔记本电源管理（桌面建议开启）
   services.tlp.enable = true;
 
