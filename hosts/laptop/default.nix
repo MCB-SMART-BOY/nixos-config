@@ -59,24 +59,17 @@ in
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "video"
-      "audio"
-      "docker"
-      "libvirtd"
-    ];
+    extraGroups =
+      [
+        "wheel"
+        "networkmanager"
+        "video"
+        "audio"
+      ]
+      ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
+      ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
     shell = pkgs.zsh;
     linger = true;
   });
 
-  systemd.tmpfiles.rules =
-    (lib.concatLists (map (name: [
-      "d /home/${name}/.config/clash-verge 2775 ${name} users -"
-      "d /home/${name}/.config/clash-verge-rev 2775 ${name} users -"
-    ]) allUsers))
-    ++ [
-      "d /var/lib/mihomo 0755 root root -"
-    ];
 }

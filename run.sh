@@ -255,6 +255,34 @@ parse_args() {
   done
 }
 
+# 检测是否存在硬件配置文件。
+has_any_hardware_config() {
+  local etc_dir="$1"
+  if [[ -f "${etc_dir}/hardware-configuration.nix" ]]; then
+    return 0
+  fi
+  if [[ -n "${TARGET_NAME}" && -f "${etc_dir}/hosts/${TARGET_NAME}/hardware-configuration.nix" ]]; then
+    return 0
+  fi
+  if [[ -d "${etc_dir}/hosts" ]]; then
+    if find "${etc_dir}/hosts" -maxdepth 2 -name hardware-configuration.nix -print -quit 2>/dev/null | grep -q .; then
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# 选定主机后检查硬件配置是否存在。
+ensure_host_hardware_config() {
+  if [[ -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
+    return 0
+  fi
+  if [[ -n "${TARGET_NAME}" && -f "${ETC_DIR}/hosts/${TARGET_NAME}/hardware-configuration.nix" ]]; then
+    return 0
+  fi
+  error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hosts/${TARGET_NAME}/hardware-configuration.nix；请先运行 nixos-generate-config。"
+}
+
 # 检查环境依赖与权限。
 check_env() {
   log "检查环境..."
@@ -279,8 +307,8 @@ check_env() {
   fi
 
   # /etc/nixos 必须包含硬件配置（避免覆盖后无法启动）
-  if [[ ! -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
-    error "缺少 ${ETC_DIR}/hardware-configuration.nix；请先运行 nixos-generate-config。"
+  if ! has_any_hardware_config "${ETC_DIR}"; then
+    error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hosts/<hostname>/hardware-configuration.nix；请先运行 nixos-generate-config。"
   fi
 }
 
@@ -990,6 +1018,7 @@ main() {
 
   # 交互式向导：选择主机/用户/TUN
   wizard_flow
+  ensure_host_hardware_config
   write_local_override "${tmp_dir}"
   progress_step "收集配置"
   confirm_continue "确认以上配置并继续同步？"

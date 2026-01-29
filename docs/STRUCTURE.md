@@ -34,6 +34,7 @@
 - `hosts/<hostname>/default.nix`：主机入口，聚合系统模块并导入硬件配置
 - `hosts/<hostname>/hardware-configuration.nix`：由 `nixos-generate-config` 生成（可选）
 - `hosts/<hostname>/local.nix`：本机覆盖配置（可选，`run.sh` 可生成）
+- `hosts/<hostname>/system.nix`：可选的系统架构字符串（例如 `"aarch64-linux"`）
 - `hosts/profiles/`：主机配置组合（如 desktop/server）
 
 - `modules/`：系统级模块集合（网络、安全、字体、服务等）

@@ -38,6 +38,7 @@ let
   shellTools = with pkgs; [
     # 核心命令行工具
     git
+    lazygit
     wget
     curl
     eza

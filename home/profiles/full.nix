@@ -11,4 +11,9 @@
     ../modules/shell.nix
     ../modules/git.nix
   ];
+
+  home.sessionVariables = {
+    # 完整桌面环境使用 bat 美化 man 输出
+    MANPAGER = "sh -c 'col -bx | bat -l man -p'";
+  };
 }

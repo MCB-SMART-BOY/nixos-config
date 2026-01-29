@@ -39,12 +39,13 @@ in
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "docker"
-      "libvirtd"
-    ];
+    extraGroups =
+      [
+        "wheel"
+        "networkmanager"
+      ]
+      ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
+      ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
     shell = pkgs.zsh;
     linger = true;
   });

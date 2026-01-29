@@ -113,7 +113,8 @@ while IFS=$'\t' read -r name owner repo ref rev; do
     updated_list+=( "${name}" )
   fi
 done < <(
-  jq -r 'to_entries[]
+  jq -r '.nodes
+    | to_entries[]
     | select(.value.locked.type == "github")
     | [.key, .value.locked.owner, .value.locked.repo, (.value.original.ref // "HEAD"), .value.locked.rev]
     | @tsv' "${LOCK_FILE}"

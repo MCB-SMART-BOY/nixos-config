@@ -38,7 +38,7 @@ let
       clashData = "${clashHome}/.local/share";
       clashCache = "${clashHome}/.cache";
       clashState = "${clashHome}/.local/state";
-      runtimeDirName = "clash-verge-rev";
+      runtimeDirName = "clash-verge-rev-${user}";
       userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
     in
     {
@@ -109,20 +109,24 @@ in
   programs.nix-ld.enable = true;
 
   # 为代理服务准备所需目录（仅 proxyMode=tun 时）
-  systemd.tmpfiles.rules = lib.optionals proxyServiceEnabled (
-    lib.concatLists (map (user:
-      let
-        userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
-      in
-      [
-        "d /home/${user}/.config/clash-verge 2775 ${user} ${userGroup} -"
-        "d /home/${user}/.config/clash-verge-rev 2775 ${user} ${userGroup} -"
-        "d /home/${user}/.local/share/clash-verge 2775 ${user} ${userGroup} -"
-        "d /home/${user}/.local/share/clash-verge-rev 2775 ${user} ${userGroup} -"
-        "d /home/${user}/.cache/clash-verge-rev 2775 ${user} ${userGroup} -"
-        "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} ${userGroup} -"
-      ]) userList)
-  );
+  systemd.tmpfiles.rules =
+    lib.optionals proxyServiceEnabled (
+      lib.concatLists (map (user:
+        let
+          userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
+        in
+        [
+          "d /home/${user}/.config/clash-verge 2775 ${user} ${userGroup} -"
+          "d /home/${user}/.config/clash-verge-rev 2775 ${user} ${userGroup} -"
+          "d /home/${user}/.local/share/clash-verge 2775 ${user} ${userGroup} -"
+          "d /home/${user}/.local/share/clash-verge-rev 2775 ${user} ${userGroup} -"
+          "d /home/${user}/.cache/clash-verge-rev 2775 ${user} ${userGroup} -"
+          "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} ${userGroup} -"
+        ]) userList)
+    )
+    ++ lib.optionals config.services.mihomo.enable [
+      "d /var/lib/mihomo 0755 root root -"
+    ];
 
   # Clash Verge 使用 runtime IPC；多用户时隔离运行时目录避免冲突
   systemd.services = lib.mkMerge [

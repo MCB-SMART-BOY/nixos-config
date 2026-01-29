@@ -14,8 +14,21 @@
 
   outputs = { self, nixpkgs, home-manager, ... }:
     let
-      # 当前系统架构（多数桌面是 x86_64-linux）
-      system = "x86_64-linux";
+      # 当前系统架构（优先使用 currentSystem；不支持时回退到 NIX_SYSTEM 或 x86_64-linux）
+      defaultSystem =
+        if builtins ? currentSystem then
+          builtins.currentSystem
+        else
+          let
+            envSystem = builtins.getEnv "NIX_SYSTEM";
+          in
+          if envSystem != "" then envSystem else "x86_64-linux";
+      # 允许为每个 host 指定 system（hosts/<name>/system.nix），否则使用当前系统
+      hostSystem = name:
+        let
+          systemFile = ./hosts + "/${name}/system.nix";
+        in
+        if builtins.pathExists systemFile then import systemFile else defaultSystem;
       # 自动读取 hosts/ 下的主机目录（排除 profiles）
       hostEntries = builtins.readDir ./hosts;
       hostNames = builtins.filter (name:
@@ -24,7 +37,7 @@
       # 为每个主机构造 nixosSystem，并注入 Home Manager
       mkHost = name:
         nixpkgs.lib.nixosSystem {
-          inherit system;
+          system = hostSystem name;
           modules = [
             (./hosts + "/${name}")
             home-manager.nixosModules.home-manager
@@ -57,6 +70,6 @@
       nixosConfigurations =
         builtins.listToAttrs (map (name: { inherit name; value = mkHost name; }) hostNames);
 
-      formatter.${system} = nixpkgs.legacyPackages.${system}.nixfmt;
+      formatter.${defaultSystem} = nixpkgs.legacyPackages.${defaultSystem}.nixfmt;
     };
 }

@@ -120,5 +120,15 @@ in
         description = "Priority base for per-user ip rules.";
       };
     };
+
+    hardware = {
+      nvidia = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Enable NVIDIA driver stack on this host.";
+        };
+      };
+    };
   };
 }

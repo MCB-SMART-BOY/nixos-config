@@ -49,6 +49,7 @@ Waybar 自定义模块脚本位于 `home/users/<user>/scripts/waybar-*`，会安
   - `tunInterface`：TUN 网卡名（与相关服务配置一致）
   - `tunInterfaces`：兼容多个 TUN 网卡名的列表（可选）
   - `cpuVendor`：CPU 类型（`intel` 或 `amd`）
+  - `hardware.nvidia.enable`：是否启用 NVIDIA 驱动（默认关闭，按主机启用）
   - `proxyMode = "tun"` 时使用本地 DNS，且不配置公网 fallback
   - `perUserTun.enable`：按用户 UID 路由的多实例 TUN
   - `perUserTun.interfaces`：用户 → TUN 网卡名（与各用户配置一致）
