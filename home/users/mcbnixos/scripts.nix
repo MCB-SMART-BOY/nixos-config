@@ -2,7 +2,7 @@
 # 涉及 Waybar 模块与壁纸自动切换。
 # 新手提示：scripts/ 下是原始脚本，这里负责“打包 + 安装 + 启动”。 
 
-{ pkgs, ... }:
+{ pkgs, lib, ... }:
 
 let
   # 将脚本包装为可执行程序（并注入依赖）
@@ -68,7 +68,7 @@ let
 in
 {
   # 把脚本作为包安装到用户环境
-  home.packages = builtins.attrValues scripts;
+  home.packages = lib.mkAfter (builtins.attrValues scripts);
 
   # 将脚本暴露为常用命令
   home.file.".local/bin/lock-screen" = mkBinLink "lock-screen";
