@@ -41,7 +41,7 @@
   nixpkgs.config = {
     # 允许非自由软件（如 Chrome）
     allowUnfree = true;
-    permittedInsecurePackages = [ "ventoy-1.1.10" ];
+    permittedInsecurePackages = [ "ventoy-1.1.07" ];
   };
 
   zramSwap = {
