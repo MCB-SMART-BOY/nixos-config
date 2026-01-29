@@ -27,6 +27,13 @@
   };
 
   # F*ck you, Nv*dia(笑)
+  services.xserver.videoDrivers = lib.mkIf config.mcb.hardware.nvidia.enable [
+    "modesetting"
+    "nvidia"
+  ];
+  hardware.nvidia = lib.mkIf config.mcb.hardware.nvidia.enable {
+    open = true;
+  };
 
   hardware.graphics = {
     # 3D/视频硬件加速（Intel 默认）
@@ -37,10 +44,4 @@
       libvdpau-va-gl
     ];
   };
-} // lib.optionalAttrs config.mcb.hardware.nvidia.enable {
-  services.xserver.videoDrivers = [
-    "modesetting"
-    "nvidia"
-  ];
-  hardware.nvidia.open = true;
 }
