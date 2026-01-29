@@ -55,6 +55,7 @@ let
       dnsPortStr = toString dnsPort;
       dnsRedirectFlag = if perUserDnsRedirect then "1" else "0";
       ip = "${pkgs.iproute2}/bin/ip";
+      ss = "${pkgs.iproute2}/bin/ss";
       iptables = "${pkgs.iptables}/bin/iptables";
       grep = "${pkgs.gnugrep}/bin/grep";
       sleep = "${pkgs.coreutils}/bin/sleep";
@@ -95,6 +96,14 @@ let
           if [[ "${dnsPortStr}" == "0" ]]; then
             echo "DNS redirect enabled but no port configured for ${user}" >&2
             exit 1
+          fi
+          # 清理旧规则，避免 DNS 端口不可用时黑洞
+          ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
+          ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
+          if ! ${ss} -lun | ${grep} -qE ":${dnsPortStr}\\b" \
+            && ! ${ss} -ltn | ${grep} -qE ":${dnsPortStr}\\b"; then
+            echo "DNS port ${dnsPortStr} not listening; skip redirect for ${user}" >&2
+            exit 0
           fi
           if ! ${iptables} -t nat -C OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
             ${iptables} -t nat -A OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr}

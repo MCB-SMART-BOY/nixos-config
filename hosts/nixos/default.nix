@@ -46,7 +46,8 @@ in
     # 每个用户独立 TUN（高级用法）
     perUserTun = {
       enable = true;
-      redirectDns = true;
+      # 默认关闭 per-user DNS 重定向，避免未配置监听端口时断网
+      redirectDns = false;
       interfaces = {
         mcbnixos = "Mihomo";
         mcblaptopnixos = "Meta";
