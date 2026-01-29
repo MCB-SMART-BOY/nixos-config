@@ -48,8 +48,15 @@ let
     in
     {
       description = "Clash Verge Service Mode Daemon (${user})";
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
+      after = [
+        "network-online.target"
+        "ensure-tun.service"
+      ];
+      wants = [
+        "network-online.target"
+        "ensure-tun.service"
+      ];
+      requires = [ "ensure-tun.service" ];
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Type = "simple";
@@ -129,6 +136,11 @@ in
   # 为代理服务准备所需目录（仅 proxyMode=tun 时）
   systemd.tmpfiles.rules =
     lib.optionals proxyServiceEnabled (
+      let
+        socketLinks = map (user:
+          "L+ /run/clash-verge-rev/service-${user}.sock - - - - /run/clash-verge-rev-${user}/service.sock"
+        ) userList;
+      in
       lib.concatLists (map (user:
         let
           userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
@@ -142,11 +154,12 @@ in
           "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} ${userGroup} -"
         ]) userList)
       ++ [
-        # GUI 仍使用固定 IPC 路径：/run/clash-verge-rev/service.sock
-        # 这里把它指向主用户的 runtime 目录，保证 GUI 能连接
+        # GUI 默认使用固定 IPC 路径：/run/clash-verge-rev/service.sock
+        # 额外提供按用户区分的 socket 方便多用户配置
         "d /run/clash-verge-rev 0755 root root -"
         "L+ /run/clash-verge-rev/service.sock - - - - /run/clash-verge-rev-${config.mcb.user}/service.sock"
       ]
+      ++ socketLinks
     )
     ++ lib.optionals config.services.mihomo.enable [
       "d /var/lib/mihomo 0755 root root -"

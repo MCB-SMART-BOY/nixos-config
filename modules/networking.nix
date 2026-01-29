@@ -58,6 +58,7 @@ let
       ss = "${pkgs.iproute2}/bin/ss";
       iptables = "${pkgs.iptables}/bin/iptables";
       grep = "${pkgs.gnugrep}/bin/grep";
+      cat = "${pkgs.coreutils}/bin/cat";
       sleep = "${pkgs.coreutils}/bin/sleep";
       seq = "${pkgs.coreutils}/bin/seq";
       id = "${pkgs.coreutils}/bin/id";
@@ -70,16 +71,23 @@ let
           exit 1
         fi
 
-        # 等待 TUN 接口就绪
+        # 等待 TUN 接口就绪（存在 + 非 down + 有 IPv4）
+        ready=0
         for _ in $(${seq} 1 150); do
           if ${ip} link show dev "${iface}" >/dev/null 2>&1; then
-            break
+            operstate="$(${cat} "/sys/class/net/${iface}/operstate" 2>/dev/null || true)"
+            if [[ -n "$operstate" && "$operstate" != "down" ]]; then
+              if ${ip} -o -4 addr show dev "${iface}" | ${grep} -q "inet "; then
+                ready=1
+                break
+              fi
+            fi
           fi
           ${sleep} 0.2
         done
 
-        if ! ${ip} link show dev "${iface}" >/dev/null 2>&1; then
-          echo "Interface ${iface} not ready; skip route setup" >&2
+        if [[ "$ready" != "1" ]]; then
+          echo "Interface ${iface} not ready (down or no IPv4); retry later" >&2
           exit 1
         fi
 
@@ -100,10 +108,18 @@ let
           # 清理旧规则，避免 DNS 端口不可用时黑洞
           ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
           ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
-          if ! ${ss} -lun | ${grep} -qE ":${dnsPortStr}\\b" \
-            && ! ${ss} -ltn | ${grep} -qE ":${dnsPortStr}\\b"; then
-            echo "DNS port ${dnsPortStr} not listening; skip redirect for ${user}" >&2
-            exit 0
+          dns_ready=0
+          for _ in $(${seq} 1 60); do
+            if ${ss} -lun | ${grep} -qE ":${dnsPortStr}\\b" \
+              || ${ss} -ltn | ${grep} -qE ":${dnsPortStr}\\b"; then
+              dns_ready=1
+              break
+            fi
+            ${sleep} 0.5
+          done
+          if [[ "$dns_ready" != "1" ]]; then
+            echo "DNS port ${dnsPortStr} not listening; retry later for ${user}" >&2
+            exit 1
           fi
           if ! ${iptables} -t nat -C OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
             ${iptables} -t nat -A OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr}
