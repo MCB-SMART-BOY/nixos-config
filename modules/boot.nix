@@ -47,4 +47,19 @@ in
       "net.ipv4.tcp_wmem" = "4096 65536 16777216";
     };
   };
+
+  # 有些环境不会自动创建 /dev/net/tun，确保 TUN 可用
+  systemd.services.ensure-tun = {
+    description = "Ensure TUN device node";
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig.Type = "oneshot";
+    script = ''
+      ${pkgs.kmod}/bin/modprobe tun || true
+      if [ ! -e /dev/net/tun ]; then
+        ${pkgs.coreutils}/bin/mkdir -p /dev/net
+        ${pkgs.coreutils}/bin/mknod /dev/net/tun c 10 200 || true
+        ${pkgs.coreutils}/bin/chmod 0666 /dev/net/tun || true
+      fi
+    '';
+  };
 }
