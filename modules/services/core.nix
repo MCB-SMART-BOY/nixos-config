@@ -128,6 +128,12 @@ in
           "d /home/${user}/.cache/clash-verge-rev 2775 ${user} ${userGroup} -"
           "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} ${userGroup} -"
         ]) userList)
+      ++ [
+        # GUI 仍使用固定 IPC 路径：/run/clash-verge-rev/service.sock
+        # 这里把它指向主用户的 runtime 目录，保证 GUI 能连接
+        "d /run/clash-verge-rev 0755 root root -"
+        "L+ /run/clash-verge-rev/service.sock - - - - /run/clash-verge-rev-${config.mcb.user}/service.sock"
+      ]
     )
     ++ lib.optionals config.services.mihomo.enable [
       "d /var/lib/mihomo 0755 root root -"
