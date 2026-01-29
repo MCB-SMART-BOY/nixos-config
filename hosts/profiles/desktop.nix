@@ -29,5 +29,9 @@
     enableTheming = true;
     enableXorgCompat = true;
     enableGeekTools = true;
+    enableOffice = true;
+    enableLife = true;
+    enableAnime = true;
+    enableMusic = true;
   };
 }
