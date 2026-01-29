@@ -20,8 +20,11 @@ fi
 # 0. ⚡ Oh My Zsh（使用 Nix 包安装）
 # ══════════════════════════════════════════════════════════════════
 # 额外补全（需要在 compinit 之前注入 fpath）
+HM_PROFILE="${HOME}/.local/state/nix/profiles/home-manager"
 if [ -d "${HOME}/.nix-profile/share/zsh/site-functions" ]; then
     fpath+=("${HOME}/.nix-profile/share/zsh/site-functions")
+elif [ -d "${HM_PROFILE}/share/zsh/site-functions" ]; then
+    fpath+=("${HM_PROFILE}/share/zsh/site-functions")
 elif [ -d "/etc/profiles/per-user/${USER}/share/zsh/site-functions" ]; then
     fpath+=("/etc/profiles/per-user/${USER}/share/zsh/site-functions")
 elif [ -d "/run/current-system/sw/share/zsh/site-functions" ]; then
@@ -31,6 +34,8 @@ fi
 # Oh My Zsh 路径（优先 Home Manager profile）
 if [ -d "${HOME}/.nix-profile/share/oh-my-zsh" ]; then
     export ZSH="${HOME}/.nix-profile/share/oh-my-zsh"
+elif [ -d "${HM_PROFILE}/share/oh-my-zsh" ]; then
+    export ZSH="${HM_PROFILE}/share/oh-my-zsh"
 elif [ -d "/etc/profiles/per-user/${USER}/share/oh-my-zsh" ]; then
     export ZSH="/etc/profiles/per-user/${USER}/share/oh-my-zsh"
 elif [ -d "/run/current-system/sw/share/oh-my-zsh" ]; then
@@ -372,6 +377,8 @@ eval "$(starship init zsh)"
 # ══════════════════════════════════════════════════════════════════
 if [ -f "${HOME}/.nix-profile/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
     source "${HOME}/.nix-profile/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+elif [ -f "${HM_PROFILE}/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
+    source "${HM_PROFILE}/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
 elif [ -f "/etc/profiles/per-user/${USER}/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
     source "/etc/profiles/per-user/${USER}/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
 elif [ -f "/run/current-system/sw/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
@@ -381,6 +388,8 @@ fi
 # 语法高亮必须放在最后
 if [ -f "${HOME}/.nix-profile/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
     source "${HOME}/.nix-profile/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+elif [ -f "${HM_PROFILE}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
+    source "${HM_PROFILE}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 elif [ -f "/etc/profiles/per-user/${USER}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
     source "/etc/profiles/per-user/${USER}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 elif [ -f "/run/current-system/sw/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
