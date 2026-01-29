@@ -29,6 +29,10 @@ let
     metacubexd
     # 网络界面
     networkmanagerapplet
+    # bluetooth
+    bluez
+    bluez-tools
+    blueman
   ];
 
   shellTools = with pkgs; [
