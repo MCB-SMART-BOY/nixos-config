@@ -40,6 +40,11 @@ let
       clashState = "${clashHome}/.local/state";
       runtimeDirName = "clash-verge-rev-${user}";
       userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
+      tunDevice =
+        if perUserTunEnabled then
+          (config.mcb.perUserTun.interfaces.${user} or "")
+        else
+          config.mcb.tunInterface;
     in
     {
       description = "Clash Verge Service Mode Daemon (${user})";
@@ -65,6 +70,8 @@ let
             set -euo pipefail
             uid="$(${pkgs.coreutils}/bin/id -u ${user})"
             runtime_dir="/run/${runtimeDirName}"
+            iface="${tunDevice}"
+            ip="${pkgs.iproute2}/bin/ip"
             # 确保配置/数据目录存在并归属正确
             for dir in \
               "${clashConfig}/clash-verge" \
@@ -84,6 +91,12 @@ let
               "${clashState}/clash-verge-rev" \
               2>/dev/null || true
             rm -f "$runtime_dir"/*.sock 2>/dev/null || true
+            if [[ -n "$iface" ]]; then
+              if ! "$ip" link show dev "$iface" >/dev/null 2>&1; then
+                "$ip" tuntap add dev "$iface" mode tun user "$uid"
+              fi
+              "$ip" link set dev "$iface" up || true
+            fi
           '')
         ];
         Environment = [

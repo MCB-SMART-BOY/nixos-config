@@ -48,8 +48,8 @@ in
       enable = true;
       redirectDns = true;
       interfaces = {
-        mcbnixos = "Meta";
-        mcblaptopnixos = "Mihomo";
+        mcbnixos = "Mihomo";
+        mcblaptopnixos = "Meta";
       };
       dnsPorts = {
         mcbnixos = 1053;
