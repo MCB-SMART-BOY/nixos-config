@@ -70,7 +70,7 @@ let
         fi
 
         # 等待 TUN 接口就绪
-        for _ in $(${seq} 1 50); do
+        for _ in $(${seq} 1 150); do
           if ${ip} link show dev "${iface}" >/dev/null 2>&1; then
             break
           fi
@@ -79,7 +79,7 @@ let
 
         if ! ${ip} link show dev "${iface}" >/dev/null 2>&1; then
           echo "Interface ${iface} not ready; skip route setup" >&2
-          exit 0
+          exit 1
         fi
 
         # 为该用户添加专用路由表
@@ -131,14 +131,14 @@ let
         "network-online.target"
         "clash-verge-service@${user}.service"
       ];
-      unitConfig = {
-        ConditionPathExists = "/sys/class/net/${iface}";
-      };
+      wantedBy = [ "clash-verge-service@${user}.service" ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
         ExecStart = routeScript;
         ExecStop = stopScript;
+        Restart = "on-failure";
+        RestartSec = "2s";
       };
     };
 in
