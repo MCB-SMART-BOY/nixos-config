@@ -28,13 +28,13 @@
   programs.direnv = {
     # 自动加载 .envrc
     enable = true;
-    enableZshIntegration = true;
+    enableZshIntegration = false;
   };
 
   programs.zoxide = {
     # 更智能的 cd
     enable = true;
-    enableZshIntegration = true;
+    enableZshIntegration = false;
   };
 
   programs.tmux = {
@@ -45,6 +45,6 @@
   programs.starship = {
     # 统一提示符主题（配置在 home/users/*/config/starship.toml）
     enable = true;
-    enableZshIntegration = true;
+    enableZshIntegration = false;
   };
 }

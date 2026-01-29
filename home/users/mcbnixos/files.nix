@@ -27,7 +27,7 @@
   };
 
   # Shell / Tmux 配置
-  home.file.".zshrc".source = ./config/zsh/.zshrc;
+  programs.zsh.initContent = builtins.readFile ./config/zsh/.zshrc;
   programs.tmux.extraConfig = builtins.readFile ./config/tmux/tmux.conf;
 
   # 终端与系统工具配置

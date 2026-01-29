@@ -7,48 +7,6 @@ if [ -e /etc/zshrc ]; then
     source /etc/zshrc
 fi
 
-# Home Manager session variables (when HM doesn't manage zsh)
-if [ -f "${HOME}/.nix-profile/etc/profile.d/hm-session-vars.sh" ]; then
-    source "${HOME}/.nix-profile/etc/profile.d/hm-session-vars.sh"
-elif [ -f "/etc/profiles/per-user/${USER}/etc/profile.d/hm-session-vars.sh" ]; then
-    source "/etc/profiles/per-user/${USER}/etc/profile.d/hm-session-vars.sh"
-elif [ -f "/run/current-system/sw/etc/profile.d/hm-session-vars.sh" ]; then
-    source "/run/current-system/sw/etc/profile.d/hm-session-vars.sh"
-fi
-
-# ══════════════════════════════════════════════════════════════════
-# 0. ⚡ Oh My Zsh（使用 Nix 包安装）
-# ══════════════════════════════════════════════════════════════════
-# 额外补全（需要在 compinit 之前注入 fpath）
-HM_PROFILE="${HOME}/.local/state/nix/profiles/home-manager"
-if [ -d "${HOME}/.nix-profile/share/zsh/site-functions" ]; then
-    fpath+=("${HOME}/.nix-profile/share/zsh/site-functions")
-elif [ -d "${HM_PROFILE}/share/zsh/site-functions" ]; then
-    fpath+=("${HM_PROFILE}/share/zsh/site-functions")
-elif [ -d "/etc/profiles/per-user/${USER}/share/zsh/site-functions" ]; then
-    fpath+=("/etc/profiles/per-user/${USER}/share/zsh/site-functions")
-elif [ -d "/run/current-system/sw/share/zsh/site-functions" ]; then
-    fpath+=("/run/current-system/sw/share/zsh/site-functions")
-fi
-
-# Oh My Zsh 路径（优先 Home Manager profile）
-if [ -d "${HOME}/.nix-profile/share/oh-my-zsh" ]; then
-    export ZSH="${HOME}/.nix-profile/share/oh-my-zsh"
-elif [ -d "${HM_PROFILE}/share/oh-my-zsh" ]; then
-    export ZSH="${HM_PROFILE}/share/oh-my-zsh"
-elif [ -d "/etc/profiles/per-user/${USER}/share/oh-my-zsh" ]; then
-    export ZSH="/etc/profiles/per-user/${USER}/share/oh-my-zsh"
-elif [ -d "/run/current-system/sw/share/oh-my-zsh" ]; then
-    export ZSH="/run/current-system/sw/share/oh-my-zsh"
-fi
-
-if [ -n "${ZSH:-}" ] && [ -f "${ZSH}/oh-my-zsh.sh" ]; then
-    ZSH_THEME="robbyrussell"
-    plugins=(git sudo docker rust fzf)
-    DISABLE_AUTO_UPDATE="true"
-    source "${ZSH}/oh-my-zsh.sh"
-fi
-
 # ══════════════════════════════════════════════════════════════════
 # 1. 🎨 终端环境与色彩
 # ══════════════════════════════════════════════════════════════════
@@ -211,18 +169,16 @@ alias oldgrep='command grep'
 # ══════════════════════════════════════════════════════════════════
 
 # --- NixOS 管理 ---
-alias nrs='sudo nixos-rebuild switch --flake "/etc/nixos#$(hostname)" --show-trace --upgrade' # 一键更新并重建
-alias nrt='sudo nixos-rebuild test --flake "/etc/nixos#$(hostname)" --show-trace'        # 测试新配置但不设为默认
-alias nrb='sudo nixos-rebuild boot --flake "/etc/nixos#$(hostname)" --show-trace'        # 下次启动时应用
+alias nrs='sudo nixos-rebuild switch --flake "/etc/nixos#nixos" --show-trace --upgrade' # 一键更新并重建
+alias nrt='sudo nixos-rebuild test'        # 测试新配置但不设为默认
+alias nrb='sudo nixos-rebuild boot'        # 下次启动时应用
 alias nfu='nix flake update'               # 更新 flake.lock
 alias nsp='nix search nixpkgs'             # 搜索软件包
 alias nsh='nix-shell'                      # 进入临时 Shell
 alias ngc='sudo nix-collect-garbage -d'    # 清理旧系统版本 (慎用)
 # 快速查看将要构建/下载的 derivations（判断是否会源码编译）
 nrc() {
-    local host
-    host="$(hostname)"
-    local flake="${1:-/etc/nixos#nixosConfigurations.${host}.config.system.build.toplevel}"
+    local flake="${1:-/etc/nixos#nixosConfigurations.nixos.config.system.build.toplevel}"
     nix build "$flake" --dry-run --accept-flake-config
 }
 
@@ -329,9 +285,7 @@ fcd() {
 # 8. 🔧 补全系统
 # ══════════════════════════════════════════════════════════════════
 autoload -Uz compinit
-if [[ -z "${_comps:-}" ]]; then
-    compinit
-fi
+compinit
 
 # 补全菜单配置
 zstyle ':completion:*' menu select
@@ -368,33 +322,9 @@ if command -v direnv &> /dev/null; then
 fi
 
 # ══════════════════════════════════════════════════════════════════
-# 🌟 启动 Starship 提示符
+# 🌟 启动 Starship 提示符（必须在最后）
 # ══════════════════════════════════════════════════════════════════
 eval "$(starship init zsh)"
-
-# ══════════════════════════════════════════════════════════════════
-# ✨ Zsh 插件（建议在末尾）
-# ══════════════════════════════════════════════════════════════════
-if [ -f "${HOME}/.nix-profile/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
-    source "${HOME}/.nix-profile/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
-elif [ -f "${HM_PROFILE}/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
-    source "${HM_PROFILE}/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
-elif [ -f "/etc/profiles/per-user/${USER}/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
-    source "/etc/profiles/per-user/${USER}/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
-elif [ -f "/run/current-system/sw/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]; then
-    source "/run/current-system/sw/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
-fi
-
-# 语法高亮必须放在最后
-if [ -f "${HOME}/.nix-profile/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
-    source "${HOME}/.nix-profile/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-elif [ -f "${HM_PROFILE}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
-    source "${HM_PROFILE}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-elif [ -f "/etc/profiles/per-user/${USER}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
-    source "/etc/profiles/per-user/${USER}/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-elif [ -f "/run/current-system/sw/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]; then
-    source "/run/current-system/sw/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
-fi
 
 # ══════════════════════════════════════════════════════════════════
 # 🎉 欢迎语

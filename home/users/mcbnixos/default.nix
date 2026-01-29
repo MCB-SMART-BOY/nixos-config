@@ -1,6 +1,6 @@
 # 用户入口（mcbnixos）：选择 profile + 用户级文件。
 
-{ lib, pkgs, ... }:
+{ ... }:
 
 let
   user = "mcbnixos";
@@ -18,15 +18,6 @@ in
   home.username = user;
   home.homeDirectory = "/home/${user}";
   home.stateVersion = "25.11";
-
-  # 使用自定义 .zshrc，避免与 Home Manager 自动生成冲突
-  programs.zsh.enable = lib.mkForce false;
-  home.packages = with pkgs; [
-    oh-my-zsh
-    zsh-autosuggestions
-    zsh-syntax-highlighting
-    zsh-completions
-  ];
 
   # 启用 Home Manager 管理自身
   programs.home-manager.enable = true;
