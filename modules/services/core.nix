@@ -55,6 +55,11 @@ let
         PermissionsStartOnly = true;
         RuntimeDirectory = runtimeDirName;
         RuntimeDirectoryMode = "0700";
+        # clash-verge-service 固定使用 /run/clash-verge-rev/service.sock
+        # 用 bind mount 将其映射到每个用户的运行时目录，避免多用户冲突
+        BindPaths = [
+          "/run/${runtimeDirName}:/run/clash-verge-rev"
+        ];
         ExecStartPre = [
           (pkgs.writeShellScript "clash-verge-prestart-${user}" ''
             set -euo pipefail
