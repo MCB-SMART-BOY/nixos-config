@@ -251,6 +251,7 @@ mcb.perUserTun.dnsPorts = {
 - 构建失败：先 `sudo nixos-rebuild build --show-trace` 看报错
 - DNS 解析失败：检查 `mcb.proxyMode` 与 `mcb.proxyDnsPort` 设置
 - GPU 黑屏：检查 BIOS 是否 dGPU-only；回退到 `gpu-igpu` 或改回 Hybrid/Auto
+- 报错 `Module ... has an unsupported attribute 'assertions'`：模块若使用 `config = ...` 结构，`assertions` 需放在 `config` 内（或移除 `config =` 直接使用顶层）
 
 ---
 
