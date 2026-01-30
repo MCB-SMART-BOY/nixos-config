@@ -40,6 +40,8 @@ DNS_ENABLED=false
 TMP_DIR=""
 # sudo wrapper（root 模式下为空）
 SUDO="sudo"
+# rootless 模式标记（无 sudo/无法提权）
+ROOTLESS=false
 
 # 进度条控制
 PROGRESS_TOTAL=7
@@ -325,15 +327,16 @@ ensure_host_hardware_config() {
 check_env() {
   log "检查环境..."
 
-  # 必须普通用户运行（需要时内部 sudo）
+  # root 直接运行；普通用户依赖 sudo（若不可用则进入 rootless）
   if [[ "$(whoami)" == "root" ]]; then
     warn "检测到 root，将跳过 sudo。"
     SUDO=""
-  fi
-
-  # 基础依赖检查
-  if [[ -n "${SUDO}" ]] && ! command -v sudo >/dev/null 2>&1; then
-    error "未找到 sudo。"
+  else
+    if ! command -v sudo >/dev/null 2>&1; then
+      warn "未找到 sudo，进入 rootless 模式。"
+      SUDO=""
+      ROOTLESS=true
+    fi
   fi
 
   if ! command -v git >/dev/null 2>&1; then
@@ -349,7 +352,11 @@ check_env() {
   if [[ -n "${SUDO}" ]]; then
     if ! sudo -n true 2>/tmp/mcb-sudo-check.$$; then
       if grep -qi "no new privileges" /tmp/mcb-sudo-check.$$ 2>/dev/null; then
-        error "sudo 无法提权（no new privileges）。请以 root 运行或调整容器安全设置。"
+        warn "sudo 无法提权（no new privileges），进入 rootless 模式。"
+        SUDO=""
+        ROOTLESS=true
+      else
+        warn "sudo 需要交互输入密码，将在需要时提示。"
       fi
     fi
     rm -f /tmp/mcb-sudo-check.$$ 2>/dev/null || true
@@ -358,6 +365,32 @@ check_env() {
   # /etc/nixos 必须包含硬件配置（避免覆盖后无法启动）
   if ! has_any_hardware_config "${ETC_DIR}"; then
     error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hosts/<hostname>/hardware-configuration.nix；请先运行 nixos-generate-config。"
+  fi
+
+  # rootless 模式下校验写入路径与 rebuild 模式
+  if [[ "${ROOTLESS}" == "true" ]]; then
+    if [[ ! -w "${ETC_DIR}" ]]; then
+      if is_tty; then
+        local alt_dir="${HOME}/.nixos"
+        read -r -p "无权限写入 ${ETC_DIR}，改用 ${alt_dir}？ [Y/n] " ans
+        case "${ans}" in
+          n|N)
+            error "无法写入 ${ETC_DIR}，请使用 root 运行或修改权限。"
+            ;;
+          *)
+            ETC_DIR="${alt_dir}"
+            ;;
+        esac
+      else
+        ETC_DIR="${HOME}/.nixos"
+      fi
+      log "rootless 模式使用目录：${ETC_DIR}"
+    fi
+
+    if [[ "${MODE}" == "switch" || "${MODE}" == "test" ]]; then
+      warn "rootless 模式无法切换系统，将自动改为 build。"
+      MODE="build"
+    fi
   fi
 }
 
@@ -956,6 +989,11 @@ TEMP_DNS_IFACE=""
 temp_dns_enable() {
   local servers=("223.5.5.5" "223.6.6.6")
   local iface=""
+
+  if [[ "${ROOTLESS}" == "true" ]]; then
+    warn "rootless 模式无法临时设置 DNS，跳过。"
+    return 1
+  fi
 
   # 优先通过 systemd-resolved 临时设置 DNS
   if command -v resolvectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1; then
