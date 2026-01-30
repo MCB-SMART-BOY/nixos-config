@@ -51,7 +51,7 @@ list_modes() {
       name="$(basename "${entry}")"
       [[ "${name}" == gpu-* ]] || continue
       modes+=("${name}")
-    done < <(find "${MODE_DIR}" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null)
+    done < <(find -L "${MODE_DIR}" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null)
   fi
 
   printf '%s\n' "${modes[@]}"

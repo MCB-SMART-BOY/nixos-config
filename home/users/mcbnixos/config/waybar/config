@@ -181,9 +181,9 @@
 
     // 磁盘使用
     "disk": {
-        "format": "󰋊 {percentage}%",
+        "format": "󰋊 {percentage_used}%",
         "path": "/",
-        "tooltip-format": "Disk {used} / {total} ({percentage}%)",
+        "tooltip-format": "Disk {used} / {total} ({percentage_used}%)",
         "interval": 60
     },
 
