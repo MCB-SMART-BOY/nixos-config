@@ -1098,7 +1098,10 @@ rebuild_system() {
   log "重建系统（${MODE}），目标：${TARGET_NAME}"
   local nix_config="experimental-features = nix-command flakes"
   # 默认带 --upgrade 拉取新包
-  local rebuild_args=("${MODE}" "--show-trace" "--upgrade")
+  local rebuild_args=("${MODE}" "--show-trace")
+  if [[ "${ROOTLESS}" != "true" ]]; then
+    rebuild_args+=("--upgrade")
+  fi
   # 合并外部 NIX_CONFIG（如用户自定义缓存）
   if [[ -n "${NIX_CONFIG:-}" ]]; then
     nix_config="${NIX_CONFIG}"$'\n'"${nix_config}"
