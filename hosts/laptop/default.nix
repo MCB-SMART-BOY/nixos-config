@@ -1,6 +1,11 @@
 # 主机配置（laptop）：按需覆盖 profile 与主机参数。
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   hardwareFile =
@@ -10,17 +15,14 @@ let
       ../../hardware-configuration.nix
     else
       null;
-  allUsers =
-    if config.mcb.users != [ ] then
-      config.mcb.users
-    else
-      [ config.mcb.user ];
+  allUsers = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
 in
 {
-  imports =
-    [ ../profiles/desktop.nix ]
-    ++ lib.optional (hardwareFile != null) hardwareFile
-    ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
+  imports = [
+    ../profiles/desktop.nix
+  ]
+  ++ lib.optional (hardwareFile != null) hardwareFile
+  ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   mcb = {
     # 笔记本用户与代理设置
@@ -48,6 +50,20 @@ in
         mcblaptopnixos = 1053;
       };
     };
+
+    hardware.gpu = {
+      # 与 nixos 主机相同的 PCI busId（含 hybrid 特化）
+      igpuVendor = "intel";
+      prime = {
+        intelBusId = "PCI:0:2:0";
+        nvidiaBusId = "PCI:1:0:0";
+      };
+      specialisations.modes = [
+        "igpu"
+        "hybrid"
+        "dgpu"
+      ];
+    };
   };
 
   networking.hostName = "laptop";
@@ -59,15 +75,14 @@ in
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;
-    extraGroups =
-      [
-        "wheel"
-        "networkmanager"
-        "video"
-        "audio"
-      ]
-      ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
-      ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+      "video"
+      "audio"
+    ]
+    ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
+    ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
     shell = pkgs.zsh;
     linger = true;
   });

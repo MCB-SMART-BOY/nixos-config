@@ -1,21 +1,21 @@
-# 🇨🇳 中国境内网络问题解决方案
+# 中国境内网络问题解决方案
 
-本文件面向国内网络环境的镜像/下载/代理排查。
-普通用户建议先看 README 的“故障排除”，遇到网络问题再查这里。
+本文件面向国内网络环境的镜像/下载/代理排查。普通用户建议先看 README 或 `docs/USAGE.md`，遇到网络问题再查这里。
 
 ## 当前默认行为（基于本仓库配置）
 
 - `mcb.proxyMode = "tun"`：
   - 启用 TUN 相关服务
-  - DNS 强制指向本地地址（默认 `127.0.0.1:53`，可通过 `proxyDnsAddr`/`proxyDnsPort` 调整）
+  - DNS 强制指向本地地址（默认 `127.0.0.1:53`）
   - 不配置公网 fallback DNS（避免泄漏）
 - `mcb.proxyMode = "http"`：
   - 启用系统 HTTP 代理（`networking.proxy`）
-  - DNS 走系统默认解析（可使用 fallback）
+  - DNS 走系统默认解析
 - `mcb.proxyMode = "off"`：
   - 不启用代理
   - DNS 走系统默认解析
-- `mcb.enableProxyDns = false` 时，即使处于 TUN 模式也不会强制本地 DNS
+- `mcb.enableProxyDns = false`：
+  - 即使处于 TUN 模式也不会强制本地 DNS
 
 ## Clash Verge 排查清单
 
@@ -36,12 +36,12 @@
    cat /etc/resolv.conf
    ```
    如果只有 `127.0.0.1` 但 Clash DNS 未启用，会导致解析失败。
-   如果 Clash DNS 监听的是其他端口（如 1053），请在 `hosts/<hostname>/default.nix` 设置 `mcb.proxyDnsPort = 1053;`。
+   如果 Clash DNS 监听端口非 53（如 1053），请在 `hosts/<hostname>/default.nix` 设置 `mcb.proxyDnsPort = 1053;`。
 
 ## Waybar 代理指示
 
 Waybar 的代理图标由 `home/users/<user>/scripts/waybar-proxy-status` 提供，默认检测 `clash-verge-service@<user>` / `clash-verge-service` / `mihomo`。
-如果使用其他服务名，请修改脚本后重建。
+如使用其他服务名，请修改脚本后重建。
 
 ## 多用户 TUN（按用户路由）
 
@@ -66,9 +66,8 @@ mcb.perUserTun.dnsPorts = {
 说明：
 - 每个用户的 Clash 配置里，`tun.device` 必须与上面的接口名一致
 - per-user 方案通过 `ip rule` 按 UID 路由，不支持全局强制 DNS
- - 若启用 `redirectDns`，会通过 iptables OUTPUT 按 UID 重定向 DNS，请确保 Clash 的 DNS 监听端口与 `dnsPorts` 一致
-- 如果只启用一个用户，依然可用，但没有“多用户分流”的效果
-- 多实例同时运行时，需确保各用户的 `mixed-port` / `socks-port` / `http-port` / `external-controller` / `dns.listen` 端口不冲突
+- 若启用 `redirectDns`，会通过 iptables OUTPUT 按 UID 重定向 DNS，请确保 Clash 的 DNS 监听端口与 `dnsPorts` 一致
+- 多实例同时运行时，需确保各用户端口不冲突
 
 ## 方案 1：使用国内镜像（可选）
 
@@ -129,7 +128,5 @@ sudo nix-channel --update
 sudo nix-collect-garbage
 sudo nixos-rebuild switch
 ```
-
----
 
 如仍无法联网，可尝试手机热点或在另一台机器构建后同步。

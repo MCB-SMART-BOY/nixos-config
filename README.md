@@ -1,55 +1,27 @@
-# 🌸 NixOS Configuration
+# NixOS 配置（Flake + Home Manager）
 
-一套面向日常使用与开发的 NixOS 配置（Flake 使用 nixos-unstable，legacy 入口固定 25.11），采用 **Flake + Home Manager** 构建，结构清晰、可复用、便于扩展。
+这是一套面向日常使用与开发的 NixOS 配置，采用 Flake + Home Manager 分层结构，结构清晰、可复用、易扩展。默认桌面路线为 Niri + Wayland，同时保留 legacy 入口用于非 Flake 场景。
 
-> 适合希望用模块化方式管理系统与用户环境的人，默认走 Niri + Wayland 路线。
+适合人群：
+- 需要多主机、多用户管理的人
+- 希望把系统层与用户层分离、模块化维护的人
+- 需要代理/TUN、GPU 模式切换的人
 
-## 🧭 新手导航（从哪改、怎么改）
+---
 
-如果你是第一次接触该仓库，建议按下面顺序理解：
+## 特性概览
 
-1. **主机入口**：`hosts/<hostname>/default.nix`  
-   - 这里决定“这台机器”的用户、代理、硬件配置与 profile。
-2. **系统模块**：`modules/`  
-   - 系统层功能（网络/字体/输入法/服务/包组开关）都在这里。
-3. **用户入口**：`home/users/<user>/default.nix`  
-   - 决定某个用户使用 full/minimal profile，以及私有配置。
-4. **应用配置**：`home/users/<user>/config/`  
-   - Waybar / Niri / Alacritty 等配置都在这里，通过 `files.nix` 链接到 `~/.config`。
+- Flake + Home Manager 分层
+- 多主机、多用户统一管理
+- Niri + Wayland 桌面体验
+- 输入法与中文环境开箱可用
+- 代理/TUN 与 per-user 路由方案
+- GPU 特化（igpu / hybrid / dgpu）
+- Waybar 支持一键切换 GPU 特化
 
-**最常改的几个地方：**
-- 改默认用户/多用户：`hosts/<hostname>/default.nix` 中的 `mcb.user` 和 `mcb.users`
-- 改系统包组：`hosts/profiles/desktop.nix`（开关） + `modules/packages.nix`（包列表）
-- 改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
-- 改输入法/中文：`modules/i18n.nix` + `home/users/<user>/config/fcitx5/profile`
+---
 
-## 📌 目录
-
-- [✨ 亮点](#-亮点)
-- [🚀 快速开始](#-快速开始)
-- [🧭 结构概览](#-结构概览)
-- [⚙️ 核心配置入口](#️-核心配置入口)
-- [🧩 包组开关](#-包组开关)
-- [🖥️ 桌面与自启动](#️-桌面与自启动)
-- [🧰 日常维护](#-日常维护)
-- [⌨️ 快捷键速查](#️-快捷键速查)
-- [🎨 自定义](#-自定义)
-- [🧯 故障排除](#-故障排除)
-- [📚 参考资源](#-参考资源)
-
-## ✨ 亮点
-
-- **窗口管理器**：niri（Wayland 平铺、平滑滚动）
-- **结构组织**：Flake + Home Manager 模块化分层
-- **Shell**：Zsh + Oh-My-Zsh + Starship + fastfetch
-- **编辑器**：Helix + 完整 LSP
-- **状态栏/通知**：Waybar + Mako
-- **启动器**：Fuzzel
-- **监控**：btop（Noctalia 主题）
-- **主题**：Catppuccin Mocha（GTK）+ Noctalia（终端/Waybar）
-- **输入法**：fcitx5 + rime
-
-## 🚀 快速开始
+## 快速开始
 
 ### 1) 一键部署（推荐）
 
@@ -59,14 +31,12 @@ chmod +x run.sh
 ./run.sh
 ```
 
-说明：
-- 默认从 GitHub 拉取最新代码并同步到 `/etc/nixos`
-- 拉取顺序：Gitee 优先，其次 GitHub
-- 如遇拉取或重建失败，会临时切换阿里云 DNS（223.5.5.5/223.6.6.6）后重试
+脚本行为要点：
+- 拉取仓库并同步到 `/etc/nixos`
+- 失败自动临时切换 DNS 再重试
 - 默认执行 `nixos-rebuild switch --show-trace --upgrade`
-- 默认保留本机硬件配置（`hardware-configuration.nix` 或 `hosts/<hostname>/hardware-configuration.nix`）
-- 默认主机 `nixos`，默认用户 `mcbnixos`，默认覆盖 `/etc/nixos`
-- 可使用 `--host` / `--user` / `--users` / `--backup` / `--overwrite` / `--ask`
+- 保留本机 `hardware-configuration.nix`
+- 支持 `--host` / `--user` / `--users` / `--backup` / `--overwrite` / `--ask`
 
 ### 2) 日常更新
 
@@ -83,211 +53,102 @@ nix flake update
 sudo nixos-rebuild switch --flake .#nixos
 ```
 
+---
 
-## 🧭 结构概览
+## 结构概览
 
 ```
 nixos-config/
 ├── run.sh                    # 一键部署脚本
-├── flake.nix                  # Flake 入口
-├── flake.lock                 # 版本锁定（可复现）
-├── hosts/                     # 主机配置目录
-│   ├── profiles/              # 主机配置组合
-│   ├── laptop/                # 笔记本模板
-│   └── server/                # 服务器模板
-├── modules/                   # 系统模块（default.nix 聚合）
-├── home/                      # Home Manager 用户入口
-│   ├── profiles/              # 用户配置组合
-│   │   ├── full.nix
-│   │   └── minimal.nix        # 精简 profile（服务器用）
-│   ├── modules/               # 子模块拆分
-│   └── users/                 # 用户入口（私有配置）
-│       └── <user>/            # 用户目录
-│           ├── config/         # 用户应用配置
-│           ├── assets/         # 用户资源文件
-│           └── scripts/        # 用户侧脚本
-├── configuration.nix          # 非 Flake 兼容入口
-├── docs/                      # 说明文档
+├── flake.nix                 # Flake 入口
+├── flake.lock                # 版本锁定（可复现）
+├── hosts/                    # 主机配置目录
+│   ├── profiles/             # 主机配置组合
+│   ├── laptop/               # 笔记本主机
+│   ├── server/               # 服务器主机
+│   └── nixos/                # 默认主机
+├── modules/                  # 系统模块（default.nix 聚合）
+├── home/                     # Home Manager 用户入口
+│   ├── profiles/             # 用户配置组合
+│   ├── modules/              # 用户模块拆分
+│   └── users/                # 用户入口（私有配置）
+├── configuration.nix         # 非 Flake 兼容入口
+├── docs/                     # 项目文档
 └── README.md
 ```
 
-## ⚙️ 核心配置入口
+---
 
-### 系统层（NixOS）
+## 核心入口
 
+系统层：
 - 主机入口：`hosts/<hostname>/default.nix`
 - 主机 Profiles：`hosts/profiles/desktop.nix` / `hosts/profiles/server.nix`
-  - 服务器建议搭配用户 `home/profiles/minimal.nix`
-- 网络/代理：`modules/networking.nix`、`modules/services.nix`
-- 字体/输入法/桌面：`modules/fonts.nix`、`modules/i18n.nix`、`modules/desktop.nix`
+- 系统模块：`modules/*.nix`
 
-### 用户层（Home Manager）
-
-- 入口：`home/users/<user>/default.nix`
-  - 用户专属配置放在 `home/users/<user>/`（如 git 身份、files.nix）
-- 应用配置：`home/users/<user>/config/*`
-- 具体模块：`home/modules/*.nix`
-
-### 主机变量
-
-- `hosts/<hostname>/default.nix`：用户名、代理地址、TUN 网卡名、CPU 类型、代理开关等统一入口
-- 多用户时请设置 `mcb.users = [ "user1" "user2" ];`
-
-## 🧩 包组开关
-
-系统包组可按需开关，定义在 `modules/packages.nix`，建议在 `hosts/profiles/*.nix` 中设置 `mcb.packages`。
-
-```nix
-mcb.packages.enableGaming = false;
-mcb.packages.enableEntertainment = false;
-mcb.packages.enableGeekTools = false;
-```
-
-开关说明（按功能分组）：
-- enableNetwork：代理/网络工具
-- enableShellTools：终端与基础 CLI 工具
-- enableWaylandTools：Wayland 桌面组件
-- enableBrowsersAndMedia：浏览器/媒体/文件管理
-- enableDev：开发工具链与 LSP
-- enableChat：社交聊天
-- enableEmulation：Wine/兼容层
-- enableEntertainment：影音/阅读
-- enableGaming：游戏相关
-- enableSystemTools：系统维护工具
-- enableTheming：主题与外观
-- enableXorgCompat：Xwayland 兼容
-- enableGeekTools：调试/诊断/极客工具
-
-系统层游戏开关（NixOS）：
-
-```nix
-mcb.system.enableGaming = false;
-```
-
-## 🖥️ 桌面与自启动
-
-Waybar / mako / swaybg / swayidle / fcitx5 由 **niri 的 spawn-at-startup** 管理：
-
-- 编辑 `home/users/<user>/config/niri/config.kdl` 的 `spawn-at-startup`
-- 壁纸由 `wallpaper-random` 登录时随机设置（目录：`~/Pictures/Wallpapers`）
-- Waybar 自定义模块脚本位于 `home/users/<user>/scripts/waybar-*`，会安装到 `~/.local/bin/`
-
-## 🧰 日常维护
-
-- 修改主机配置：编辑 `hosts/<hostname>/default.nix`
-- 修改用户名：更新 `hosts/<hostname>/default.nix` 与 `home/users/<user>/` 路径
-- 跨机器部署：调整 `hosts/<hostname>/default.nix` 中 `mcb.user`、`mcb.proxyMode`、`mcb.proxyUrl`、`mcb.enableProxyDns`、`mcb.proxyDnsAddr`、`mcb.proxyDnsPort`、`mcb.tunInterface`、`mcb.perUserTun`、`mcb.cpuVendor`，并同步硬件配置
-- 新增主机：在 `hosts/` 新建目录并放置 `default.nix`，flake 会自动发现
-- 多用户：新增 `home/users/<user>/default.nix`，并把用户加到 `mcb.users`
-- 传统非 Flake 入口：
-
-```bash
-sudo cp configuration.nix /etc/nixos/configuration.nix
-sudo nixos-rebuild switch
-```
-> `configuration.nix` 会联网拉取 Home Manager（首次构建需要网络）
-
-## ⌨️ 快捷键速查
-
-### niri 窗口管理
-
-| 快捷键 | 功能 |
-|--------|------|
-| `Mod+Return` | 打开终端 |
-| `Mod+Space` | 应用启动器 |
-| `Mod+Q` | 关闭窗口 |
-| `Mod+H/J/K/L` | 焦点移动 |
-| `Mod+Shift+H/J/K/L` | 窗口移动 |
-| `Mod+1-9` | 切换工作区 |
-| `Mod+Shift+1-9` | 移动到工作区 |
-| `Mod+F` | 最大化列 |
-| `Mod+Shift+F` | 全屏 |
-| `Mod+C` | 居中列 |
-| `Mod+R` | 切换预设宽度 |
-| `Mod+E` | 文件管理器 |
-| `Mod+B` | 浏览器 |
-| `Print` | 截图 |
-
-### Helix 编辑器
-
-| 快捷键 | 功能 |
-|--------|------|
-| `Space+f` | 文件选择器 |
-| `Space+b` | 缓冲区选择器 |
-| `Space+s` | 符号选择器 |
-| `Space+a` | 代码操作 |
-| `Space+r` | 重命名 |
-| `gd` | 跳转定义 |
-| `gr` | 查找引用 |
-| `gi` | 跳转实现 |
-| `Ctrl+/` | 切换注释 |
-| `jk` | 退出插入模式 |
-
-## 🎨 自定义
-
-### 更换壁纸
-
-默认在登录时从 `~/Pictures/Wallpapers` 随机选择一张。
-
-```bash
-wallpaper-random
-```
-
-要纳入仓库管理的壁纸，请放入 `home/users/<user>/assets/wallpapers` 后重建。
-
-### 修改显示器配置
-
-编辑 `home/users/<user>/config/niri/config.kdl`，调整 output 段落。
-
-### Fastfetch / btop 美化
-
-- fastfetch：`home/users/<user>/config/fastfetch/config.jsonc`
-- btop 配置：`home/users/<user>/config/btop/btop.conf`
-- btop 主题：`home/users/<user>/config/btop/themes/noctalia.theme`
-
-### 添加更多 LSP
-
-1. 在 `home/users/<user>/config/helix/languages.toml` 添加语言配置
-2. 在 `modules/packages.nix` 添加对应 LSP 包
-
-## 🧯 故障排除
-
-- niri 无法启动：
-  ```bash
-  journalctl --user -u niri -f
-  ```
-
-- Waybar 异常：
-  ```bash
-  pkill waybar && waybar &
-  ```
-
-- 输入法异常：
-  ```bash
-  pkill fcitx5 && fcitx5 -d -r
-  ```
-
-- 输入法无拼音选项：
-  ```bash
-  fcitx5-configtool
-  ```
-  确认已安装 `fcitx5-chinese-addons`，并在输入法列表中添加 Pinyin/Rime 后重启。
-
-- 网络问题：参见 `docs/NETWORK_CN.md`
-
-## 📚 参考资源
-
-- [NixOS Manual](https://nixos.org/manual/nixos/stable/)
-- [niri Wiki](https://github.com/YaLTeR/niri/wiki)
-- [Helix Documentation](https://docs.helix-editor.com/)
-- [Catppuccin Theme](https://catppuccin.com/)
-
-## 📄 更多文档
-
-- 结构说明：`docs/STRUCTURE.md`
-- 项目细节：`docs/DETAILS.md`
-- 国内网络：`docs/NETWORK_CN.md`
+用户层：
+- 用户入口：`home/users/<user>/default.nix`
+- 用户配置：`home/users/<user>/config/*`
+- 用户模块：`home/modules/*.nix`
 
 ---
 
-Made with ❤️ for a clean NixOS workflow
+## GPU 模式与特化（igpu / hybrid / dgpu）
+
+GPU 模块位于 `modules/hardware/gpu.nix`，通过 `mcb.hardware.gpu` 配置。支持 GPU 特化（specialisation），用于快速切换模式。
+
+示例：
+```nix
+mcb.hardware.gpu.specialisations.enable = true;
+mcb.hardware.gpu.specialisations.modes = [ "igpu" "hybrid" "dgpu" ];
+```
+
+说明：
+- igpu：只用核显
+- hybrid：核显 + NVIDIA（需要 busId）
+- dgpu：只用独显（需硬件支持 dGPU-only 或 MUX）
+
+重要提示：
+- BIOS 若设为 dGPU-only，切换到 igpu/hybrid 可能黑屏
+- 要使用 hybrid，必须补齐 iGPU/dGPU busId
+
+### Waybar 一键切换
+Waybar 模块 `GPU:xxx` 支持点击下拉选择，脚本路径：
+- `home/users/<user>/scripts/waybar-gpu-mode`
+
+切换会执行 `nixos-rebuild switch --specialisation ...`，建议切换后重启系统以保证稳定。
+
+---
+
+## 代理 / TUN / per-user 路由
+
+代理模式：
+- `mcb.proxyMode = "tun" | "http" | "off"`
+
+per-user 路由：
+- `mcb.perUserTun.*`（按 UID 分流）
+
+详细方案与排错请看：`docs/NETWORK_CN.md`
+
+---
+
+## 文档索引
+
+- `docs/USAGE.md`：使用说明书（建议先读）
+- `docs/STRUCTURE.md`：结构说明
+- `docs/DETAILS.md`：细节说明（主机/模块/选项）
+- `docs/NETWORK_CN.md`：国内网络问题排查
+
+---
+
+## 常见操作速查
+
+- 修改主机配置：`hosts/<hostname>/default.nix`
+- 修改用户名：更新主机文件与 `home/users/<user>/`
+- 修改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
+- 修改 Waybar：`home/users/<user>/config/waybar/`
+- 新增主机：在 `hosts/` 新建目录并放 `default.nix`
+
+---
+
+如需进一步定制（主题、输入法、脚本、包组、GPU 自动化检测等），可以在仓库内扩展模块，或直接告知需求。

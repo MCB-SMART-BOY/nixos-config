@@ -1,7 +1,12 @@
 # 主机配置（nixos）：指定用户、代理模式与主机级参数。
 # 新手提示：这里是“主机层”的总入口，会导入 profiles + 硬件配置。
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   hardwareFile =
@@ -11,17 +16,14 @@ let
       ../../hardware-configuration.nix
     else
       null;
-  allUsers =
-    if config.mcb.users != [ ] then
-      config.mcb.users
-    else
-      [ config.mcb.user ];
+  allUsers = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
 in
 {
-  imports =
-    [ ../profiles/desktop.nix ]
-    ++ lib.optional (hardwareFile != null) hardwareFile
-    ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
+  imports = [
+    ../profiles/desktop.nix
+  ]
+  ++ lib.optional (hardwareFile != null) hardwareFile
+  ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   mcb = {
     # 主用户与用户列表（影响 Home Manager 与权限）
@@ -57,6 +59,21 @@ in
         mcblaptopnixos = 1054;
       };
     };
+
+    hardware.gpu = {
+      # Hybrid 特化需要 busId（iGPU + NVIDIA）
+      igpuVendor = "intel";
+      prime = {
+        intelBusId = "PCI:0:2:0";
+        nvidiaBusId = "PCI:1:0:0";
+      };
+      # 覆盖特化模式列表，加入 hybrid
+      specialisations.modes = [
+        "igpu"
+        "hybrid"
+        "dgpu"
+      ];
+    };
   };
 
   networking.hostName = "nixos";
@@ -68,15 +85,14 @@ in
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;
-    extraGroups =
-      [
-        "wheel"
-        "networkmanager"
-        "video"
-        "audio"
-      ]
-      ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
-      ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+      "video"
+      "audio"
+    ]
+    ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
+    ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
     shell = pkgs.zsh;
     linger = true;
   });

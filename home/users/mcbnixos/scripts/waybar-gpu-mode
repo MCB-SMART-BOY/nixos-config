@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+# Waybar GPU specialisation switcher.
+
+set -euo pipefail
+
+# Ensure common system binaries are reachable when run via Waybar.
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER}/bin:${HOME}/.nix-profile/bin:${HOME}/.local/bin:${PATH}"
+
+MODE_DIR="/run/current-system/specialisation"
+
+current_mode() {
+  local path=""
+  path="$(readlink -f /run/current-system 2>/dev/null || true)"
+  if [[ -n "${path}" ]]; then
+    if [[ "${path}" == */specialisation/* ]]; then
+      local mode="${path##*/specialisation/}"
+      mode="${mode%%/*}"
+      if [[ -n "${mode}" ]]; then
+        printf '%s' "${mode}"
+        return 0
+      fi
+    fi
+    if [[ "${path}" == *"specialisation-"* ]]; then
+      local mode="${path##*specialisation-}"
+      mode="${mode%%/*}"
+      if [[ -n "${mode}" ]]; then
+        printf '%s' "${mode}"
+        return 0
+      fi
+    fi
+  fi
+  printf '%s' "base"
+}
+
+emit_status() {
+  local mode=""
+  local label=""
+  mode="$(current_mode)"
+  label="${mode}"
+  if [[ "${label}" == gpu-* ]]; then
+    label="${label#gpu-}"
+  fi
+  printf '{"text":"GPU:%s","tooltip":"GPU specialisation: %s"}\n' "${label}" "${mode}"
+}
+
+list_modes() {
+  local modes=()
+  if [[ -d "${MODE_DIR}" ]]; then
+    while IFS= read -r -d '' entry; do
+      local name=""
+      name="$(basename "${entry}")"
+      [[ "${name}" == gpu-* ]] || continue
+      modes+=("${name}")
+    done < <(find "${MODE_DIR}" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null)
+  fi
+
+  if [[ ${#modes[@]} -eq 0 ]]; then
+    modes=("gpu-igpu" "gpu-dgpu")
+  fi
+
+  printf '%s\n' "${modes[@]}"
+}
+
+pick_menu() {
+  if command -v fuzzel >/dev/null 2>&1; then
+    fuzzel --dmenu --prompt "GPU mode: "
+  elif command -v wofi >/dev/null 2>&1; then
+    wofi --dmenu -p "GPU mode"
+  elif command -v rofi >/dev/null 2>&1; then
+    rofi -dmenu -p "GPU mode"
+  else
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send "GPU specialisation" "No menu launcher found (fuzzel/wofi/rofi)."
+    fi
+    return 1
+  fi
+}
+
+build_rebuild_cmd() {
+  local specialisation="$1"
+  local cmd=(sudo nixos-rebuild switch)
+  if [[ -n "${specialisation}" ]]; then
+    cmd+=(--specialisation "${specialisation}")
+  fi
+
+  if [[ -f /etc/nixos/flake.nix ]]; then
+    local host_name=""
+    if [[ -f /etc/hostname ]]; then
+      host_name="$(tr -d '\n' </etc/hostname)"
+    elif command -v hostname >/dev/null 2>&1; then
+      host_name="$(hostname)"
+    fi
+    if [[ -n "${host_name}" ]]; then
+      cmd+=(--flake "/etc/nixos#${host_name}")
+    else
+      cmd+=(--flake "/etc/nixos")
+    fi
+  fi
+
+  printf '%s\n' "${cmd[@]}"
+}
+
+launch_in_terminal() {
+  local term=""
+  local cmd=()
+  term="${TERMINAL:-}"
+  if [[ -z "${term}" ]]; then
+    for candidate in alacritty foot kitty wezterm; do
+      if command -v "${candidate}" >/dev/null 2>&1; then
+        term="${candidate}"
+        break
+      fi
+    done
+  fi
+
+  if [[ -z "${term}" ]]; then
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send "GPU specialisation" "No terminal found to run nixos-rebuild"
+    fi
+    return 1
+  fi
+
+  cmd=("$@")
+  if command -v niri-run >/dev/null 2>&1; then
+    case "${term}" in
+      wezterm)
+        exec niri-run wezterm start -- "${cmd[@]}"
+        ;;
+      *)
+        exec niri-run "${term}" -e "${cmd[@]}"
+        ;;
+    esac
+  else
+    case "${term}" in
+      wezterm)
+        exec wezterm start -- "${cmd[@]}"
+        ;;
+      *)
+        exec "${term}" -e "${cmd[@]}"
+        ;;
+    esac
+  fi
+}
+
+menu_flow() {
+  local modes=()
+  local labels=("base")
+  local -A label_to_mode=()
+  local mode=""
+  local label=""
+  local selection=""
+  local target=""
+
+  mapfile -t modes < <(list_modes)
+  for mode in "${modes[@]}"; do
+    label="${mode#gpu-}"
+    labels+=("${label}")
+    label_to_mode["${label}"]="${mode}"
+  done
+
+  selection="$(printf '%s\n' "${labels[@]}" | pick_menu || true)"
+  if [[ -z "${selection}" || "${selection}" == "cancel" ]]; then
+    exit 0
+  fi
+
+  if [[ "${selection}" == "base" ]]; then
+    target=""
+  else
+    target="${label_to_mode[${selection}]:-}"
+    if [[ -z "${target}" ]]; then
+      exit 0
+    fi
+  fi
+
+  mapfile -t rebuild_cmd < <(build_rebuild_cmd "${target}")
+  launch_in_terminal "${rebuild_cmd[@]}"
+}
+
+case "${1:-}" in
+  --menu)
+    menu_flow
+    ;;
+  *)
+    emit_status
+    ;;
+esac

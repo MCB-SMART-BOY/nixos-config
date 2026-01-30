@@ -1,12 +1,16 @@
 # 用户脚本打包与 systemd 用户服务/定时器设置。
 # 涉及 Waybar 模块与壁纸自动切换。
-# 新手提示：scripts/ 下是原始脚本，这里负责“打包 + 安装 + 启动”。 
+# 新手提示：scripts/ 下是原始脚本，这里负责“打包 + 安装 + 启动”。
 
 { pkgs, lib, ... }:
 
 let
   # 将脚本包装为可执行程序（并注入依赖）
-  mkScript = { name, runtimeInputs ? [ ] }:
+  mkScript =
+    {
+      name,
+      runtimeInputs ? [ ],
+    }:
     pkgs.writeShellApplication {
       inherit name runtimeInputs;
       text = builtins.readFile ./scripts/${name};
@@ -45,6 +49,14 @@ let
       ];
     };
 
+    waybar-gpu-mode = mkScript {
+      name = "waybar-gpu-mode";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.findutils
+      ];
+    };
+
     waybar-net-speed = mkScript {
       name = "waybar-net-speed";
       runtimeInputs = [
@@ -75,6 +87,7 @@ in
   home.file.".local/bin/niri-run" = mkBinLink "niri-run";
   home.file.".local/bin/wallpaper-random" = mkBinLink "wallpaper-random";
   home.file.".local/bin/waybar-flake-updates" = mkBinLink "waybar-flake-updates";
+  home.file.".local/bin/waybar-gpu-mode" = mkBinLink "waybar-gpu-mode";
   home.file.".local/bin/waybar-net-speed" = mkBinLink "waybar-net-speed";
   home.file.".local/bin/waybar-proxy-status" = mkBinLink "waybar-proxy-status";
 

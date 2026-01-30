@@ -1,6 +1,11 @@
 # 主机配置（server）：按需覆盖 profile 与主机参数。
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   hardwareFile =
@@ -10,17 +15,14 @@ let
       ../../hardware-configuration.nix
     else
       null;
-  allUsers =
-    if config.mcb.users != [ ] then
-      config.mcb.users
-    else
-      [ config.mcb.user ];
+  allUsers = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
 in
 {
-  imports =
-    [ ../profiles/server.nix ]
-    ++ lib.optional (hardwareFile != null) hardwareFile
-    ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
+  imports = [
+    ../profiles/server.nix
+  ]
+  ++ lib.optional (hardwareFile != null) hardwareFile
+  ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   mcb = {
     # 服务器用户与最小化代理设置
@@ -28,6 +30,11 @@ in
     users = [ "mcbservernixos" ];
     cpuVendor = "intel";
     proxyMode = "off";
+
+    hardware.gpu = {
+      # 服务器默认不提供 GPU 特化入口
+      specialisations.enable = false;
+    };
   };
 
   networking.hostName = "server";
@@ -39,13 +46,12 @@ in
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;
-    extraGroups =
-      [
-        "wheel"
-        "networkmanager"
-      ]
-      ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
-      ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+    ]
+    ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
+    ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
     shell = pkgs.zsh;
     linger = true;
   });

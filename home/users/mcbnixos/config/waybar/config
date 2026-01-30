@@ -33,6 +33,7 @@
         "memory",
         "temperature",
         "disk",
+        "custom/gpu-mode",
         "custom/proxy",
         "custom/power"
     ],
@@ -184,6 +185,15 @@
         "path": "/",
         "tooltip-format": "Disk {used} / {total} ({percentage}%)",
         "interval": 60
+    },
+
+    // GPU 特化切换（点击打开菜单）
+    "custom/gpu-mode": {
+        "exec": "sh -c \"$HOME/.local/bin/waybar-gpu-mode\"",
+        "interval": 5,
+        "return-type": "json",
+        "on-click": "sh -c \"$HOME/.local/bin/waybar-gpu-mode --menu\"",
+        "tooltip": true
     },
 
     // 屏幕亮度

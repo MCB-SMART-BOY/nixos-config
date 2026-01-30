@@ -15,7 +15,9 @@
 
 * {
     /* 字体回退顺序：英文字体 → Nerd Font → 中文字体 */
-    font-family: "Manrope", "JetBrainsMono Nerd Font", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+    font-family:
+        "Manrope", "JetBrainsMono Nerd Font", "Noto Sans CJK SC",
+        "Source Han Sans SC", "Microsoft YaHei", sans-serif;
     font-size: 11px;
     font-weight: 600;
     min-height: 0;
@@ -32,7 +34,11 @@ window#waybar {
 .modules-right {
     margin: 6px 4px;
     padding: 4px 6px;
-    background: linear-gradient(135deg, rgba(12, 17, 22, 0.86), rgba(17, 24, 39, 0.82));
+    background: linear-gradient(
+        135deg,
+        rgba(12, 17, 22, 0.86),
+        rgba(17, 24, 39, 0.82)
+    );
     border: 1px solid rgba(94, 234, 212, 0.18);
     border-radius: 14px;
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.35);
@@ -40,7 +46,11 @@ window#waybar {
 
 .modules-center {
     padding: 4px 10px;
-    background: linear-gradient(135deg, rgba(17, 24, 39, 0.92), rgba(17, 24, 39, 0.72));
+    background: linear-gradient(
+        135deg,
+        rgba(17, 24, 39, 0.92),
+        rgba(17, 24, 39, 0.72)
+    );
     border-color: rgba(147, 197, 253, 0.28);
 }
 
@@ -70,6 +80,7 @@ tooltip label {
 #memory,
 #temperature,
 #disk,
+#custom-gpu-mode,
 #backlight,
 #battery,
 #idle_inhibitor,
@@ -199,6 +210,10 @@ tooltip label {
 
 #disk {
     color: @muted;
+}
+
+#custom-gpu-mode {
+    color: @accent-2;
 }
 
 #backlight {
