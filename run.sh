@@ -19,6 +19,17 @@ PER_USER_TUN_ENABLED=false
 # 每用户 TUN 临时映射（用户 -> 接口 / DNS 端口）
 declare -A USER_TUN
 declare -A USER_DNS
+# GPU 临时覆盖
+GPU_OVERRIDE=false
+GPU_MODE=""
+GPU_IGPU_VENDOR=""
+GPU_PRIME_MODE=""
+GPU_INTEL_BUS=""
+GPU_AMD_BUS=""
+GPU_NVIDIA_BUS=""
+GPU_NVIDIA_OPEN=""
+GPU_SPECIALISATIONS_ENABLED=false
+GPU_SPECIALISATION_MODES=()
 # nixos-rebuild 模式（switch/test/build）
 MODE="switch"
 # 目标配置目录（默认 /etc/nixos）
@@ -186,6 +197,20 @@ wizard_back_or_quit() {
 reset_tun_maps() {
   USER_TUN=()
   USER_DNS=()
+}
+
+# 清空 GPU 临时配置。
+reset_gpu_override() {
+  GPU_OVERRIDE=false
+  GPU_MODE=""
+  GPU_IGPU_VENDOR=""
+  GPU_PRIME_MODE=""
+  GPU_INTEL_BUS=""
+  GPU_AMD_BUS=""
+  GPU_NVIDIA_BUS=""
+  GPU_NVIDIA_OPEN=""
+  GPU_SPECIALISATIONS_ENABLED=false
+  GPU_SPECIALISATION_MODES=()
 }
 
 # 显示使用帮助。
@@ -581,6 +606,109 @@ configure_per_user_tun() {
   done
 }
 
+# 交互式配置 GPU。
+configure_gpu() {
+  if ! is_tty; then
+    reset_gpu_override
+    return 0
+  fi
+
+  local pick
+  pick="$(menu_prompt "GPU 配置方式" 1 "沿用主机配置" "选择 GPU 模式" "返回")"
+  case "${pick}" in
+    1)
+      reset_gpu_override
+      return 0
+      ;;
+    2)
+      GPU_OVERRIDE=true
+      ;;
+    3)
+      WIZARD_ACTION="back"
+      return 0
+      ;;
+  esac
+
+  pick="$(menu_prompt "选择 GPU 模式" 2 "核显 (igpu)" "混合 (hybrid)" "独显 (dgpu)" "返回")"
+  case "${pick}" in
+    1) GPU_MODE="igpu" ;;
+    2) GPU_MODE="hybrid" ;;
+    3) GPU_MODE="dgpu" ;;
+    4)
+      WIZARD_ACTION="back"
+      return 0
+      ;;
+  esac
+
+  if [[ "${GPU_MODE}" == "igpu" || "${GPU_MODE}" == "hybrid" ]]; then
+    pick="$(menu_prompt "核显厂商" 1 "Intel" "AMD" "返回")"
+    case "${pick}" in
+      1) GPU_IGPU_VENDOR="intel" ;;
+      2) GPU_IGPU_VENDOR="amd" ;;
+      3)
+        WIZARD_ACTION="back"
+        return 0
+        ;;
+    esac
+  fi
+
+  if [[ "${GPU_MODE}" == "hybrid" ]]; then
+    pick="$(menu_prompt "PRIME 模式" 1 "offload（推荐，Wayland）" "sync（偏向 X11）" "reverseSync（偏向 X11）" "返回")"
+    case "${pick}" in
+      1) GPU_PRIME_MODE="offload" ;;
+      2) GPU_PRIME_MODE="sync" ;;
+      3) GPU_PRIME_MODE="reverseSync" ;;
+      4)
+        WIZARD_ACTION="back"
+        return 0
+        ;;
+    esac
+
+    # iGPU busId
+    if [[ "${GPU_IGPU_VENDOR}" == "intel" ]]; then
+      while true; do
+        read -r -p "Intel iGPU busId（如 PCI:0:2:0）： " GPU_INTEL_BUS
+        [[ -n "${GPU_INTEL_BUS}" ]] && break
+        echo "不能为空，请重试。"
+      done
+    else
+      while true; do
+        read -r -p "AMD iGPU busId（如 PCI:4:0:0）： " GPU_AMD_BUS
+        [[ -n "${GPU_AMD_BUS}" ]] && break
+        echo "不能为空，请重试。"
+      done
+    fi
+
+    # NVIDIA busId
+    while true; do
+      read -r -p "NVIDIA dGPU busId（如 PCI:1:0:0）： " GPU_NVIDIA_BUS
+      [[ -n "${GPU_NVIDIA_BUS}" ]] && break
+      echo "不能为空，请重试。"
+    done
+  fi
+
+  if [[ "${GPU_MODE}" == "hybrid" || "${GPU_MODE}" == "dgpu" ]]; then
+    local answer=""
+    read -r -p "NVIDIA 使用开源内核模块？ [Y/n] " answer
+    case "${answer}" in
+      n|N) GPU_NVIDIA_OPEN="false" ;;
+      *) GPU_NVIDIA_OPEN="true" ;;
+    esac
+  fi
+
+  if [[ "${GPU_MODE}" == "hybrid" ]]; then
+    local answer=""
+    read -r -p "生成 GPU specialisation（igpu/hybrid/dgpu）以便切换？ [Y/n] " answer
+    case "${answer}" in
+      n|N) GPU_SPECIALISATIONS_ENABLED=false ;;
+      *) GPU_SPECIALISATIONS_ENABLED=true ;;
+    esac
+    if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" ]]; then
+      GPU_SPECIALISATION_MODES=("igpu" "hybrid" "dgpu")
+    fi
+  fi
+}
+
 # 交互式输入用户列表。
 prompt_users() {
   if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
@@ -686,6 +814,43 @@ write_local_override() {
         echo "    ${user} = ${USER_DNS[${user}]};"
       done
       echo "  };"
+    fi
+
+    if [[ "${GPU_OVERRIDE}" == "true" ]]; then
+      echo "  mcb.hardware.gpu.mode = lib.mkForce \"${GPU_MODE}\";"
+      if [[ -n "${GPU_IGPU_VENDOR}" ]]; then
+        echo "  mcb.hardware.gpu.igpuVendor = lib.mkForce \"${GPU_IGPU_VENDOR}\";"
+      fi
+      if [[ -n "${GPU_NVIDIA_OPEN}" ]]; then
+        echo "  mcb.hardware.gpu.nvidia.open = lib.mkForce ${GPU_NVIDIA_OPEN};"
+      fi
+      if [[ -n "${GPU_PRIME_MODE}" || -n "${GPU_INTEL_BUS}" || -n "${GPU_AMD_BUS}" || -n "${GPU_NVIDIA_BUS}" ]]; then
+        echo "  mcb.hardware.gpu.prime = lib.mkForce {"
+        if [[ -n "${GPU_PRIME_MODE}" ]]; then
+          echo "    mode = \"${GPU_PRIME_MODE}\";"
+        fi
+        if [[ -n "${GPU_INTEL_BUS}" ]]; then
+          echo "    intelBusId = \"${GPU_INTEL_BUS}\";"
+        fi
+        if [[ -n "${GPU_AMD_BUS}" ]]; then
+          echo "    amdgpuBusId = \"${GPU_AMD_BUS}\";"
+        fi
+        if [[ -n "${GPU_NVIDIA_BUS}" ]]; then
+          echo "    nvidiaBusId = \"${GPU_NVIDIA_BUS}\";"
+        fi
+        echo "  };"
+      fi
+      if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" ]]; then
+        echo "  mcb.hardware.gpu.specialisations.enable = lib.mkForce true;"
+        if [[ ${#GPU_SPECIALISATION_MODES[@]} -gt 0 ]]; then
+          local mode_list=""
+          local mode
+          for mode in "${GPU_SPECIALISATION_MODES[@]}"; do
+            mode_list+=" \"${mode}\""
+          done
+          echo "  mcb.hardware.gpu.specialisations.modes = lib.mkForce [${mode_list} ];"
+        fi
+      fi
     fi
 
     echo "}"
@@ -903,6 +1068,33 @@ print_summary() {
   else
     printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "未启用" "${COLOR_RESET}"
   fi
+
+  if [[ "${GPU_OVERRIDE}" == "true" ]]; then
+    printf '%sGPU：%s%s\n' "${COLOR_BOLD}" "${GPU_MODE}" "${COLOR_RESET}"
+    if [[ -n "${GPU_IGPU_VENDOR}" ]]; then
+      printf '  - iGPU 厂商：%s\n' "${GPU_IGPU_VENDOR}"
+    fi
+    if [[ -n "${GPU_PRIME_MODE}" ]]; then
+      printf '  - PRIME：%s\n' "${GPU_PRIME_MODE}"
+    fi
+    if [[ -n "${GPU_INTEL_BUS}" ]]; then
+      printf '  - Intel busId：%s\n' "${GPU_INTEL_BUS}"
+    fi
+    if [[ -n "${GPU_AMD_BUS}" ]]; then
+      printf '  - AMD busId：%s\n' "${GPU_AMD_BUS}"
+    fi
+    if [[ -n "${GPU_NVIDIA_BUS}" ]]; then
+      printf '  - NVIDIA busId：%s\n' "${GPU_NVIDIA_BUS}"
+    fi
+    if [[ -n "${GPU_NVIDIA_OPEN}" ]]; then
+      printf '  - NVIDIA open：%s\n' "${GPU_NVIDIA_OPEN}"
+    fi
+    if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" ]]; then
+      printf '  - specialisation：启用 (%s)\n' "${GPU_SPECIALISATION_MODES[*]}"
+    fi
+  else
+    printf '%sGPU：%s%s\n' "${COLOR_BOLD}" "沿用主机配置" "${COLOR_RESET}"
+  fi
 }
 
 # 交互式向导主流程。
@@ -954,13 +1146,24 @@ wizard_flow() {
         step=4
         ;;
       4)
+        # 配置 GPU 覆盖（可选）
+        WIZARD_ACTION=""
+        configure_gpu
+        if [[ "${WIZARD_ACTION}" == "back" ]]; then
+          reset_gpu_override
+          step=3
+          continue
+        fi
+        step=5
+        ;;
+      5)
         # 最终确认
         print_summary
         if is_tty; then
           wizard_back_or_quit "确认以上配置"
           case "${WIZARD_ACTION}" in
             back)
-              step=3
+              step=4
               ;;
             continue)
               return 0

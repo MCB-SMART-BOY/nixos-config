@@ -1,7 +1,7 @@
 # 桌面服务：音频、图形驱动、AppImage、节能等。
 # 主要影响桌面环境的“基础能力”。
 
-{ pkgs, lib, config, ... }:
+{ ... }:
 
 {
   services.pipewire = {
@@ -26,22 +26,5 @@
     binfmt = true;
   };
 
-  # F*ck you, Nv*dia(笑)
-  services.xserver.videoDrivers = lib.mkIf config.mcb.hardware.nvidia.enable [
-    "modesetting"
-    "nvidia"
-  ];
-  hardware.nvidia = lib.mkIf config.mcb.hardware.nvidia.enable {
-    open = true;
-  };
-
-  hardware.graphics = {
-    # 3D/视频硬件加速（Intel 默认）
-    enable = true;
-    enable32Bit = true;
-    extraPackages = with pkgs; lib.optionals (config.mcb.cpuVendor == "intel") [
-      intel-media-driver
-      libvdpau-va-gl
-    ];
-  };
+  # GPU 相关配置已迁移到 modules/hardware/gpu.nix
 }

@@ -7,6 +7,7 @@
   # 系统层功能模块统一在此聚合
   imports = [
     ./options.nix
+    ./hardware/gpu.nix
     ./boot.nix
     ./networking.nix
     ./security.nix

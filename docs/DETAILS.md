@@ -49,7 +49,16 @@ Waybar 自定义模块脚本位于 `home/users/<user>/scripts/waybar-*`，会安
   - `tunInterface`：TUN 网卡名（与相关服务配置一致）
   - `tunInterfaces`：兼容多个 TUN 网卡名的列表（可选）
   - `cpuVendor`：CPU 类型（`intel` 或 `amd`）
-  - `hardware.nvidia.enable`：是否启用 NVIDIA 驱动（默认关闭，按主机启用）
+  - `hardware.gpu.mode`：GPU 拓扑（`igpu` / `hybrid` / `dgpu`）
+  - `hardware.gpu.igpuVendor`：核显厂商（`intel` / `amd`）
+  - `hardware.gpu.prime.mode`：PRIME 模式（`offload` / `sync` / `reverseSync`）
+  - `hardware.gpu.prime.intelBusId`：Intel iGPU bus id（如 `PCI:0:2:0`）
+  - `hardware.gpu.prime.amdgpuBusId`：AMD iGPU bus id（如 `PCI:4:0:0`）
+  - `hardware.gpu.prime.nvidiaBusId`：NVIDIA dGPU bus id（如 `PCI:1:0:0`）
+  - `hardware.gpu.nvidia.open`：是否使用 NVIDIA 开源内核模块
+  - `hardware.gpu.specialisations.enable`：生成 `gpu-*` specialisation 以便切换
+  - `hardware.gpu.specialisations.modes`：specialisation 列表（`igpu` / `hybrid` / `dgpu`）
+  - `hardware.nvidia.enable`：是否启用 NVIDIA 驱动（旧开关，建议改用 `hardware.gpu.mode`）
   - `proxyMode = "tun"` 时使用本地 DNS，且不配置公网 fallback
   - `perUserTun.enable`：按用户 UID 路由的多实例 TUN
   - `perUserTun.interfaces`：用户 → TUN 网卡名（与各用户配置一致）
@@ -60,10 +69,48 @@ Waybar 自定义模块脚本位于 `home/users/<user>/scripts/waybar-*`，会安
   - 启用 `perUserTun` 时需将 `enableProxyDns = false`
   - per-user 模式会生成 `clash-verge-service@<user>` 与 `mcb-tun-route@<user>` 服务
 
+## GPU 配置示例
+
+在 `hosts/<hostname>/default.nix` 中设置 `mcb.hardware.gpu`：
+
+```nix
+# iGPU-only（核显）
+mcb.hardware.gpu = {
+  mode = "igpu";
+  igpuVendor = "intel";
+};
+
+# Hybrid（核显 + NVIDIA）
+mcb.hardware.gpu = {
+  mode = "hybrid";
+  igpuVendor = "intel";
+  prime = {
+    mode = "offload";
+    intelBusId = "PCI:0:2:0";
+    nvidiaBusId = "PCI:1:0:0";
+  };
+};
+
+# dGPU-only（UEFI 直连后）
+mcb.hardware.gpu = {
+  mode = "dgpu";
+  nvidia.open = true;
+};
+```
+
+获取 busId：`lspci -D -d ::03xx`，将十六进制转为十进制后填入 `PCI:<bus>:<device>:<func>`。
+
+如启用 specialisation，会生成 `gpu-igpu` / `gpu-hybrid` / `gpu-dgpu`，可在启动时选择，或执行：
+
+```bash
+sudo nixos-rebuild switch --specialisation gpu-dgpu
+```
+
 ## 部署脚本
 
 - `run.sh`：一键部署（支持选择主机/用户、备份或覆盖 `/etc/nixos`，默认先拉取 Gitee 后 GitHub，并执行 `nixos-rebuild switch --show-trace --upgrade`）
 - 若使用 `run.sh` 指定用户，会在 `hosts/<hostname>/local.nix` 写入覆盖配置
+- `run.sh` 向导可选择 GPU 模式（igpu / hybrid / dgpu），并可生成 GPU specialisation 以便切换
 - 如遇拉取或重建失败，会临时切换阿里云 DNS（223.5.5.5/223.6.6.6）后重试
 - 默认保留本机硬件配置（`hardware-configuration.nix` 或 `hosts/<hostname>/hardware-configuration.nix`）
 - `configuration.nix` 会联网拉取 Home Manager（首次构建需要网络）
