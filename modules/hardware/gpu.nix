@@ -54,21 +54,20 @@ let
       [ "nvidia" ];
 in
 {
-  assertions = [
-    {
-      assertion = (!hybrid) || (hasNvidiaBus && hasIgpBus);
-      message = "mcb.hardware.gpu.mode = \"hybrid\" requires mcb.hardware.gpu.prime.nvidiaBusId and the matching iGPU busId (intelBusId or amdgpuBusId).";
-    }
-    {
-      assertion =
-        !(cfg.specialisations.enable && lib.elem "hybrid" cfg.specialisations.modes)
-        || (cfg.prime.nvidiaBusId != null && hasIgpBus);
-      message = "mcb.hardware.gpu.specialisations includes \"hybrid\"; please set prime.nvidiaBusId and the matching iGPU busId.";
-    }
-  ];
-
   config = lib.mkMerge [
     {
+      assertions = [
+        {
+          assertion = (!hybrid) || (hasNvidiaBus && hasIgpBus);
+          message = "mcb.hardware.gpu.mode = \"hybrid\" requires mcb.hardware.gpu.prime.nvidiaBusId and the matching iGPU busId (intelBusId or amdgpuBusId).";
+        }
+        {
+          assertion =
+            !(cfg.specialisations.enable && lib.elem "hybrid" cfg.specialisations.modes)
+            || (cfg.prime.nvidiaBusId != null && hasIgpBus);
+          message = "mcb.hardware.gpu.specialisations includes \"hybrid\"; please set prime.nvidiaBusId and the matching iGPU busId.";
+        }
+      ];
       hardware.graphics = {
         enable = true;
         enable32Bit = true;
