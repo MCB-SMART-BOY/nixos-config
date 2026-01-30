@@ -58,6 +58,7 @@ in
         intelBusId = "PCI:0:2:0";
         nvidiaBusId = "PCI:1:0:0";
       };
+      nvidia.open = true;
       specialisations.modes = [
         "igpu"
         "hybrid"
@@ -65,6 +66,8 @@ in
       ];
     };
   };
+
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.hostName = "laptop";
   system.stateVersion = "25.11";

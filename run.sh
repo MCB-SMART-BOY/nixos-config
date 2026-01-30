@@ -228,6 +228,99 @@ reset_gpu_override() {
   GPU_SPECIALISATION_MODES=()
 }
 
+# 规整 PCI busId（0000:00:02.0 -> PCI:0:2:0）。
+strip_leading_zeros() {
+  local value="$1"
+  value="$(printf '%s' "${value}" | sed -E 's/^0+//')"
+  printf '%s' "${value:-0}"
+}
+
+normalize_pci_bus_id() {
+  local addr="$1"
+  local raw="${addr#0000:}"
+  local bus="${raw%%:*}"
+  local rest="${raw#*:}"
+  local dev="${rest%%.*}"
+  local func="${rest#*.}"
+  bus="$(strip_leading_zeros "${bus}")"
+  dev="$(strip_leading_zeros "${dev}")"
+  func="$(strip_leading_zeros "${func}")"
+  printf 'PCI:%s:%s:%s' "${bus}" "${dev}" "${func}"
+}
+
+detect_bus_id_from_lspci() {
+  local vendor="$1"
+  if ! command -v lspci >/dev/null 2>&1; then
+    return 0
+  fi
+  local line=""
+  while IFS= read -r line; do
+    case "${vendor}" in
+      intel) [[ "${line}" == *"Intel"* ]] || continue ;;
+      amd)
+        [[ "${line}" == *"AMD"* || "${line}" == *"Advanced Micro Devices"* ]] || continue
+        ;;
+      nvidia) [[ "${line}" == *"NVIDIA"* ]] || continue ;;
+      *) return 0 ;;
+    esac
+    local addr="${line%% *}"
+    if [[ "${addr}" == *":"*"."* ]]; then
+      normalize_pci_bus_id "${addr}"
+      return 0
+    fi
+  done < <(lspci -D -d ::03xx 2>/dev/null || true)
+}
+
+extract_bus_id_from_file() {
+  local file="$1"
+  local key="$2"
+  local line=""
+  line="$(grep -E "${key}[[:space:]]*=[[:space:]]*\"[^\"]+\"" "${file}" 2>/dev/null | head -n1 || true)"
+  if [[ -n "${line}" ]]; then
+    printf '%s' "${line}" | sed -E 's/.*"([^"]+)".*/\1/'
+  fi
+}
+
+resolve_bus_id_default() {
+  local vendor="$1"
+  local detected=""
+  detected="$(detect_bus_id_from_lspci "${vendor}" || true)"
+  if [[ -n "${detected}" ]]; then
+    printf '%s' "${detected}"
+    return 0
+  fi
+
+  local key=""
+  case "${vendor}" in
+    intel) key="intelBusId" ;;
+    amd) key="amdgpuBusId" ;;
+    nvidia) key="nvidiaBusId" ;;
+    *) return 0 ;;
+  esac
+
+  local files=()
+  if [[ -n "${ETC_DIR}" && -n "${TARGET_NAME}" ]]; then
+    files+=("${ETC_DIR}/hosts/${TARGET_NAME}/local.nix")
+    files+=("${ETC_DIR}/hosts/${TARGET_NAME}/default.nix")
+  fi
+  if [[ -n "${TMP_DIR}" && -n "${TARGET_NAME}" ]]; then
+    files+=("${TMP_DIR}/hosts/${TARGET_NAME}/local.nix")
+    files+=("${TMP_DIR}/hosts/${TARGET_NAME}/default.nix")
+  fi
+
+  local file=""
+  for file in "${files[@]}"; do
+    if [[ -f "${file}" ]]; then
+      local value=""
+      value="$(extract_bus_id_from_file "${file}" "${key}")"
+      if [[ -n "${value}" ]]; then
+        printf '%s' "${value}"
+        return 0
+      fi
+    fi
+  done
+}
+
 # 显示使用帮助。
 usage() {
   cat <<EOF_USAGE
@@ -723,22 +816,49 @@ configure_gpu() {
 
     # iGPU busId
     if [[ "${GPU_IGPU_VENDOR}" == "intel" ]]; then
+      local default_intel=""
+      default_intel="$(resolve_bus_id_default intel || true)"
       while true; do
-        read -r -p "Intel iGPU busId（如 PCI:0:2:0）： " GPU_INTEL_BUS
+        if [[ -n "${default_intel}" ]]; then
+          read -r -p "Intel iGPU busId（如 PCI:0:2:0，默认 ${default_intel}）： " GPU_INTEL_BUS
+          if [[ -z "${GPU_INTEL_BUS}" ]]; then
+            GPU_INTEL_BUS="${default_intel}"
+          fi
+        else
+          read -r -p "Intel iGPU busId（如 PCI:0:2:0）： " GPU_INTEL_BUS
+        fi
         [[ -n "${GPU_INTEL_BUS}" ]] && break
         echo "不能为空，请重试。"
       done
     else
+      local default_amd=""
+      default_amd="$(resolve_bus_id_default amd || true)"
       while true; do
-        read -r -p "AMD iGPU busId（如 PCI:4:0:0）： " GPU_AMD_BUS
+        if [[ -n "${default_amd}" ]]; then
+          read -r -p "AMD iGPU busId（如 PCI:4:0:0，默认 ${default_amd}）： " GPU_AMD_BUS
+          if [[ -z "${GPU_AMD_BUS}" ]]; then
+            GPU_AMD_BUS="${default_amd}"
+          fi
+        else
+          read -r -p "AMD iGPU busId（如 PCI:4:0:0）： " GPU_AMD_BUS
+        fi
         [[ -n "${GPU_AMD_BUS}" ]] && break
         echo "不能为空，请重试。"
       done
     fi
 
     # NVIDIA busId
+    local default_nvidia=""
+    default_nvidia="$(resolve_bus_id_default nvidia || true)"
     while true; do
-      read -r -p "NVIDIA dGPU busId（如 PCI:1:0:0）： " GPU_NVIDIA_BUS
+      if [[ -n "${default_nvidia}" ]]; then
+        read -r -p "NVIDIA dGPU busId（如 PCI:1:0:0，默认 ${default_nvidia}）： " GPU_NVIDIA_BUS
+        if [[ -z "${GPU_NVIDIA_BUS}" ]]; then
+          GPU_NVIDIA_BUS="${default_nvidia}"
+        fi
+      else
+        read -r -p "NVIDIA dGPU busId（如 PCI:1:0:0）： " GPU_NVIDIA_BUS
+      fi
       [[ -n "${GPU_NVIDIA_BUS}" ]] && break
       echo "不能为空，请重试。"
     done
@@ -746,10 +866,10 @@ configure_gpu() {
 
   if [[ "${GPU_MODE}" == "hybrid" || "${GPU_MODE}" == "dgpu" ]]; then
     local answer=""
-    read -r -p "NVIDIA 使用开源内核模块？ [Y/n] " answer
+    read -r -p "NVIDIA 使用开源内核模块？ [y/N] " answer
     case "${answer}" in
-      n|N) GPU_NVIDIA_OPEN="false" ;;
-      *) GPU_NVIDIA_OPEN="true" ;;
+      y|Y) GPU_NVIDIA_OPEN="true" ;;
+      *) GPU_NVIDIA_OPEN="false" ;;
     esac
   fi
 

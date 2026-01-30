@@ -54,10 +54,6 @@ list_modes() {
     done < <(find "${MODE_DIR}" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null)
   fi
 
-  if [[ ${#modes[@]} -eq 0 ]]; then
-    modes=("gpu-igpu" "gpu-dgpu")
-  fi
-
   printf '%s\n' "${modes[@]}"
 }
 

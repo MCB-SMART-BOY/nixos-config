@@ -1,7 +1,12 @@
 # 启动与内核相关设置：引导器、内核模块、sysctl 等。
 # CPU 厂商相关的 KVM 模块由 mcb.cpuVendor 决定。
 
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   cpuVendor = config.mcb.cpuVendor;
@@ -25,13 +30,12 @@ in
       efi.canTouchEfiVariables = true;
     };
 
-    # 使用最新内核（更好的硬件支持）
-    kernelPackages = pkgs.linuxPackages_latest;
-    kernelModules =
-      [
-        "tun"
-      ]
-      ++ lib.optional (kvmModule != null) kvmModule;
+    # 使用稳定内核（驱动兼容性更好）；需要最新内核时在 host 层覆盖
+    kernelPackages = lib.mkDefault pkgs.linuxPackages;
+    kernelModules = [
+      "tun"
+    ]
+    ++ lib.optional (kvmModule != null) kvmModule;
 
     # 内核网络参数优化（BBR、队列、转发等）
     kernel.sysctl = {

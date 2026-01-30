@@ -189,7 +189,7 @@ in
         nvidia = {
           open = mkOption {
             type = types.bool;
-            default = true;
+            default = false;
             description = "Use the NVIDIA open kernel module when supported.";
           };
         };

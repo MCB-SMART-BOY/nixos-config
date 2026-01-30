@@ -67,6 +67,7 @@ in
         intelBusId = "PCI:0:2:0";
         nvidiaBusId = "PCI:1:0:0";
       };
+      nvidia.open = true;
       # 覆盖特化模式列表，加入 hybrid
       specialisations.modes = [
         "igpu"
@@ -75,6 +76,8 @@ in
       ];
     };
   };
+
+  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.hostName = "nixos";
   system.stateVersion = "25.11";

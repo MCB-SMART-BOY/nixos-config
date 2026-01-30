@@ -156,6 +156,10 @@ mcb.hardware.gpu = {
 };
 ```
 
+说明：
+- busId 格式为 `PCI:<bus>:<device>:<function>`（可由 `lspci -D -d ::03xx` 获得）
+- 使用 `run.sh` 向导选择 hybrid 时，会优先自动探测 busId（需要 `lspci`），否则回退读取主机配置；有默认值时可直接回车接受
+
 ### 5.2 切换方式
 开机选择：systemd-boot 中选择 `gpu-igpu` / `gpu-hybrid` / `gpu-dgpu`
 

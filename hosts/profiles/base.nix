@@ -6,6 +6,7 @@
   # 基础 profile：系统核心功能，不含桌面相关模块
   imports = [
     ../../modules/options.nix
+    ../../modules/hardware/gpu.nix
     ../../modules/boot.nix
     ../../modules/networking.nix
     ../../modules/security.nix

@@ -96,6 +96,7 @@ mcb.hardware.gpu = {
 ```
 
 获取 busId：`lspci -D -d ::03xx`。
+run.sh 选择 hybrid 时，会优先自动探测 busId（需要 `lspci`），否则回退读取主机配置；有默认值时可直接回车接受。
 
 特化切换：
 ```bash

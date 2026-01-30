@@ -38,6 +38,20 @@ let
       {
         reverseSync.enable = true;
       };
+  nvidiaVideoDrivers =
+    if hybrid then
+      if igpuVendor == "amd" then
+        [
+          "nvidia"
+          "amdgpu"
+        ]
+      else
+        [
+          "nvidia"
+          "modesetting"
+        ]
+    else
+      [ "nvidia" ];
 in
 {
   assertions = [
@@ -72,10 +86,7 @@ in
     }
 
     (lib.mkIf nvidiaEnabled {
-      services.xserver.videoDrivers = [
-        "nvidia"
-        "modesetting"
-      ];
+      services.xserver.videoDrivers = nvidiaVideoDrivers;
 
       hardware.nvidia = {
         open = cfg.nvidia.open;
