@@ -36,6 +36,10 @@ MODE="switch"
 ETC_DIR="/etc/nixos"
 # 临时 DNS 是否已开启
 DNS_ENABLED=false
+# 临时仓库目录
+TMP_DIR=""
+# sudo wrapper（root 模式下为空）
+SUDO="sudo"
 
 # 进度条控制
 PROGRESS_TOTAL=7
@@ -90,6 +94,15 @@ warn() { msg WARN "$*"; }
 error() {
   msg ERROR "$*"
   exit 1
+}
+
+# 以 root 执行命令（root 模式下跳过 sudo）。
+as_root() {
+  if [[ -n "${SUDO}" ]]; then
+    sudo "$@"
+  else
+    "$@"
+  fi
 }
 
 # 打印脚本标题。
@@ -314,11 +327,12 @@ check_env() {
 
   # 必须普通用户运行（需要时内部 sudo）
   if [[ "$(whoami)" == "root" ]]; then
-    error "请以普通用户运行（需要时会调用 sudo）。"
+    warn "检测到 root，将跳过 sudo。"
+    SUDO=""
   fi
 
   # 基础依赖检查
-  if ! command -v sudo >/dev/null 2>&1; then
+  if [[ -n "${SUDO}" ]] && ! command -v sudo >/dev/null 2>&1; then
     error "未找到 sudo。"
   fi
 
@@ -329,6 +343,16 @@ check_env() {
   # 确保当前环境是 NixOS
   if ! command -v nixos-rebuild >/dev/null 2>&1; then
     error "未找到 nixos-rebuild。"
+  fi
+
+  # sudo 可用性检查（避免容器 no_new_privileges）
+  if [[ -n "${SUDO}" ]]; then
+    if ! sudo -n true 2>/tmp/mcb-sudo-check.$$; then
+      if grep -qi "no new privileges" /tmp/mcb-sudo-check.$$ 2>/dev/null; then
+        error "sudo 无法提权（no new privileges）。请以 root 运行或调整容器安全设置。"
+      fi
+    fi
+    rm -f /tmp/mcb-sudo-check.$$ 2>/dev/null || true
   fi
 
   # /etc/nixos 必须包含硬件配置（避免覆盖后无法启动）
@@ -864,11 +888,11 @@ backup_etc() {
   timestamp="$(date +%Y%m%d-%H%M%S)"
   local backup_dir="${ETC_DIR}.backup-${timestamp}"
   log "备份 ${ETC_DIR} -> ${backup_dir}"
-  sudo mkdir -p "${backup_dir}"
+  as_root mkdir -p "${backup_dir}"
   if command -v rsync >/dev/null 2>&1; then
-    sudo rsync -a "${ETC_DIR}/" "${backup_dir}/"
+    as_root rsync -a "${ETC_DIR}/" "${backup_dir}/"
   else
-    sudo cp -a "${ETC_DIR}/." "${backup_dir}/"
+    as_root cp -a "${ETC_DIR}/." "${backup_dir}/"
   fi
   success "备份完成"
 }
@@ -940,8 +964,8 @@ temp_dns_enable() {
 
       if [[ -n "${iface}" ]]; then
         log "临时 DNS（resolvectl ${iface}）：${servers[*]}"
-        sudo resolvectl dns "${iface}" "${servers[@]}"
-        sudo resolvectl domain "${iface}" "~."
+        as_root resolvectl dns "${iface}" "${servers[@]}"
+        as_root resolvectl domain "${iface}" "~."
         TEMP_DNS_BACKEND="resolvectl"
         TEMP_DNS_IFACE="${iface}"
         DNS_ENABLED=true
@@ -953,9 +977,9 @@ temp_dns_enable() {
   # 兜底方案：直接写 /etc/resolv.conf
   if [[ -f /etc/resolv.conf ]]; then
     TEMP_DNS_BACKUP="$(mktemp)"
-    sudo cp -a /etc/resolv.conf "${TEMP_DNS_BACKUP}"
-    sudo rm -f /etc/resolv.conf
-    printf 'nameserver %s\n' "${servers[@]}" | sudo tee /etc/resolv.conf >/dev/null
+    as_root cp -a /etc/resolv.conf "${TEMP_DNS_BACKUP}"
+    as_root rm -f /etc/resolv.conf
+    printf 'nameserver %s\n' "${servers[@]}" | as_root tee /etc/resolv.conf >/dev/null
     log "临时 DNS（/etc/resolv.conf）：${servers[*]}"
     TEMP_DNS_BACKEND="resolv.conf"
     DNS_ENABLED=true
@@ -970,13 +994,13 @@ temp_dns_disable() {
   if [[ "${TEMP_DNS_BACKEND}" == "resolvectl" ]]; then
     if [[ -n "${TEMP_DNS_IFACE}" ]]; then
       log "恢复 DNS（resolvectl ${TEMP_DNS_IFACE}）"
-      sudo resolvectl revert "${TEMP_DNS_IFACE}" || true
-      sudo resolvectl flush-caches >/dev/null 2>&1 || true
+      as_root resolvectl revert "${TEMP_DNS_IFACE}" || true
+      as_root resolvectl flush-caches >/dev/null 2>&1 || true
     fi
   elif [[ "${TEMP_DNS_BACKEND}" == "resolv.conf" ]]; then
     if [[ -n "${TEMP_DNS_BACKUP}" && -f "${TEMP_DNS_BACKUP}" ]]; then
       log "恢复 /etc/resolv.conf"
-      sudo cp -a "${TEMP_DNS_BACKUP}" /etc/resolv.conf || true
+      as_root cp -a "${TEMP_DNS_BACKUP}" /etc/resolv.conf || true
       rm -f "${TEMP_DNS_BACKUP}"
     fi
   fi
@@ -1015,17 +1039,17 @@ clone_repo_any() {
 sync_repo_to_etc() {
   local repo_dir="$1"
   log "同步到 ${ETC_DIR}"
-  sudo mkdir -p "${ETC_DIR}"
+  as_root mkdir -p "${ETC_DIR}"
 
   # 同步时排除 .git 与硬件配置，避免覆盖本机硬件配置
   if command -v rsync >/dev/null 2>&1; then
-    sudo rsync -a \
+    as_root rsync -a \
       --exclude '.git/' \
       --exclude 'hardware-configuration.nix' \
       --exclude 'hosts/*/hardware-configuration.nix' \
       "${repo_dir}/" "${ETC_DIR}/"
   else
-    (cd "${repo_dir}" && tar --exclude=.git --exclude=hardware-configuration.nix --exclude=hosts/*/hardware-configuration.nix -cf - .) | sudo tar -C "${ETC_DIR}" -xf -
+    (cd "${repo_dir}" && tar --exclude=.git --exclude=hardware-configuration.nix --exclude=hosts/*/hardware-configuration.nix -cf - .) | as_root tar -C "${ETC_DIR}" -xf -
   fi
 
   success "配置同步完成"
@@ -1041,9 +1065,16 @@ rebuild_system() {
   if [[ -n "${NIX_CONFIG:-}" ]]; then
     nix_config="${NIX_CONFIG}"$'\n'"${nix_config}"
   fi
-  if sudo -E env NIX_CONFIG="${nix_config}" nixos-rebuild "${rebuild_args[@]}" --flake "${ETC_DIR}#${TARGET_NAME}"; then
-    success "系统重建完成"
-    return 0
+  if [[ -n "${SUDO}" ]]; then
+    if sudo -E env NIX_CONFIG="${nix_config}" nixos-rebuild "${rebuild_args[@]}" --flake "${ETC_DIR}#${TARGET_NAME}"; then
+      success "系统重建完成"
+      return 0
+    fi
+  else
+    if env NIX_CONFIG="${nix_config}" nixos-rebuild "${rebuild_args[@]}" --flake "${ETC_DIR}#${TARGET_NAME}"; then
+      success "系统重建完成"
+      return 0
+    fi
   fi
   warn "系统重建失败"
   return 1
@@ -1106,8 +1137,8 @@ wizard_flow() {
     case "${step}" in
       1)
         # 选择主机
-        select_host "${tmp_dir}"
-        validate_host "${tmp_dir}"
+        select_host "${TMP_DIR}"
+        validate_host "${TMP_DIR}"
         step=2
         ;;
       2)
@@ -1127,7 +1158,7 @@ wizard_flow() {
         ;;
       3)
         # 检测并配置 per-user TUN
-        if detect_per_user_tun "${tmp_dir}"; then
+        if detect_per_user_tun "${TMP_DIR}"; then
           PER_USER_TUN_ENABLED=true
         else
           PER_USER_TUN_ENABLED=false
@@ -1191,45 +1222,46 @@ main() {
   check_env
   progress_step "环境检查"
 
-  local tmp_dir
-  tmp_dir="$(mktemp -d)"
+  TMP_DIR="$(mktemp -d)"
 
   cleanup() {
     local status=$?
     temp_dns_disable
-    rm -rf "${tmp_dir}"
+    if [[ -n "${TMP_DIR}" ]]; then
+      rm -rf "${TMP_DIR}"
+    fi
     exit "${status}"
   }
   trap cleanup EXIT
 
   # 先拉取仓库（失败时尝试临时 DNS）
   section "拉取仓库"
-  if ! clone_repo_any "${tmp_dir}"; then
+  if ! clone_repo_any "${TMP_DIR}"; then
     log "尝试临时切换阿里云 DNS 后重试"
     temp_dns_enable
-    rm -rf "${tmp_dir}"
-    tmp_dir="$(mktemp -d)"
-    if ! clone_repo_any "${tmp_dir}"; then
+    rm -rf "${TMP_DIR}"
+    TMP_DIR="$(mktemp -d)"
+    if ! clone_repo_any "${TMP_DIR}"; then
       error "仓库拉取失败，请检查网络"
     fi
   fi
   progress_step "拉取仓库"
 
   section "脚本自检"
-  self_check_scripts "${tmp_dir}"
+  self_check_scripts "${TMP_DIR}"
   progress_step "脚本自检"
 
   # 交互式向导：选择主机/用户/TUN
   wizard_flow
   ensure_host_hardware_config
-  write_local_override "${tmp_dir}"
+  write_local_override "${TMP_DIR}"
   progress_step "收集配置"
   confirm_continue "确认以上配置并继续同步？"
   section "同步与构建"
   prepare_etc_dir
   progress_step "准备覆盖策略"
 
-  sync_repo_to_etc "${tmp_dir}"
+  sync_repo_to_etc "${TMP_DIR}"
   progress_step "同步配置"
   confirm_continue "配置已同步，继续重建系统？"
   if ! rebuild_system; then
