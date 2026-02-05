@@ -15,6 +15,33 @@ let
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
 
+  resolvePkg =
+    path:
+    let
+      eval =
+        if lib.hasAttrByPath path pkgs then
+          builtins.tryEval (lib.getAttrFromPath path pkgs)
+        else
+          {
+            success = false;
+            value = null;
+          };
+    in
+    if eval.success then eval.value else null;
+
+  pickFirst = list: lib.findFirst (x: x != null) null list;
+
+  obsV4l2sink = pickFirst [
+    (resolvePkg [
+      "obs-studio-plugins"
+      "obs-v4l2sink"
+    ])
+    (resolvePkg [
+      "obs-studio-plugins"
+      "v4l2sink"
+    ])
+  ];
+
   baseRuntime = with pkgs; [
     # 基础运行时工具
     bash
@@ -172,15 +199,18 @@ let
     # 影音与阅读应用（保留占位，避免未来扩展破坏开关结构）
   ];
 
-  office = with pkgs; [
-    # 办公软件
-    obsidian
-    obs-studio
-    wemeet
-    libreoffice-still
-    wpsoffice-cn
-    xournalpp
-  ];
+  office =
+    with pkgs;
+    [
+      # 办公软件
+      obsidian
+      obs-studio
+      wemeet-xwayland
+      libreoffice-still
+      wpsoffice-cn
+      xournalpp
+    ]
+    ++ lib.optionals (obsV4l2sink != null) [ obsV4l2sink ];
 
   gaming =
     with pkgs;
