@@ -205,7 +205,7 @@ let
       # 办公软件
       obsidian
       obs-studio
-      wemeet-xwayland
+      wemeet
       libreoffice-still
       wpsoffice-cn
       xournalpp

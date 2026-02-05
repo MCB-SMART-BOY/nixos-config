@@ -24,4 +24,19 @@ in
 
   # 启用 XDG 规范目录结构
   xdg.enable = true;
+
+  # 覆盖桌面入口：让 wemeet 启动 XWayland 版本
+  xdg.desktopEntries.wemeet = {
+    name = "Tencent Meeting";
+    genericName = "Video Conference";
+    comment = "Tencent Meeting (XWayland)";
+    exec = "wemeet-xwayland %U";
+    icon = "wemeet";
+    terminal = false;
+    categories = [
+      "Network"
+      "VideoConference"
+      "AudioVideo"
+    ];
+  };
 }
