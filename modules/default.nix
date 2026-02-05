@@ -1,5 +1,5 @@
-# 系统模块聚合入口：统一导入 modules/ 下的各功能模块。
-# 大多数系统级功能都从这里被启用。
+# 系统核心模块聚合入口：统一导入通用模块（不含桌面/虚拟化/游戏）。
+# 桌面扩展请在 hosts/profiles/desktop.nix 里追加。
 
 { ... }:
 
@@ -13,11 +13,6 @@
     ./security.nix
     ./nix.nix
     ./packages.nix
-    ./i18n.nix
-    ./fonts.nix
-    ./desktop.nix
-    ./services.nix
-    ./virtualization.nix
-    ./gaming.nix
+    ./services/core.nix
   ];
 }

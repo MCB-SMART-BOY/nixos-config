@@ -1,6 +1,17 @@
 # Home Manager 桌面应用与输入法环境变量。
 
-{ ... }:
+{ pkgs, lib, ... }:
+
+let
+  xwaylandBridgeEval =
+    if pkgs ? xwaylandvideobridge then
+      builtins.tryEval pkgs.xwaylandvideobridge
+    else
+      {
+        success = false;
+        value = null;
+      };
+in
 
 {
   # 仅开启 Home Manager 层的桌面组件开关
@@ -16,5 +27,22 @@
     GLFW_IM_MODULE = "fcitx";
     XMODIFIERS = "@im=fcitx";
     XIM_SERVERS = "fcitx";
+  };
+
+  systemd.user.services.xwaylandvideobridge = lib.mkIf xwaylandBridgeEval.success {
+    Unit = {
+      Description = "XWayland Video Bridge (screen sharing for X11 apps)";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+      ConditionPathExistsGlob = "%t/wayland-*";
+    };
+    Service = {
+      ExecStart = "${xwaylandBridgeEval.value}/bin/xwaylandvideobridge";
+      Restart = "on-failure";
+      RestartSec = 2;
+    };
+    Install = {
+      WantedBy = [ "graphical-session.target" ];
+    };
   };
 }

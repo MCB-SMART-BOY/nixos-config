@@ -16,7 +16,8 @@
 
   mcb.packages = {
     # 桌面常用包组全部开启
-    enableNetwork = true;
+    enableNetworkCli = true;
+    enableNetworkGui = true;
     enableShellTools = true;
     enableWaylandTools = true;
     enableBrowsersAndMedia = true;

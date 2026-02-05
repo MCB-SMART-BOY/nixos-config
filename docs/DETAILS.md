@@ -34,7 +34,7 @@
 ## NixOS 体系
 
 - 系统入口：`hosts/<hostname>/default.nix`
-- 聚合模块：`modules/default.nix`
+- 核心聚合模块（不含桌面/虚拟化/游戏）：`modules/default.nix`
 - 选项定义：`modules/options.nix`（`mcb.*`）
 - 系统包组：`modules/packages.nix`（`mcb.packages.*`）
 - 主机 Profiles：`hosts/profiles/desktop.nix` / `hosts/profiles/server.nix`

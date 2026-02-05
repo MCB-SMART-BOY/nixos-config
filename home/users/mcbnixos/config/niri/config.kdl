@@ -8,10 +8,10 @@
 
 // 建议删除特定 output 配置，让 Niri 自动检测
 // 如果必须指定，请确保名称 (eDP-1) 是准确的（可通过 `niri msg outputs` 查看）
-// output "eDP-1" {
-//     mode "2560x1600@60"
-//     scale 2 // 推荐高分屏设置缩放
-// }
+output "eDP-1" {
+    mode "3200x2000@165.002"
+    scale 2 // 推荐高分屏设置缩放
+}
 
 // ══════════════════════════════════════════════════════════════════
 // ⌨️ 输入配置
@@ -22,6 +22,7 @@ input {
     keyboard {
         xkb {
             layout "us"
+            options "ctrl:swapcaps"
             // options "caps:escape" // 如果你是 Vim 用户，建议开启
         }
         repeat-delay 300
@@ -300,4 +301,8 @@ binds {
     XF86AudioMicMute allow-when-locked=true { spawn "niri-run" "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
     XF86MonBrightnessUp allow-when-locked=true { spawn "niri-run" "brightnessctl" "set" "5%+"; }
     XF86MonBrightnessDown allow-when-locked=true { spawn "niri-run" "brightnessctl" "set" "5%-"; }
+}
+
+debug {
+  force-pipewire-invalid-modifier
 }

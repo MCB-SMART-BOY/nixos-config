@@ -159,6 +159,16 @@ if command -v zoxide &> /dev/null; then
     alias cdi='zi'
 fi
 
+# direnv (load .envrc)
+if command -v direnv &> /dev/null; then
+    eval "$(direnv hook zsh)"
+fi
+
+# starship prompt
+if command -v starship &> /dev/null; then
+    eval "$(starship init zsh)"
+fi
+
 # 🛡️ 后悔药：保留原生命令的访问方式
 alias oldls='command ls'
 alias oldcat='command cat'
@@ -169,7 +179,7 @@ alias oldgrep='command grep'
 # ══════════════════════════════════════════════════════════════════
 
 # --- NixOS 管理 ---
-alias nrs='sudo nixos-rebuild switch --flake "/etc/nixos#nixos" --show-trace --upgrade' # 一键更新并重建
+alias nrs='sudo nixos-rebuild switch --flake "/etc/nixos#nixos" --show-trace --upgrade-all' # 一键更新并重建
 alias nrt='sudo nixos-rebuild test'        # 测试新配置但不设为默认
 alias nrb='sudo nixos-rebuild boot'        # 下次启动时应用
 alias nfu='nix flake update'               # 更新 flake.lock

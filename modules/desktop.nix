@@ -8,6 +8,8 @@
   programs.niri.enable = true;
   programs.dconf.enable = true;
   programs.xwayland.enable = true;
+  services.xserver.xkb.options = "ctrl:swapcaps";
+  console.useXkbConfig = true;
 
   # 登录管理器：使用 greetd + tuigreet 启动 niri-session
   services.greetd = {
@@ -46,7 +48,18 @@
     # Portal 让截图/文件选择等桌面能力可用
     enable = true;
     wlr.enable = true;
-    extraPortals = [ pkgs.xdg-desktop-portal-gtk ];
-    config.common.default = "*";
+    extraPortals = [
+      pkgs.xdg-desktop-portal-gtk
+    ];
+    config = {
+      common.default = [
+        "wlr"
+        "gtk"
+      ];
+      niri.default = [
+        "wlr"
+        "gtk"
+      ];
+    };
   };
 }

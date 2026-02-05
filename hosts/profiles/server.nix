@@ -9,7 +9,8 @@
   ];
 
   mcb.packages = {
-    enableNetwork = true;
+    enableNetworkCli = true;
+    enableNetworkGui = false;
     enableShellTools = true;
     enableWaylandTools = false;
     enableBrowsersAndMedia = false;

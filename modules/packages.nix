@@ -2,11 +2,18 @@
 # 通过 mcb.packages.* 控制不同机器的包集合。
 # 新手提示：hosts/profiles/*.nix 里会统一开启/关闭这些组。
 
-{ config, lib, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   # 读取 mcb.packages.* 开关
   cfg = config.mcb.packages;
+  networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
+  networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
 
   baseRuntime = with pkgs; [
     # 基础运行时工具
@@ -21,11 +28,15 @@ let
     systemd
   ];
 
-  network = with pkgs; [
+  networkCli = with pkgs; [
     # 代理核心
     clash-verge-rev
-    clash-nyanpasu
     mihomo
+  ];
+
+  networkGui = with pkgs; [
+    # 代理 GUI / 面板
+    clash-nyanpasu
     metacubexd
     # 网络界面
     networkmanagerapplet
@@ -163,6 +174,9 @@ let
 
   office = with pkgs; [
     # 办公软件
+    obsidian
+    obs-studio
+    wemeet
     libreoffice-still
     wpsoffice-cn
     xournalpp
@@ -290,7 +304,8 @@ let
   # 按开关拼装最终包组
   groups = lib.concatLists [
     baseRuntime
-    (lib.optionals cfg.enableNetwork network)
+    (lib.optionals networkCliEnabled networkCli)
+    (lib.optionals networkGuiEnabled networkGui)
     (lib.optionals cfg.enableShellTools shellTools)
     (lib.optionals cfg.enableWaylandTools waylandTools)
     (lib.optionals cfg.enableBrowsersAndMedia browsersAndMedia)
@@ -315,7 +330,17 @@ in
     enableNetwork = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install network/proxy tooling.";
+      description = "Legacy switch: enable both network CLI and GUI packages.";
+    };
+    enableNetworkCli = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install network/proxy CLI and service packages.";
+    };
+    enableNetworkGui = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install network GUI tooling (applets, panels, bluetooth UI).";
     };
     enableShellTools = lib.mkOption {
       type = lib.types.bool;

@@ -1069,9 +1069,11 @@ prepare_etc_dir() {
               case "${answer}" in
                 b|B)
                   backup_etc
+                  OVERWRITE_MODE="backup"
                   break
                   ;;
                 o|O|"")
+                  OVERWRITE_MODE="overwrite"
                   break
                   ;;
                 q|Q)
@@ -1082,6 +1084,8 @@ prepare_etc_dir() {
                   ;;
               esac
             done
+          else
+            OVERWRITE_MODE="overwrite"
           fi
           ;;
         *)
@@ -1091,6 +1095,44 @@ prepare_etc_dir() {
       note "将覆盖 ${ETC_DIR}（未启用备份）"
     fi
   fi
+}
+
+# 清理 /etc/nixos，保留硬件配置文件。
+clean_etc_dir_keep_hardware() {
+  if [[ -z "${ETC_DIR}" || "${ETC_DIR}" == "/" ]]; then
+    error "ETC_DIR 无效，拒绝清理：${ETC_DIR}"
+  fi
+  if [[ ! -d "${ETC_DIR}" ]]; then
+    return 0
+  fi
+
+  local preserve_dir
+  preserve_dir="$(mktemp -d)"
+
+  if [[ -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
+    as_root cp -a "${ETC_DIR}/hardware-configuration.nix" "${preserve_dir}/"
+  fi
+
+  if [[ -d "${ETC_DIR}/hosts" ]]; then
+    while IFS= read -r -d '' file; do
+      local rel="${file#${ETC_DIR}/}"
+      as_root mkdir -p "${preserve_dir}/$(dirname "${rel}")"
+      as_root cp -a "${file}" "${preserve_dir}/${rel}"
+    done < <(find "${ETC_DIR}/hosts" -maxdepth 2 -name hardware-configuration.nix -print0 2>/dev/null)
+  fi
+
+  as_root find "${ETC_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+  if [[ -f "${preserve_dir}/hardware-configuration.nix" ]]; then
+    as_root cp -a "${preserve_dir}/hardware-configuration.nix" "${ETC_DIR}/"
+  fi
+
+  if [[ -d "${preserve_dir}/hosts" ]]; then
+    as_root mkdir -p "${ETC_DIR}/hosts"
+    as_root cp -a "${preserve_dir}/hosts/." "${ETC_DIR}/hosts/"
+  fi
+
+  rm -rf "${preserve_dir}"
 }
 
 # 检测默认网卡名称。
@@ -1196,17 +1238,25 @@ clone_repo_any() {
 # 同步仓库到 /etc/nixos。
 sync_repo_to_etc() {
   local repo_dir="$1"
+  local delete_flags=()
+  if [[ "${OVERWRITE_MODE}" == "overwrite" || "${OVERWRITE_MODE}" == "backup" ]]; then
+    delete_flags=(--delete)
+  fi
   log "同步到 ${ETC_DIR}"
   as_root mkdir -p "${ETC_DIR}"
 
   # 同步时排除 .git 与硬件配置，避免覆盖本机硬件配置
   if command -v rsync >/dev/null 2>&1; then
     as_root rsync -a \
+      "${delete_flags[@]}" \
       --exclude '.git/' \
       --exclude 'hardware-configuration.nix' \
       --exclude 'hosts/*/hardware-configuration.nix' \
       "${repo_dir}/" "${ETC_DIR}/"
   else
+    if [[ ${#delete_flags[@]} -gt 0 ]]; then
+      clean_etc_dir_keep_hardware
+    fi
     (cd "${repo_dir}" && tar --exclude=.git --exclude=hardware-configuration.nix --exclude=hosts/*/hardware-configuration.nix -cf - .) | as_root tar -C "${ETC_DIR}" -xf -
   fi
 

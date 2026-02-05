@@ -24,7 +24,6 @@
     };
   };
 
-
   programs.direnv = {
     # 自动加载 .envrc
     enable = true;
