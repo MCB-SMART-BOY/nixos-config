@@ -10,7 +10,7 @@ emit_json() {
   printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
 }
 
-read -r size used avail usep mount < <(df -P / 2>/dev/null | awk 'NR==2{print $2, $3, $4, $5, $6}')
+read -r size used _ usep _ < <(df -P / 2>/dev/null | awk 'NR==2{print $2, $3, $4, $5, $6}')
 
 if [[ -z "${usep}" ]]; then
   emit_json "" "Disk unavailable" "disk"
