@@ -18,6 +18,9 @@
     powerOnBoot = true;
   };
 
+  # 电池状态（Noctalia 依赖 UPower 提供电池信息）
+  services.upower.enable = true;
+
   # 笔记本电源管理（桌面建议开启）
   services.tlp.enable = true;
 

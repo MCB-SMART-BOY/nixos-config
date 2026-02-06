@@ -1,6 +1,11 @@
 # Home Manager 桌面应用与输入法环境变量。
 
-{ pkgs, lib, ... }:
+{
+  pkgs,
+  lib,
+  inputs,
+  ...
+}:
 
 let
   xwaylandBridgeEval =
@@ -12,12 +17,13 @@ let
         value = null;
       };
 in
-
 {
-  # 仅开启 Home Manager 层的桌面组件开关
-  programs.swaylock.enable = true;
-  programs.fuzzel.enable = true;
-  programs.waybar.enable = true;
+  imports = [
+    inputs.noctalia.homeModules.default
+  ];
+
+  # 使用 Noctalia 作为桌面 Shell
+  programs.noctalia-shell.enable = true;
 
   home.sessionVariables = {
     # 输入法环境变量（保证 Wayland 应用能读取）

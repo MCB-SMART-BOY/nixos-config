@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Waybar 自定义模块：检查 flake 输入是否有更新。
+# Noctalia 自定义按钮：检查 flake 输入是否有更新。
 
 set -euo pipefail
 
@@ -50,8 +50,8 @@ LOCK_FILE="${REPO_ROOT}/flake.lock"
 
  # 缓存结果，避免每次刷新都跑 git
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
-cache_file="${cache_dir}/waybar-flake-updates.json"
-lock_file="${cache_dir}/waybar-flake-updates.lock"
+cache_file="${cache_dir}/noctalia-flake-updates.json"
+lock_file="${cache_dir}/noctalia-flake-updates.lock"
 ttl_seconds=900
 
 mkdir -p "${cache_dir}"

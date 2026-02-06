@@ -1,5 +1,5 @@
-# 用户脚本打包与 systemd 用户服务/定时器设置。
-# 涉及 Waybar 模块与壁纸自动切换。
+# 用户脚本打包与 systemd 用户服务设置。
+# 主要用于 Noctalia 自定义按钮脚本。
 # 新手提示：scripts/ 下是原始脚本，这里负责“打包 + 安装 + 启动”。
 
 { pkgs, lib, ... }:
@@ -20,11 +20,6 @@ let
   scripts = {
     lock-screen = mkScript {
       name = "lock-screen";
-      runtimeInputs = [ pkgs.swaylock ];
-    };
-
-    niri-run = mkScript {
-      name = "niri-run";
     };
 
     wallpaper-random = mkScript {
@@ -32,14 +27,15 @@ let
       runtimeInputs = [
         pkgs.coreutils
         pkgs.findutils
-        pkgs.procps
-        pkgs.systemd
-        pkgs.swaybg
       ];
     };
 
-    waybar-flake-updates = mkScript {
-      name = "waybar-flake-updates";
+    niri-run = mkScript {
+      name = "niri-run";
+    };
+
+    noctalia-flake-updates = mkScript {
+      name = "noctalia-flake-updates";
       runtimeInputs = [
         pkgs.coreutils
         pkgs.gawk
@@ -49,16 +45,16 @@ let
       ];
     };
 
-    waybar-gpu-mode = mkScript {
-      name = "waybar-gpu-mode";
+    noctalia-gpu-mode = mkScript {
+      name = "noctalia-gpu-mode";
       runtimeInputs = [
         pkgs.coreutils
         pkgs.findutils
       ];
     };
 
-    waybar-net-speed = mkScript {
-      name = "waybar-net-speed";
+    noctalia-net-speed = mkScript {
+      name = "noctalia-net-speed";
       runtimeInputs = [
         pkgs.coreutils
         pkgs.gawk
@@ -67,8 +63,8 @@ let
       ];
     };
 
-    waybar-proxy-status = mkScript {
-      name = "waybar-proxy-status";
+    noctalia-proxy-status = mkScript {
+      name = "noctalia-proxy-status";
       runtimeInputs = [ pkgs.systemd ];
     };
   };
@@ -85,44 +81,8 @@ in
   # 将脚本暴露为常用命令
   home.file.".local/bin/lock-screen" = mkBinLink "lock-screen";
   home.file.".local/bin/niri-run" = mkBinLink "niri-run";
-  home.file.".local/bin/wallpaper-random" = mkBinLink "wallpaper-random";
-  home.file.".local/bin/waybar-flake-updates" = mkBinLink "waybar-flake-updates";
-  home.file.".local/bin/waybar-gpu-mode" = mkBinLink "waybar-gpu-mode";
-  home.file.".local/bin/waybar-net-speed" = mkBinLink "waybar-net-speed";
-  home.file.".local/bin/waybar-proxy-status" = mkBinLink "waybar-proxy-status";
-
-  # 登录后随机设置壁纸
-  systemd.user.services.wallpaper-random = {
-    Unit = {
-      Description = "Random wallpaper (swaybg)";
-      After = [ "graphical-session.target" ];
-      PartOf = [ "graphical-session.target" ];
-      ConditionPathExistsGlob = "%t/wayland-*";
-    };
-    Service = {
-      Type = "oneshot";
-      ExecStart = "%h/.local/bin/wallpaper-random";
-      Restart = "on-failure";
-      RestartSec = 2;
-    };
-    Install = {
-      WantedBy = [ "graphical-session.target" ];
-    };
-  };
-
-  # 定时切换壁纸（10 分钟一次）
-  systemd.user.timers.wallpaper-random = {
-    Unit = {
-      Description = "Rotate wallpaper periodically";
-      PartOf = [ "graphical-session.target" ];
-    };
-    Timer = {
-      OnBootSec = "1m";
-      OnUnitActiveSec = "10m";
-      AccuracySec = "1m";
-    };
-    Install = {
-      WantedBy = [ "graphical-session.target" ];
-    };
-  };
+  home.file.".local/bin/noctalia-flake-updates" = mkBinLink "noctalia-flake-updates";
+  home.file.".local/bin/noctalia-gpu-mode" = mkBinLink "noctalia-gpu-mode";
+  home.file.".local/bin/noctalia-net-speed" = mkBinLink "noctalia-net-speed";
+  home.file.".local/bin/noctalia-proxy-status" = mkBinLink "noctalia-proxy-status";
 }

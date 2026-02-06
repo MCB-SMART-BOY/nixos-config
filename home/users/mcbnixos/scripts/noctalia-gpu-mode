@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Waybar GPU specialisation switcher.
+# Noctalia GPU specialisation switcher.
 
 set -euo pipefail
 
-# Ensure common system binaries are reachable when run via Waybar.
+# Ensure common system binaries are reachable when run via Noctalia.
 export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER}/bin:${HOME}/.nix-profile/bin:${HOME}/.local/bin:${PATH}"
 
 MODE_DIR="/run/current-system/specialisation"
@@ -65,10 +65,7 @@ pick_menu() {
   elif command -v rofi >/dev/null 2>&1; then
     rofi -dmenu -p "GPU mode"
   else
-    if command -v notify-send >/dev/null 2>&1; then
-      notify-send "GPU specialisation" "No menu launcher found (fuzzel/wofi/rofi)."
-    fi
-    return 1
+    return 2
   fi
 }
 
@@ -146,6 +143,7 @@ menu_flow() {
   local label=""
   local selection=""
   local target=""
+  local menu_status=0
 
   mapfile -t modes < <(list_modes)
   for mode in "${modes[@]}"; do
@@ -154,7 +152,21 @@ menu_flow() {
     label_to_mode["${label}"]="${mode}"
   done
 
-  selection="$(printf '%s\n' "${labels[@]}" | pick_menu || true)"
+  selection="$(printf '%s\n' "${labels[@]}" | pick_menu)"
+  menu_status=$?
+  if [[ "${menu_status}" -ne 0 ]]; then
+    if [[ "${menu_status}" -eq 2 ]]; then
+      # No GUI menu available; fall back to terminal selection
+      local cmd_path=""
+      cmd_path="$(command -v noctalia-gpu-mode || true)"
+      if [[ -z "${cmd_path}" ]]; then
+        cmd_path="$0"
+      fi
+      launch_in_terminal bash -lc "${cmd_path} --menu-cli"
+    fi
+    exit 0
+  fi
+
   if [[ -z "${selection}" || "${selection}" == "cancel" ]]; then
     exit 0
   fi
@@ -172,9 +184,54 @@ menu_flow() {
   launch_in_terminal "${rebuild_cmd[@]}"
 }
 
+menu_flow_cli() {
+  local modes=()
+  local labels=("base")
+  local -A label_to_mode=()
+  local mode=""
+  local label=""
+  local selection=""
+  local target=""
+
+  mapfile -t modes < <(list_modes)
+  for mode in "${modes[@]}"; do
+    label="${mode#gpu-}"
+    labels+=("${label}")
+    label_to_mode["${label}"]="${mode}"
+  done
+
+  printf '%s\n' "Select GPU mode:"
+  PS3="GPU mode: "
+  select selection in "${labels[@]}"; do
+    if [[ -n "${selection}" ]]; then
+      break
+    fi
+  done
+
+  if [[ -z "${selection}" || "${selection}" == "cancel" ]]; then
+    exit 0
+  fi
+
+  if [[ "${selection}" == "base" ]]; then
+    target=""
+  else
+    target="${label_to_mode[${selection}]:-}"
+    if [[ -z "${target}" ]]; then
+      exit 0
+    fi
+  fi
+
+  mapfile -t rebuild_cmd < <(build_rebuild_cmd "${target}")
+  printf 'Running: %s\n' "${rebuild_cmd[*]}"
+  "${rebuild_cmd[@]}"
+}
+
 case "${1:-}" in
   --menu)
     menu_flow
+    ;;
+  --menu-cli)
+    menu_flow_cli
     ;;
   *)
     emit_status

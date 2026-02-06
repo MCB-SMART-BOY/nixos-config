@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 随机壁纸切换（swaybg）。用于 Wayland 桌面美化。
+# 随机壁纸切换（Noctalia）。用于 Wayland 桌面美化。
 
 set -euo pipefail
 
@@ -127,20 +127,11 @@ mkdir -p "${cache_dir}"
 ln -sf "${choice}" "${lock_image}"
 ln -sf "${choice}" "${current_image}"
 
-# 重启 swaybg 以应用新壁纸
-if command -v pkill >/dev/null 2>&1; then
-  pkill swaybg >/dev/null 2>&1 || true
-fi
-
-swaybg_bin="$(command -v swaybg || true)"
-if [[ -z "${swaybg_bin}" ]]; then
-  echo "wallpaper-random: swaybg not found in PATH" >&2
+if ! command -v noctalia-shell >/dev/null 2>&1; then
+  echo "wallpaper-random: noctalia-shell not found in PATH" >&2
   exit 1
 fi
 
-if command -v systemd-run >/dev/null 2>&1; then
-  systemd-run --user --scope --quiet -- "${swaybg_bin}" -i "${choice}" -m fill >/dev/null 2>&1
-else
-  "${swaybg_bin}" -i "${choice}" -m fill >/dev/null 2>&1 &
-fi
+# Noctalia IPC：将壁纸应用到所有显示器（monitor 为空表示全部）
+noctalia-shell ipc call wallpaper set "${choice}" ""
 exit 0

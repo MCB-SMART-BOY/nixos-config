@@ -1,14 +1,11 @@
 #!/usr/bin/env bash
-# 用 swaylock 锁屏；如果有缓存壁纸就作为背景图。
+# 用 Noctalia 锁屏（依赖 Noctalia 正在运行）。
 
 set -euo pipefail
 
-# wallpaper-random 会维护此缓存路径
-lock_image="${HOME}/.cache/wallpaper-lock.png"
-
-if [[ -f "${lock_image}" ]]; then
-  exec swaylock -i "${lock_image}"
+if ! command -v noctalia-shell >/dev/null 2>&1; then
+  echo "lock-screen: noctalia-shell not found in PATH" >&2
+  exit 1
 fi
 
-# 没有缓存图就使用默认锁屏
-exec swaylock
+exec noctalia-shell ipc call lockScreen lock

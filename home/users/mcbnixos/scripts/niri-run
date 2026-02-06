@@ -11,6 +11,7 @@ add_path() {
   esac
 }
 
+add_path "/run/current-system/sw/bin"
 add_path "/run/wrappers/bin"
 add_path "${HOME}/.local/bin"
 add_path "${HOME}/.nix-profile/bin"

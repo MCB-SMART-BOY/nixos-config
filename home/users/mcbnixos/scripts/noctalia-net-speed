@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Waybar 自定义模块：显示当前网速（下行/上行）。
+# Noctalia 自定义按钮：显示当前网速（下行/上行）。
 
 set -euo pipefail
 
 # 使用缓存文件保存上一次的流量读数
 cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
-state_file="${cache_dir}/waybar-net-speed.state"
+state_file="${cache_dir}/noctalia-net-speed.state"
 
 mkdir -p "${cache_dir}"
 

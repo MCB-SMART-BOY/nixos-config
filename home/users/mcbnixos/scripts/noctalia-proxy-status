@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Waybar 自定义模块：显示代理服务状态（clash/mihomo）。
+# Noctalia 自定义按钮：显示代理服务状态（clash/mihomo）。
 
 set -euo pipefail
 

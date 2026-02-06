@@ -39,4 +39,75 @@ in
       "AudioVideo"
     ];
   };
+
+  programs.noctalia-shell.settings = {
+    bar = {
+      widgets = {
+        left = [
+          { id = "Launcher"; }
+          { id = "Clock"; }
+          { id = "SystemMonitor"; }
+          { id = "ActiveWindow"; }
+          { id = "MediaMini"; }
+        ];
+        center = [
+          { id = "Workspace"; }
+        ];
+        right = [
+          { id = "Tray"; }
+          { id = "NotificationHistory"; }
+          {
+            id = "CustomButton";
+            icon = "git-branch";
+            textCommand = "$HOME/.local/bin/noctalia-flake-updates";
+            parseJson = true;
+            textIntervalMs = 900000;
+            maxTextLength = {
+              horizontal = 6;
+              vertical = 6;
+            };
+          }
+          {
+            id = "CustomButton";
+            icon = "transfer";
+            textCommand = "$HOME/.local/bin/noctalia-net-speed";
+            parseJson = true;
+            textIntervalMs = 2000;
+            maxTextLength = {
+              horizontal = 20;
+              vertical = 20;
+            };
+          }
+          {
+            id = "CustomButton";
+            icon = "cpu";
+            textCommand = "$HOME/.local/bin/noctalia-gpu-mode";
+            leftClickExec = "$HOME/.local/bin/noctalia-gpu-mode --menu";
+            leftClickUpdateText = true;
+            parseJson = true;
+            textIntervalMs = 5000;
+            maxTextLength = {
+              horizontal = 10;
+              vertical = 10;
+            };
+          }
+          {
+            id = "CustomButton";
+            icon = "shield";
+            textCommand = "$HOME/.local/bin/noctalia-proxy-status";
+            parseJson = true;
+            textIntervalMs = 5000;
+            maxTextLength = {
+              horizontal = 6;
+              vertical = 6;
+            };
+          }
+          { id = "Battery"; }
+          { id = "Volume"; }
+          { id = "Brightness"; }
+          { id = "ControlCenter"; }
+        ];
+      };
+    };
+  };
 }

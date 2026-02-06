@@ -6,11 +6,6 @@
 {
   # ── 桌面核心配置 ──
   xdg.configFile."niri/config.kdl".source = ./config/niri/config.kdl;
-  xdg.configFile."fuzzel/fuzzel.ini".source = ./config/fuzzel/fuzzel.ini;
-  xdg.configFile."mako/config".source = ./config/mako/config;
-  xdg.configFile."swaylock/config".source = ./config/swaylock/config;
-  xdg.configFile."waybar/config".source = ./config/waybar/config;
-  xdg.configFile."waybar/style.css".source = ./config/waybar/style.css;
   # 输入法与 GTK 外观
   xdg.configFile."fcitx5/profile".source = ./config/fcitx5/profile;
   xdg.configFile."gtk-2.0/gtkrc".source = ./config/gtk-2.0/gtkrc;
