@@ -19,7 +19,7 @@ ip=""
 if command -v nmcli >/dev/null 2>&1; then
   line="$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status 2>/dev/null | awk -F: '$3=="connected"{print; exit}')"
   if [[ -n "${line}" ]]; then
-    IFS=: read -r iface kind _ conn <<<"${line}"
+    IFS=: read -r iface kind _ _ <<<"${line}"
     ip="$(ip -4 addr show dev "${iface}" 2>/dev/null | awk '/inet /{print $2; exit}')"
     if [[ "${kind}" == "wifi" ]]; then
       signal="$(nmcli -t -f IN-USE,SIGNAL dev wifi list 2>/dev/null | awk -F: '$1=="*"{print $2; exit}')"

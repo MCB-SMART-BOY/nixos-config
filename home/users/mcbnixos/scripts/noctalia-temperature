@@ -13,8 +13,8 @@ emit_json() {
 max_temp=0
 found=0
 for path in /sys/class/thermal/thermal_zone*/temp; do
-  [[ -f "${path}" ]] || continue
-  value="$(cat "${path}" 2>/dev/null || true)"
+  [[ -r "${path}" ]] || continue
+  value="$(<"${path}")"
   [[ "${value}" =~ ^[0-9]+$ ]] || continue
   if (( value > max_temp )); then
     max_temp=${value}

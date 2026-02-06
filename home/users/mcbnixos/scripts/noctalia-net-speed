@@ -47,20 +47,20 @@ rx_path="/sys/class/net/${iface}/statistics/rx_bytes"
 tx_path="/sys/class/net/${iface}/statistics/tx_bytes"
 state_path="/sys/class/net/${iface}/operstate"
 
-if [[ ! -f "${rx_path}" || ! -f "${tx_path}" ]]; then
+if [[ ! -r "${rx_path}" || ! -r "${tx_path}" ]]; then
   emit_json "" "No stats for ${iface}" "disconnected"
   exit 0
 fi
 
 operstate="up"
-if [[ -f "${state_path}" ]]; then
-  operstate="$(cat "${state_path}")"
+if [[ -r "${state_path}" ]]; then
+  operstate="$(<"${state_path}")"
 fi
 
  # 记录当前时间与字节数，用于计算速率
 now="$(date +%s)"
-rx_now="$(cat "${rx_path}")"
-tx_now="$(cat "${tx_path}")"
+rx_now="$(<"${rx_path}")"
+tx_now="$(<"${tx_path}")"
 
 if [[ -f "${state_file}" ]]; then
   read -r rx_prev tx_prev time_prev < "${state_file}" || true
