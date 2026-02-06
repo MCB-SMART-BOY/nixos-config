@@ -71,23 +71,49 @@ pick_menu() {
 
 build_rebuild_cmd() {
   local specialisation="$1"
+  local switch_path=""
+  if [[ -n "${specialisation}" ]]; then
+    switch_path="/run/current-system/specialisation/${specialisation}/bin/switch-to-configuration"
+  else
+    switch_path="/run/current-system/bin/switch-to-configuration"
+  fi
+
+  if [[ -x "${switch_path}" ]]; then
+    printf '%s\n' "sudo" "${switch_path}" "switch"
+    return 0
+  fi
+
   local cmd=(sudo nixos-rebuild switch)
   if [[ -n "${specialisation}" ]]; then
     cmd+=(--specialisation "${specialisation}")
   fi
 
-  if [[ -f /etc/nixos/flake.nix ]]; then
+  local flake="${NOCTALIA_FLAKE:-}"
+  if [[ -z "${flake}" ]]; then
     local host_name=""
     if [[ -f /etc/hostname ]]; then
       host_name="$(tr -d '\n' </etc/hostname)"
     elif command -v hostname >/dev/null 2>&1; then
       host_name="$(hostname)"
     fi
-    if [[ -n "${host_name}" ]]; then
-      cmd+=(--flake "/etc/nixos#${host_name}")
-    else
-      cmd+=(--flake "/etc/nixos")
+
+    if [[ -f /etc/nixos/flake.nix ]]; then
+      if [[ -n "${host_name}" ]]; then
+        flake="/etc/nixos#${host_name}"
+      else
+        flake="/etc/nixos"
+      fi
+    elif [[ -f "${HOME}/nixos-config/flake.nix" ]]; then
+      if [[ -n "${host_name}" ]]; then
+        flake="${HOME}/nixos-config#${host_name}"
+      else
+        flake="${HOME}/nixos-config"
+      fi
     fi
+  fi
+
+  if [[ -n "${flake}" ]]; then
+    cmd+=(--flake "${flake}")
   fi
 
   printf '%s\n' "${cmd[@]}"
@@ -146,6 +172,12 @@ menu_flow() {
   local menu_status=0
 
   mapfile -t modes < <(list_modes)
+  if (( ${#modes[@]} == 0 )); then
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send "GPU specialisation" "No GPU specialisations found in /run/current-system/specialisation"
+    fi
+    exit 0
+  fi
   for mode in "${modes[@]}"; do
     label="${mode#gpu-}"
     labels+=("${label}")
@@ -194,6 +226,10 @@ menu_flow_cli() {
   local target=""
 
   mapfile -t modes < <(list_modes)
+  if (( ${#modes[@]} == 0 )); then
+    printf '%s\n' "No GPU specialisations found in /run/current-system/specialisation"
+    exit 0
+  fi
   for mode in "${modes[@]}"; do
     label="${mode#gpu-}"
     labels+=("${label}")

@@ -65,9 +65,10 @@ let
     # 代理 GUI / 面板
     clash-nyanpasu
     metacubexd
-    # bluetooth（Noctalia 提供 UI，但仍保留基础工具）
+    # bluetooth（Noctalia 状态栏 + Blueman 管理界面）
     bluez
     bluez-tools
+    blueman
   ];
 
   shellTools = with pkgs; [
@@ -119,6 +120,8 @@ let
     swappy
     # 通知与壁纸（Noctalia 负责 UI/通知/壁纸）
     libnotify
+    # Launcher（Noctalia/GPU 模式菜单会用到）
+    fuzzel
     # 会话辅助
     swayidle
     niri

@@ -17,6 +17,7 @@
     enable = true;
     powerOnBoot = true;
   };
+  services.blueman.enable = true;
 
   # 电池状态（Noctalia 依赖 UPower 提供电池信息）
   services.upower.enable = true;

@@ -59,6 +59,7 @@ in
         nvidiaBusId = "PCI:1:0:0";
       };
       nvidia.open = true;
+      specialisations.enable = true;
       specialisations.modes = [
         "igpu"
         "hybrid"

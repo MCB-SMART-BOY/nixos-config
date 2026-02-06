@@ -68,6 +68,7 @@ in
         nvidiaBusId = "PCI:1:0:0";
       };
       nvidia.open = true;
+      specialisations.enable = true;
       # 覆盖特化模式列表，加入 hybrid
       specialisations.modes = [
         "igpu"

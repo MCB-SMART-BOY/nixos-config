@@ -52,17 +52,6 @@ in
           { id = "Clock"; }
         ];
         right = [
-          {
-            id = "CustomButton";
-            icon = "git-branch";
-            textCommand = "${homeDir}/.local/bin/noctalia-flake-updates";
-            parseJson = true;
-            textIntervalMs = 900000;
-            maxTextLength = {
-              horizontal = 6;
-              vertical = 6;
-            };
-          }
           { id = "Tray"; }
           {
             id = "CustomButton";
@@ -77,19 +66,9 @@ in
           }
           {
             id = "CustomButton";
-            icon = "transfer";
-            textCommand = "${homeDir}/.local/bin/noctalia-net-speed";
-            parseJson = true;
-            textIntervalMs = 2000;
-            maxTextLength = {
-              horizontal = 20;
-              vertical = 20;
-            };
-          }
-          {
-            id = "CustomButton";
             icon = "bluetooth";
             textCommand = "${homeDir}/.local/bin/noctalia-bluetooth";
+            leftClickExec = "${homeDir}/.local/bin/niri-run blueman-manager";
             parseJson = true;
             textIntervalMs = 5000;
             maxTextLength = {
@@ -102,51 +81,7 @@ in
           { id = "Battery"; }
           {
             id = "CustomButton";
-            icon = "cpu";
-            textCommand = "${homeDir}/.local/bin/noctalia-cpu";
-            parseJson = true;
-            textIntervalMs = 2000;
-            maxTextLength = {
-              horizontal = 6;
-              vertical = 6;
-            };
-          }
-          {
-            id = "CustomButton";
-            icon = "database";
-            textCommand = "${homeDir}/.local/bin/noctalia-memory";
-            parseJson = true;
-            textIntervalMs = 2000;
-            maxTextLength = {
-              horizontal = 6;
-              vertical = 6;
-            };
-          }
-          {
-            id = "CustomButton";
-            icon = "thermometer";
-            textCommand = "${homeDir}/.local/bin/noctalia-temperature";
-            parseJson = true;
-            textIntervalMs = 5000;
-            maxTextLength = {
-              horizontal = 6;
-              vertical = 6;
-            };
-          }
-          {
-            id = "CustomButton";
-            icon = "hard-drive";
-            textCommand = "${homeDir}/.local/bin/noctalia-disk";
-            parseJson = true;
-            textIntervalMs = 60000;
-            maxTextLength = {
-              horizontal = 6;
-              vertical = 6;
-            };
-          }
-          {
-            id = "CustomButton";
-            icon = "cpu";
+            icon = "gpu";
             textCommand = "${homeDir}/.local/bin/noctalia-gpu-mode";
             leftClickExec = "${homeDir}/.local/bin/noctalia-gpu-mode --menu";
             leftClickUpdateText = true;
