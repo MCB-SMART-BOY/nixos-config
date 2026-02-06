@@ -4,6 +4,7 @@
 
 let
   user = "mcbnixos";
+  homeDir = "/home/${user}";
 in
 {
   # 该用户启用完整桌面 profile
@@ -16,7 +17,7 @@ in
 
   # Home Manager 基本信息
   home.username = user;
-  home.homeDirectory = "/home/${user}";
+  home.homeDirectory = homeDir;
   home.stateVersion = "25.11";
 
   # 启用 Home Manager 管理自身
@@ -45,21 +46,16 @@ in
       widgets = {
         left = [
           { id = "Launcher"; }
-          { id = "Clock"; }
-          { id = "SystemMonitor"; }
-          { id = "ActiveWindow"; }
-          { id = "MediaMini"; }
-        ];
-        center = [
           { id = "Workspace"; }
         ];
+        center = [
+          { id = "Clock"; }
+        ];
         right = [
-          { id = "Tray"; }
-          { id = "NotificationHistory"; }
           {
             id = "CustomButton";
             icon = "git-branch";
-            textCommand = "$HOME/.local/bin/noctalia-flake-updates";
+            textCommand = "${homeDir}/.local/bin/noctalia-flake-updates";
             parseJson = true;
             textIntervalMs = 900000;
             maxTextLength = {
@@ -67,10 +63,22 @@ in
               vertical = 6;
             };
           }
+          { id = "Tray"; }
+          {
+            id = "CustomButton";
+            icon = "wifi";
+            textCommand = "${homeDir}/.local/bin/noctalia-net-status";
+            parseJson = true;
+            textIntervalMs = 5000;
+            maxTextLength = {
+              horizontal = 8;
+              vertical = 8;
+            };
+          }
           {
             id = "CustomButton";
             icon = "transfer";
-            textCommand = "$HOME/.local/bin/noctalia-net-speed";
+            textCommand = "${homeDir}/.local/bin/noctalia-net-speed";
             parseJson = true;
             textIntervalMs = 2000;
             maxTextLength = {
@@ -80,9 +88,67 @@ in
           }
           {
             id = "CustomButton";
+            icon = "bluetooth";
+            textCommand = "${homeDir}/.local/bin/noctalia-bluetooth";
+            parseJson = true;
+            textIntervalMs = 5000;
+            maxTextLength = {
+              horizontal = 4;
+              vertical = 4;
+            };
+          }
+          { id = "Volume"; }
+          { id = "Brightness"; }
+          { id = "Battery"; }
+          {
+            id = "CustomButton";
             icon = "cpu";
-            textCommand = "$HOME/.local/bin/noctalia-gpu-mode";
-            leftClickExec = "$HOME/.local/bin/noctalia-gpu-mode --menu";
+            textCommand = "${homeDir}/.local/bin/noctalia-cpu";
+            parseJson = true;
+            textIntervalMs = 2000;
+            maxTextLength = {
+              horizontal = 6;
+              vertical = 6;
+            };
+          }
+          {
+            id = "CustomButton";
+            icon = "database";
+            textCommand = "${homeDir}/.local/bin/noctalia-memory";
+            parseJson = true;
+            textIntervalMs = 2000;
+            maxTextLength = {
+              horizontal = 6;
+              vertical = 6;
+            };
+          }
+          {
+            id = "CustomButton";
+            icon = "thermometer";
+            textCommand = "${homeDir}/.local/bin/noctalia-temperature";
+            parseJson = true;
+            textIntervalMs = 5000;
+            maxTextLength = {
+              horizontal = 6;
+              vertical = 6;
+            };
+          }
+          {
+            id = "CustomButton";
+            icon = "hard-drive";
+            textCommand = "${homeDir}/.local/bin/noctalia-disk";
+            parseJson = true;
+            textIntervalMs = 60000;
+            maxTextLength = {
+              horizontal = 6;
+              vertical = 6;
+            };
+          }
+          {
+            id = "CustomButton";
+            icon = "cpu";
+            textCommand = "${homeDir}/.local/bin/noctalia-gpu-mode";
+            leftClickExec = "${homeDir}/.local/bin/noctalia-gpu-mode --menu";
             leftClickUpdateText = true;
             parseJson = true;
             textIntervalMs = 5000;
@@ -94,7 +160,7 @@ in
           {
             id = "CustomButton";
             icon = "shield";
-            textCommand = "$HOME/.local/bin/noctalia-proxy-status";
+            textCommand = "${homeDir}/.local/bin/noctalia-proxy-status";
             parseJson = true;
             textIntervalMs = 5000;
             maxTextLength = {
@@ -102,9 +168,15 @@ in
               vertical = 6;
             };
           }
-          { id = "Battery"; }
-          { id = "Volume"; }
-          { id = "Brightness"; }
+          {
+            id = "CustomButton";
+            icon = "power";
+            textCommand = "${homeDir}/.local/bin/noctalia-power";
+            leftClickExec = "niri msg action quit";
+            parseJson = true;
+            textIntervalMs = 60000;
+          }
+          { id = "NotificationHistory"; }
           { id = "ControlCenter"; }
         ];
       };

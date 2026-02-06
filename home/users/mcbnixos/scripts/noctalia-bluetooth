@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Noctalia custom button: bluetooth status.
+
+set -euo pipefail
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+if ! command -v bluetoothctl >/dev/null 2>&1; then
+  emit_json "" "Bluetooth unavailable" "off"
+  exit 0
+fi
+
+powered="$(bluetoothctl show 2>/dev/null | awk -F': ' '/Powered/{print $2; exit}')"
+if [[ "${powered}" != "yes" ]]; then
+  emit_json "" "Bluetooth off" "off"
+  exit 0
+fi
+
+mapfile -t devices < <(bluetoothctl devices Connected 2>/dev/null | awk '{ $1=""; $2=""; sub(/^  */, ""); if (length) print }')
+count=${#devices[@]}
+
+if (( count > 0 )); then
+  names="$(printf '%s\n' "${devices[@]}" | paste -sd ', ' -)"
+  emit_json "${count}" "Connected: ${names}" "connected"
+else
+  emit_json "" "Bluetooth on" "on"
+fi

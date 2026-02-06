@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Noctalia custom button: CPU usage.
+
+set -euo pipefail
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
+state_file="${cache_dir}/noctalia-cpu.state"
+mkdir -p "${cache_dir}"
+
+read -r _ user nice system idle iowait irq softirq steal _ _ < /proc/stat
+idle_all=$((idle + iowait))
+total=$((user + nice + system + idle + iowait + irq + softirq + steal))
+
+if [[ -f "${state_file}" ]]; then
+  read -r prev_total prev_idle < "${state_file}" || true
+else
+  prev_total=${total}
+  prev_idle=${idle_all}
+fi
+
+diff_total=$((total - prev_total))
+diff_idle=$((idle_all - prev_idle))
+if (( diff_total > 0 )); then
+  usage=$(( (100 * (diff_total - diff_idle)) / diff_total ))
+else
+  usage=0
+fi
+
+printf '%s %s\n' "${total}" "${idle_all}" > "${state_file}"
+
+emit_json "${usage}%" "CPU ${usage}%" "cpu"

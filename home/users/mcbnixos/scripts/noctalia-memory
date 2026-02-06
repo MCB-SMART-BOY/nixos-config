@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Noctalia custom button: memory usage.
+
+set -euo pipefail
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+total_kb="$(awk '/MemTotal/{print $2; exit}' /proc/meminfo)"
+avail_kb="$(awk '/MemAvailable/{print $2; exit}' /proc/meminfo)"
+
+if [[ -z "${total_kb}" || -z "${avail_kb}" ]]; then
+  emit_json "" "Memory unavailable" "memory"
+  exit 0
+fi
+
+used_kb=$((total_kb - avail_kb))
+percent=$((used_kb * 100 / total_kb))
+
+used_gb="$(awk -v kb="${used_kb}" 'BEGIN { printf "%.1f", kb / 1048576 }')"
+total_gb="$(awk -v kb="${total_kb}" 'BEGIN { printf "%.1f", kb / 1048576 }')"
+
+tooltip="RAM ${used_gb}/${total_gb}GiB"
+
+emit_json "${percent}%" "${tooltip}" "memory"

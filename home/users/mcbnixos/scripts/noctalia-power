@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Noctalia custom button: power/quit.
+
+set -euo pipefail
+
+printf '{"text":"","tooltip":"Quit session","class":"power"}\n'

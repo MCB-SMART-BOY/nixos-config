@@ -63,6 +63,59 @@ let
       ];
     };
 
+    noctalia-net-status = mkScript {
+      name = "noctalia-net-status";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.gawk
+        pkgs.iproute2
+        pkgs.networkmanager
+      ];
+    };
+
+    noctalia-bluetooth = mkScript {
+      name = "noctalia-bluetooth";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.gawk
+        pkgs.bluez
+      ];
+    };
+
+    noctalia-cpu = mkScript {
+      name = "noctalia-cpu";
+      runtimeInputs = [
+        pkgs.coreutils
+      ];
+    };
+
+    noctalia-memory = mkScript {
+      name = "noctalia-memory";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.gawk
+      ];
+    };
+
+    noctalia-temperature = mkScript {
+      name = "noctalia-temperature";
+      runtimeInputs = [
+        pkgs.coreutils
+      ];
+    };
+
+    noctalia-disk = mkScript {
+      name = "noctalia-disk";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.gawk
+      ];
+    };
+
+    noctalia-power = mkScript {
+      name = "noctalia-power";
+    };
+
     noctalia-proxy-status = mkScript {
       name = "noctalia-proxy-status";
       runtimeInputs = [ pkgs.systemd ];
@@ -84,5 +137,12 @@ in
   home.file.".local/bin/noctalia-flake-updates" = mkBinLink "noctalia-flake-updates";
   home.file.".local/bin/noctalia-gpu-mode" = mkBinLink "noctalia-gpu-mode";
   home.file.".local/bin/noctalia-net-speed" = mkBinLink "noctalia-net-speed";
+  home.file.".local/bin/noctalia-net-status" = mkBinLink "noctalia-net-status";
+  home.file.".local/bin/noctalia-bluetooth" = mkBinLink "noctalia-bluetooth";
+  home.file.".local/bin/noctalia-cpu" = mkBinLink "noctalia-cpu";
+  home.file.".local/bin/noctalia-memory" = mkBinLink "noctalia-memory";
+  home.file.".local/bin/noctalia-temperature" = mkBinLink "noctalia-temperature";
+  home.file.".local/bin/noctalia-disk" = mkBinLink "noctalia-disk";
+  home.file.".local/bin/noctalia-power" = mkBinLink "noctalia-power";
   home.file.".local/bin/noctalia-proxy-status" = mkBinLink "noctalia-proxy-status";
 }

@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# Noctalia custom button: temperature.
+
+set -euo pipefail
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+max_temp=0
+found=0
+for path in /sys/class/thermal/thermal_zone*/temp; do
+  [[ -f "${path}" ]] || continue
+  value="$(cat "${path}" 2>/dev/null || true)"
+  [[ "${value}" =~ ^[0-9]+$ ]] || continue
+  if (( value > max_temp )); then
+    max_temp=${value}
+    found=1
+  fi
+done
+
+if (( found == 0 )); then
+  emit_json "" "Temperature unavailable" "temp"
+  exit 0
+fi
+
+temp_c=$((max_temp / 1000))
+
+emit_json "${temp_c}C" "Temp ${temp_c}C" "temp"

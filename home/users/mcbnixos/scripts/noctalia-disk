@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Noctalia custom button: disk usage (/).
+
+set -euo pipefail
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+read -r size used avail usep mount < <(df -P / 2>/dev/null | awk 'NR==2{print $2, $3, $4, $5, $6}')
+
+if [[ -z "${usep}" ]]; then
+  emit_json "" "Disk unavailable" "disk"
+  exit 0
+fi
+
+emit_json "${usep}" "Disk ${used}/${size}" "disk"

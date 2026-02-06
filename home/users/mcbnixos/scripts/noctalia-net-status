@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# Noctalia custom button: network status (wifi/ethernet).
+
+set -euo pipefail
+
+emit_json() {
+  local text="$1"
+  local tooltip="$2"
+  local class="$3"
+  printf '{"text":"%s","tooltip":"%s","class":"%s"}\n' "${text}" "${tooltip}" "${class}"
+}
+
+iface=""
+kind=""
+ssid=""
+signal=""
+ip=""
+
+if command -v nmcli >/dev/null 2>&1; then
+  line="$(nmcli -t -f DEVICE,TYPE,STATE,CONNECTION dev status 2>/dev/null | awk -F: '$3=="connected"{print; exit}')"
+  if [[ -n "${line}" ]]; then
+    IFS=: read -r iface kind _ conn <<<"${line}"
+    ip="$(ip -4 addr show dev "${iface}" 2>/dev/null | awk '/inet /{print $2; exit}')"
+    if [[ "${kind}" == "wifi" ]]; then
+      signal="$(nmcli -t -f IN-USE,SIGNAL dev wifi list 2>/dev/null | awk -F: '$1=="*"{print $2; exit}')"
+      ssid="$(nmcli -t -f IN-USE,SSID dev wifi list 2>/dev/null | awk -F: '$1=="*"{print $2; exit}')"
+      [[ -n "${signal}" ]] || signal="?"
+      [[ -n "${ssid}" ]] || ssid="unknown"
+      emit_json "${signal}%" "WiFi ${ssid}\\n${ip:-no ip}\\n${iface}" "wifi"
+      exit 0
+    fi
+
+    if [[ -n "${iface}" ]]; then
+      emit_json "${iface}" "Ethernet\\n${ip:-no ip}" "ethernet"
+      exit 0
+    fi
+  fi
+fi
+
+iface="$(ip -4 route list default 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="dev") {print $(i+1); exit}}')"
+if [[ -n "${iface}" ]]; then
+  ip="$(ip -4 addr show dev "${iface}" 2>/dev/null | awk '/inet /{print $2; exit}')"
+  emit_json "${iface}" "IP ${ip:-unknown}" "connected"
+  exit 0
+fi
+
+emit_json "" "disconnected" "disconnected"
