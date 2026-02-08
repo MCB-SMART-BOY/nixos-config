@@ -76,8 +76,16 @@ in
   systemd.user.services.xwaylandvideobridge = lib.mkIf (xwaylandBridgePkg != null) {
     Unit = {
       Description = "XWayland Video Bridge (screen sharing for X11 apps)";
-      After = [ "graphical-session.target" ];
+      After = [
+        "graphical-session.target"
+        "pipewire.service"
+        "xdg-desktop-portal.service"
+      ];
       PartOf = [ "graphical-session.target" ];
+      Wants = [
+        "pipewire.service"
+        "xdg-desktop-portal.service"
+      ];
       ConditionPathExistsGlob = "%t/wayland-*";
     };
     Service = {

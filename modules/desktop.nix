@@ -50,17 +50,19 @@
   xdg.portal = {
     # Portal 让截图/文件选择等桌面能力可用
     enable = true;
-    wlr.enable = true;
+    # niri 的屏幕共享依赖 xdg-desktop-portal-gnome
+    wlr.enable = false;
     extraPortals = [
+      pkgs.xdg-desktop-portal-gnome
       pkgs.xdg-desktop-portal-gtk
     ];
     config = {
       common.default = [
-        "wlr"
+        "gnome"
         "gtk"
       ];
       niri.default = [
-        "wlr"
+        "gnome"
         "gtk"
       ];
     };
