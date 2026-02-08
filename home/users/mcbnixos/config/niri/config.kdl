@@ -93,7 +93,6 @@ layout {
 debug {
     // 允许通知动作激活窗口（Noctalia 通知中心）
     honor-xdg-activation-with-invalid-serial
-    force-pipewire-invalid-modifier
 }
 
 // Noctalia 壁纸层（固定在 backdrop）
