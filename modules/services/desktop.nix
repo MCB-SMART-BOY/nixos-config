@@ -1,8 +1,34 @@
 # 桌面服务：音频、图形驱动、AppImage、节能等。
 # 主要影响桌面环境的“基础能力”。
 
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
+let
+  flatpakCfg = config.mcb.flatpak;
+  flatpakApps = lib.concatStringsSep " " (map lib.escapeShellArg flatpakCfg.apps);
+  flatpakInstallScript = lib.optionalString (flatpakCfg.apps != [ ]) ''
+    for app in ${flatpakApps}; do
+      ${pkgs.flatpak}/bin/flatpak install --system -y --noninteractive flathub "$app"
+    done
+  '';
+  flatpakOverrideArgs =
+    let
+      fsArgs = map (path: "--filesystem=${lib.escapeShellArg path}") flatpakCfg.overrides.filesystem;
+      envArgs = lib.mapAttrsToList (
+        key: value: "--env=${lib.escapeShellArg "${key}=${value}"}"
+      ) flatpakCfg.overrides.env;
+      extraArgs = map lib.escapeShellArg flatpakCfg.overrides.extraArgs;
+    in
+    lib.concatStringsSep " " (fsArgs ++ envArgs ++ extraArgs);
+  flatpakOverrideScript = lib.optionalString (flatpakOverrideArgs != "") ''
+    ${pkgs.flatpak}/bin/flatpak override --system ${flatpakOverrideArgs}
+  '';
+in
 {
   services.pipewire = {
     # 现代音频栈（替代 pulseaudio）
@@ -29,6 +55,52 @@
     # 允许直接运行 AppImage
     enable = true;
     binfmt = true;
+  };
+
+  # Flatpak 服务（桌面应用分发）
+  services.flatpak.enable = flatpakCfg.enable;
+
+  # Flatpak：默认配置 Flathub 远程仓库，并安装基础应用
+  systemd.services.flatpak-setup = lib.mkIf flatpakCfg.enable {
+    description = "Flatpak baseline setup (Flathub + default apps)";
+    after = [
+      "network-online.target"
+      "dbus.service"
+    ];
+    wants = [ "network-online.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = pkgs.writeShellScript "flatpak-setup" ''
+        set -euo pipefail
+        ${lib.optionalString flatpakCfg.enableFlathub ''
+          ${pkgs.flatpak}/bin/flatpak remote-add --system --if-not-exists \
+            flathub https://flathub.org/repo/flathub.flatpakrepo
+        ''}
+        ${flatpakInstallScript}
+        ${flatpakOverrideScript}
+      '';
+    };
+  };
+
+  # Flatpak 自动更新（系统级）
+  systemd.services.flatpak-update = lib.mkIf (flatpakCfg.enable && flatpakCfg.autoUpdate.enable) {
+    description = "Flatpak system update";
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.flatpak}/bin/flatpak update --system -y --noninteractive";
+    };
+  };
+
+  systemd.timers.flatpak-update = lib.mkIf (flatpakCfg.enable && flatpakCfg.autoUpdate.enable) {
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = flatpakCfg.autoUpdate.onCalendar;
+      Persistent = true;
+      RandomizedDelaySec = flatpakCfg.autoUpdate.randomizedDelaySec;
+    };
   };
 
   # OBS 虚拟摄像头（v4l2loopback）

@@ -21,18 +21,5 @@ in
 
   xdg.enable = true;
 
-  # 覆盖桌面入口：让 wemeet 启动 XWayland 版本
-  xdg.desktopEntries.wemeet = {
-    name = "Tencent Meeting";
-    genericName = "Video Conference";
-    comment = "Tencent Meeting (XWayland)";
-    exec = "wemeet-xwayland %U";
-    icon = "wemeet";
-    terminal = false;
-    categories = [
-      "Network"
-      "VideoConference"
-      "AudioVideo"
-    ];
-  };
+  # Flatpak 版本由系统级 Flatpak 提供桌面入口
 }

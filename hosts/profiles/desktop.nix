@@ -35,4 +35,13 @@
     enableAnime = true;
     enableMusic = true;
   };
+
+  mcb.flatpak = {
+    enable = true;
+    apps = [
+      "com.wps.Office"
+      "com.tencent.WeChat"
+      "com.tencent.wemeet"
+    ];
+  };
 }

@@ -200,9 +200,7 @@ let
       # 办公软件
       obsidian
       obs-studio
-      wemeet
       libreoffice-still
-      wpsoffice-cn
       xournalpp
     ]
     ++ lib.optionals (obsV4l2sink != null) [ obsV4l2sink ];

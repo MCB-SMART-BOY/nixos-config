@@ -41,7 +41,10 @@
     XMODIFIERS = "@im=fcitx";
     XIM_SERVERS = "fcitx";
     # 修复 fcitx5 插件未被发现：让 GUI 会话能找到系统共享数据目录
-    XDG_DATA_DIRS = lib.mkDefault "/run/current-system/sw/share";
+    XDG_DATA_DIRS = lib.mkDefault [
+      "/run/current-system/sw/share"
+      "/var/lib/flatpak/exports/share"
+    ];
   };
 
   xdg.portal = {
