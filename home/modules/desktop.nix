@@ -8,14 +8,31 @@
 }:
 
 let
-  xwaylandBridgeEval =
-    if pkgs ? xwaylandvideobridge then
-      builtins.tryEval pkgs.xwaylandvideobridge
-    else
-      {
-        success = false;
-        value = null;
-      };
+  unstablePkgs = import inputs.nixpkgs-unstable {
+    system = pkgs.system;
+    config = pkgs.config;
+  };
+
+  xwaylandBridgePkg =
+    let
+      stableEval =
+        if pkgs ? xwaylandvideobridge then
+          builtins.tryEval pkgs.xwaylandvideobridge
+        else
+          {
+            success = false;
+            value = null;
+          };
+      unstableEval =
+        if unstablePkgs ? xwaylandvideobridge then
+          builtins.tryEval unstablePkgs.xwaylandvideobridge
+        else
+          {
+            success = false;
+            value = null;
+          };
+    in
+    if stableEval.success then stableEval.value else if unstableEval.success then unstableEval.value else null;
 in
 {
   imports = [
@@ -35,7 +52,9 @@ in
     XIM_SERVERS = "fcitx";
   };
 
-  systemd.user.services.xwaylandvideobridge = lib.mkIf xwaylandBridgeEval.success {
+  home.packages = lib.optionals (xwaylandBridgePkg != null) [ xwaylandBridgePkg ];
+
+  systemd.user.services.xwaylandvideobridge = lib.mkIf (xwaylandBridgePkg != null) {
     Unit = {
       Description = "XWayland Video Bridge (screen sharing for X11 apps)";
       After = [ "graphical-session.target" ];
@@ -43,7 +62,7 @@ in
       ConditionPathExistsGlob = "%t/wayland-*";
     };
     Service = {
-      ExecStart = "${xwaylandBridgeEval.value}/bin/xwaylandvideobridge";
+      ExecStart = "${xwaylandBridgePkg}/bin/xwaylandvideobridge";
       Restart = "on-failure";
       RestartSec = 2;
     };
