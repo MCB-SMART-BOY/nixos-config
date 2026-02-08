@@ -50,8 +50,14 @@
   xdg.portal = {
     # Portal 让截图/文件选择等桌面能力可用
     enable = true;
-    # niri 的屏幕共享依赖 xdg-desktop-portal-gnome
-    wlr.enable = false;
+    # niri 的屏幕共享默认用 GNOME portal；Screencast 单独切到 wlr（可调格式兼容性）
+    wlr.enable = true;
+    wlr.settings = {
+      screencast = {
+        # 多 GPU / DMABUF 兼容性问题时强制线性 modifier
+        force_mod_linear = true;
+      };
+    };
     extraPortals = [
       pkgs.xdg-desktop-portal-gnome
       pkgs.xdg-desktop-portal-gtk
@@ -61,10 +67,12 @@
         "gnome"
         "gtk"
       ];
+      common."org.freedesktop.impl.portal.ScreenCast" = [ "wlr" ];
       niri.default = [
         "gnome"
         "gtk"
       ];
+      niri."org.freedesktop.impl.portal.ScreenCast" = [ "wlr" ];
     };
   };
 }
