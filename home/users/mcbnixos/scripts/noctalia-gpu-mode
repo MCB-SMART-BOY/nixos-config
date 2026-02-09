@@ -8,7 +8,6 @@ export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user
 
 MODE_DIR="/run/current-system/specialisation"
 MODE_FILE_PATH=""
-STATE_FILE_PATH=""
 
 mode_file() {
   local config_home="${XDG_CONFIG_HOME:-${HOME:-}}"
@@ -54,7 +53,6 @@ read_state_mode() {
   local file=""
   local line=""
   file="$(state_file)" || return 1
-  STATE_FILE_PATH="${file}"
   [[ -f "${file}" ]] || return 1
   read -r line < "${file}" || return 1
   line="${line%%#*}"
@@ -73,7 +71,6 @@ read_state_mode_fresh() {
   local boot_time=""
   local file_time=""
   file="$(state_file)" || return 1
-  STATE_FILE_PATH="${file}"
   [[ -f "${file}" ]] || return 1
   boot_time="$(boot_epoch)" || boot_time=""
   if [[ -n "${boot_time}" ]]; then
@@ -91,7 +88,6 @@ write_state_mode() {
   local file=""
   local dir=""
   file="$(state_file)" || return 1
-  STATE_FILE_PATH="${file}"
   dir="${file%/*}"
   mkdir -p "${dir}"
   printf '%s\n' "${mode}" > "${file}"
