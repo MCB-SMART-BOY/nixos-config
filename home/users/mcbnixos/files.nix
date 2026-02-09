@@ -1,7 +1,16 @@
 # 把仓库内的配置文件映射到 ~/.config 与用户目录。
 # 这里控制“哪些配置会生效”。
 
-{ ... }:
+{
+  lib,
+  osConfig ? { },
+  ...
+}:
+
+let
+  gpuModes = lib.attrByPath [ "mcb" "hardware" "gpu" "specialisations" "modes" ] [ ] osConfig;
+  gpuModesText = lib.concatStringsSep "\n" gpuModes + "\n";
+in
 
 {
   # ── 桌面核心配置 ──
@@ -30,6 +39,8 @@
   xdg.configFile."btop/btop.conf".source = ./config/btop/btop.conf;
   xdg.configFile."btop/themes/noctalia.theme".source = ./config/btop/themes/noctalia.theme;
   xdg.configFile."fastfetch/config.jsonc".source = ./config/fastfetch/config.jsonc;
+  # Noctalia GPU 模式来源（当 /run/current-system/specialisation 不可用时）
+  xdg.configFile."noctalia/gpu-modes".text = gpuModesText;
 
   # 终端模拟器 / 编辑器配置
   xdg.configFile."foot/foot.ini".source = ./config/foot/foot.ini;

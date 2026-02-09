@@ -4,31 +4,195 @@
 set -euo pipefail
 
 # Ensure common system binaries are reachable when run via Noctalia.
-export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER}/bin:${HOME}/.nix-profile/bin:${HOME}/.local/bin:${PATH}"
+export PATH="/run/wrappers/bin:/run/current-system/sw/bin:/etc/profiles/per-user/${USER:-}/bin:${HOME:-}/.nix-profile/bin:${HOME:-}/.local/bin:${PATH:-}"
 
 MODE_DIR="/run/current-system/specialisation"
+MODE_FILE_PATH=""
+STATE_FILE_PATH=""
+
+mode_file() {
+  local config_home="${XDG_CONFIG_HOME:-${HOME:-}}"
+  if [[ -z "${config_home}" ]]; then
+    return 1
+  fi
+  printf '%s' "${config_home}/noctalia/gpu-modes"
+}
+
+normalize_mode() {
+  local mode="$1"
+  if [[ "${mode}" != gpu-* ]]; then
+    mode="gpu-${mode}"
+  fi
+  printf '%s' "${mode}"
+}
+
+state_file() {
+  local state_home="${XDG_STATE_HOME:-}"
+  if [[ -z "${state_home}" ]]; then
+    local home_dir="${HOME:-}"
+    [[ -z "${home_dir}" ]] && return 1
+    state_home="${home_dir}/.local/state"
+  fi
+  printf '%s' "${state_home}/noctalia/gpu-current"
+}
+
+boot_epoch() {
+  local uptime=""
+  local now=""
+  if [[ -r /proc/uptime ]]; then
+    read -r uptime _ </proc/uptime || return 1
+    now="$(date +%s 2>/dev/null || true)"
+    if [[ -n "${now}" && -n "${uptime}" ]]; then
+      printf '%s' "$((now - ${uptime%.*}))"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+read_state_mode() {
+  local file=""
+  local line=""
+  file="$(state_file)" || return 1
+  STATE_FILE_PATH="${file}"
+  [[ -f "${file}" ]] || return 1
+  read -r line < "${file}" || return 1
+  line="${line%%#*}"
+  line="${line//[[:space:]]/}"
+  [[ -z "${line}" ]] && return 1
+  if [[ "${line}" == "base" ]]; then
+    printf '%s' "base"
+  else
+    normalize_mode "${line}"
+  fi
+}
+
+read_state_mode_fresh() {
+  local file=""
+  local mode=""
+  local boot_time=""
+  local file_time=""
+  file="$(state_file)" || return 1
+  STATE_FILE_PATH="${file}"
+  [[ -f "${file}" ]] || return 1
+  boot_time="$(boot_epoch)" || boot_time=""
+  if [[ -n "${boot_time}" ]]; then
+    file_time="$(stat -c %Y "${file}" 2>/dev/null || true)"
+    if [[ -n "${file_time}" && "${file_time}" -lt "${boot_time}" ]]; then
+      return 1
+    fi
+  fi
+  mode="$(read_state_mode)" || return 1
+  printf '%s' "${mode}"
+}
+
+write_state_mode() {
+  local mode="$1"
+  local file=""
+  local dir=""
+  file="$(state_file)" || return 1
+  STATE_FILE_PATH="${file}"
+  dir="${file%/*}"
+  mkdir -p "${dir}"
+  printf '%s\n' "${mode}" > "${file}"
+}
+
+list_modes_from_file() {
+  local file=""
+  local line=""
+  file="$(mode_file)" || return 1
+  MODE_FILE_PATH="${file}"
+  [[ -f "${file}" ]] || return 1
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    line="${line%%#*}"
+    line="${line//[[:space:]]/}"
+    [[ -z "${line}" ]] && continue
+    normalize_mode "${line}"
+    printf '\n'
+  done < "${file}"
+}
+
+list_modes_from_env() {
+  local modes="${NOCTALIA_GPU_MODES:-}"
+  local mode=""
+  [[ -z "${modes}" ]] && return 1
+  for mode in ${modes}; do
+    [[ -z "${mode}" ]] && continue
+    normalize_mode "${mode}"
+    printf '\n'
+  done
+}
+
+mode_from_path() {
+  local path="$1"
+  local mode=""
+  if [[ -n "${path}" ]]; then
+    if [[ "${path}" == */specialisation/* ]]; then
+      mode="${path##*/specialisation/}"
+      mode="${mode%%/*}"
+    elif [[ "${path}" == *"specialisation-"* ]]; then
+      mode="${path##*specialisation-}"
+      mode="${mode%%/*}"
+    fi
+  fi
+  if [[ -n "${mode}" ]]; then
+    printf '%s' "${mode}"
+    return 0
+  fi
+  return 1
+}
 
 current_mode() {
   local path=""
+  local mode=""
+
   path="$(readlink -f /run/current-system 2>/dev/null || true)"
-  if [[ -n "${path}" ]]; then
-    if [[ "${path}" == */specialisation/* ]]; then
-      local mode="${path##*/specialisation/}"
-      mode="${mode%%/*}"
-      if [[ -n "${mode}" ]]; then
-        printf '%s' "${mode}"
-        return 0
-      fi
-    fi
-    if [[ "${path}" == *"specialisation-"* ]]; then
-      local mode="${path##*specialisation-}"
-      mode="${mode%%/*}"
-      if [[ -n "${mode}" ]]; then
-        printf '%s' "${mode}"
-        return 0
-      fi
-    fi
+  mode="$(mode_from_path "${path}" 2>/dev/null || true)"
+  if [[ -n "${mode}" ]]; then
+    printf '%s' "${mode}"
+    return 0
   fi
+
+  path="$(readlink -f /run/booted-system 2>/dev/null || true)"
+  mode="$(mode_from_path "${path}" 2>/dev/null || true)"
+  if [[ -n "${mode}" ]]; then
+    printf '%s' "${mode}"
+    return 0
+  fi
+
+  if [[ -r /proc/cmdline ]]; then
+    local token=""
+    local cmd_path=""
+    local cmdline=""
+    cmdline="$(</proc/cmdline)"
+    for token in ${cmdline}; do
+      case "${token}" in
+        init=*)
+          cmd_path="${token#init=}"
+          ;;
+        systemConfig=*)
+          cmd_path="${token#systemConfig=}"
+          ;;
+        *)
+          cmd_path=""
+          ;;
+      esac
+      if [[ -n "${cmd_path}" ]]; then
+        mode="$(mode_from_path "${cmd_path}" 2>/dev/null || true)"
+        if [[ -n "${mode}" ]]; then
+          printf '%s' "${mode}"
+          return 0
+        fi
+      fi
+    done
+  fi
+
+  mode="$(read_state_mode_fresh 2>/dev/null || true)"
+  if [[ -n "${mode}" ]]; then
+    printf '%s' "${mode}"
+    return 0
+  fi
+
   printf '%s' "base"
 }
 
@@ -45,6 +209,7 @@ emit_status() {
 
 list_modes() {
   local modes=()
+  local fallback=()
   if [[ -d "${MODE_DIR}" ]]; then
     while IFS= read -r -d '' entry; do
       local name=""
@@ -54,7 +219,21 @@ list_modes() {
     done < <(find -L "${MODE_DIR}" -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null)
   fi
 
-  printf '%s\n' "${modes[@]}"
+  if (( ${#modes[@]} > 0 )); then
+    printf '%s\n' "${modes[@]}"
+    return 0
+  fi
+
+  mapfile -t fallback < <(list_modes_from_file)
+  if (( ${#fallback[@]} > 0 )); then
+    printf '%s\n' "${fallback[@]}"
+    return 0
+  fi
+
+  mapfile -t fallback < <(list_modes_from_env)
+  if (( ${#fallback[@]} > 0 )); then
+    printf '%s\n' "${fallback[@]}"
+  fi
 }
 
 pick_menu() {
@@ -73,11 +252,20 @@ build_rebuild_cmd() {
   local specialisation="$1"
   local switch_path=""
   if [[ -n "${specialisation}" ]]; then
+    switch_path="/nix/var/nix/profiles/system/specialisation/${specialisation}/bin/switch-to-configuration"
+  else
+    switch_path="/nix/var/nix/profiles/system/bin/switch-to-configuration"
+  fi
+
+  if [[ -x "${switch_path}" ]]; then
+    printf '%s\n' "sudo" "${switch_path}" "switch"
+    return 0
+  fi
+  if [[ -n "${specialisation}" ]]; then
     switch_path="/run/current-system/specialisation/${specialisation}/bin/switch-to-configuration"
   else
     switch_path="/run/current-system/bin/switch-to-configuration"
   fi
-
   if [[ -x "${switch_path}" ]]; then
     printf '%s\n' "sudo" "${switch_path}" "switch"
     return 0
@@ -89,6 +277,7 @@ build_rebuild_cmd() {
   fi
 
   local flake="${NOCTALIA_FLAKE:-}"
+  local home_dir="${HOME:-}"
   if [[ -z "${flake}" ]]; then
     local host_name=""
     if [[ -f /etc/hostname ]]; then
@@ -103,11 +292,11 @@ build_rebuild_cmd() {
       else
         flake="/etc/nixos"
       fi
-    elif [[ -f "${HOME}/nixos-config/flake.nix" ]]; then
+    elif [[ -n "${home_dir}" && -f "${home_dir}/nixos-config/flake.nix" ]]; then
       if [[ -n "${host_name}" ]]; then
-        flake="${HOME}/nixos-config#${host_name}"
+        flake="${home_dir}/nixos-config#${host_name}"
       else
-        flake="${HOME}/nixos-config"
+        flake="${home_dir}/nixos-config"
       fi
     fi
   fi
@@ -161,6 +350,26 @@ launch_in_terminal() {
   fi
 }
 
+apply_mode() {
+  local target="$1"
+  local specialisation=""
+  local store_mode=""
+  if [[ -z "${target}" || "${target}" == "base" ]]; then
+    specialisation=""
+    store_mode="base"
+  else
+    specialisation="$(normalize_mode "${target}")"
+    store_mode="${specialisation}"
+  fi
+  mapfile -t rebuild_cmd < <(build_rebuild_cmd "${specialisation}")
+  printf 'Running: %s\n' "${rebuild_cmd[*]}"
+  if "${rebuild_cmd[@]}"; then
+    write_state_mode "${store_mode}" || true
+  else
+    return $?
+  fi
+}
+
 menu_flow() {
   local modes=()
   local labels=("base")
@@ -174,7 +383,12 @@ menu_flow() {
   mapfile -t modes < <(list_modes)
   if (( ${#modes[@]} == 0 )); then
     if command -v notify-send >/dev/null 2>&1; then
-      notify-send "GPU specialisation" "No GPU specialisations found in /run/current-system/specialisation"
+      local hint=""
+      hint="No GPU specialisations found."
+      if [[ -n "${MODE_FILE_PATH}" ]]; then
+        hint="${hint} Provide modes via ${MODE_FILE_PATH} or NOCTALIA_GPU_MODES."
+      fi
+      notify-send "GPU specialisation" "${hint}"
     fi
     exit 0
   fi
@@ -212,8 +426,16 @@ menu_flow() {
     fi
   fi
 
-  mapfile -t rebuild_cmd < <(build_rebuild_cmd "${target}")
-  launch_in_terminal "${rebuild_cmd[@]}"
+  local cmd_path=""
+  cmd_path="$(command -v noctalia-gpu-mode || true)"
+  if [[ -z "${cmd_path}" ]]; then
+    cmd_path="$0"
+  fi
+  if [[ -z "${target}" ]]; then
+    launch_in_terminal "${cmd_path}" --apply "base"
+  else
+    launch_in_terminal "${cmd_path}" --apply "${target}"
+  fi
 }
 
 menu_flow_cli() {
@@ -227,7 +449,12 @@ menu_flow_cli() {
 
   mapfile -t modes < <(list_modes)
   if (( ${#modes[@]} == 0 )); then
-    printf '%s\n' "No GPU specialisations found in /run/current-system/specialisation"
+    local hint=""
+    hint="No GPU specialisations found."
+    if [[ -n "${MODE_FILE_PATH}" ]]; then
+      hint="${hint} Provide modes via ${MODE_FILE_PATH} or NOCTALIA_GPU_MODES."
+    fi
+    printf '%s\n' "${hint}"
     exit 0
   fi
   for mode in "${modes[@]}"; do
@@ -257,9 +484,11 @@ menu_flow_cli() {
     fi
   fi
 
-  mapfile -t rebuild_cmd < <(build_rebuild_cmd "${target}")
-  printf 'Running: %s\n' "${rebuild_cmd[*]}"
-  "${rebuild_cmd[@]}"
+  if [[ -z "${target}" ]]; then
+    apply_mode "base"
+  else
+    apply_mode "${target}"
+  fi
 }
 
 case "${1:-}" in
@@ -268,6 +497,18 @@ case "${1:-}" in
     ;;
   --menu-cli)
     menu_flow_cli
+    ;;
+  --apply)
+    apply_mode "${2:-}"
+    ;;
+  --set-state)
+    if [[ -n "${2:-}" ]]; then
+      if [[ "${2}" == "base" ]]; then
+        write_state_mode "base" || true
+      else
+        write_state_mode "$(normalize_mode "${2}")" || true
+      fi
+    fi
     ;;
   *)
     emit_status

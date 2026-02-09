@@ -866,10 +866,10 @@ configure_gpu() {
 
   if [[ "${GPU_MODE}" == "hybrid" || "${GPU_MODE}" == "dgpu" ]]; then
     local answer=""
-    read -r -p "NVIDIA 使用开源内核模块？ [y/N] " answer
+    read -r -p "NVIDIA 使用开源内核模块？ [Y/n] " answer
     case "${answer}" in
-      y|Y) GPU_NVIDIA_OPEN="true" ;;
-      *) GPU_NVIDIA_OPEN="false" ;;
+      n|N) GPU_NVIDIA_OPEN="false" ;;
+      *) GPU_NVIDIA_OPEN="true" ;;
     esac
   fi
 
