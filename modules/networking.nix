@@ -71,23 +71,21 @@ let
           exit 1
         fi
 
-        # 等待 TUN 接口就绪（存在 + 非 down + 有 IPv4）
+        # 等待 TUN 接口就绪（存在 + 非 down；不强制要求 IPv4）
         ready=0
         for _ in $(${seq} 1 150); do
           if ${ip} link show dev "${iface}" >/dev/null 2>&1; then
             operstate="$(${cat} "/sys/class/net/${iface}/operstate" 2>/dev/null || true)"
             if [[ -n "$operstate" && "$operstate" != "down" ]]; then
-              if ${ip} -o -4 addr show dev "${iface}" | ${grep} -q "inet "; then
-                ready=1
-                break
-              fi
+              ready=1
+              break
             fi
           fi
           ${sleep} 0.2
         done
 
         if [[ "$ready" != "1" ]]; then
-          echo "Interface ${iface} not ready (down or no IPv4); retry later" >&2
+          echo "Interface ${iface} not ready (missing or down); retry later" >&2
           exit 1
         fi
 
