@@ -1,7 +1,7 @@
 # Nix 本体配置：flakes、缓存、GC、zram 等系统级设置。
 # 这些设置影响构建性能与磁盘占用。
 
-{ ... }:
+{ lib, ... }:
 
 {
   nix = {
@@ -26,8 +26,8 @@
         "nixpkgs-wayland.cachix.org-1:3lwxaILxMRkVhehr5StQprHdEo4IrE8sRho9R9HOLYA="
       ];
       # 并行编译设置（按机器性能调整）
-      max-jobs = 1;
-      cores = 4;
+      max-jobs = lib.mkDefault "auto";
+      cores = lib.mkDefault 0;
       auto-optimise-store = true;
     };
     gc = {

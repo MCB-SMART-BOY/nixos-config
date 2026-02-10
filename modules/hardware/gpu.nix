@@ -13,6 +13,45 @@ let
   nvidiaEnabled = legacyNvidia || cfg.mode != "igpu";
   hybrid = cfg.mode == "hybrid";
   igpuVendor = cfg.igpuVendor;
+  resolvePkg =
+    path:
+    let
+      eval =
+        if lib.hasAttrByPath path pkgs then
+          builtins.tryEval (lib.getAttrFromPath path pkgs)
+        else
+          { success = false; value = null; };
+    in
+    if eval.success then eval.value else null;
+  pkgs32 = if pkgs ? pkgsi686Linux then pkgs.pkgsi686Linux else null;
+  resolvePkg32 =
+    path:
+    if pkgs32 == null then
+      null
+    else
+      let
+        eval =
+          if lib.hasAttrByPath path pkgs32 then
+            builtins.tryEval (lib.getAttrFromPath path pkgs32)
+          else
+            { success = false; value = null; };
+      in
+      if eval.success then eval.value else null;
+  intelExtraPackages = lib.unique (lib.filter (x: x != null) [
+    (resolvePkg [ "intel-media-driver" ])
+    (resolvePkg [ "vaapiIntel" ])
+    (resolvePkg [ "intel-vaapi-driver" ])
+    (resolvePkg [ "libvdpau-va-gl" ])
+  ]);
+  intelExtraPackages32 = lib.unique (lib.filter (x: x != null) [
+    (resolvePkg32 [ "vaapiIntel" ])
+    (resolvePkg32 [ "intel-vaapi-driver" ])
+    (resolvePkg32 [ "libvdpau-va-gl" ])
+  ]);
+  amdExtraPackages = lib.unique (lib.filter (x: x != null) [
+    (resolvePkg [ "vaapiVdpau" ])
+    (resolvePkg [ "libvdpau-va-gl" ])
+  ]);
   hasIgpBus =
     (igpuVendor == "intel" && cfg.prime.intelBusId != null)
     || (igpuVendor == "amd" && cfg.prime.amdgpuBusId != null);
@@ -72,15 +111,9 @@ in
         enable = true;
         enable32Bit = true;
         extraPackages =
-          with pkgs;
-          (lib.optionals (igpuVendor == "intel") [
-            intel-media-driver
-            libvdpau-va-gl
-          ])
-          ++ (lib.optionals (igpuVendor == "amd") [
-            vaapiVdpau
-            libvdpau-va-gl
-          ]);
+          (lib.optionals (igpuVendor == "intel") intelExtraPackages)
+          ++ (lib.optionals (igpuVendor == "amd") amdExtraPackages);
+        extraPackages32 = lib.optionals (igpuVendor == "intel") intelExtraPackages32;
       };
     }
 

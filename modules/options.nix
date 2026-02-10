@@ -2,7 +2,7 @@
 # 例如代理、TUN、多用户等都由这里的 options 驱动。
 # 新手提示：hosts/*/default.nix 中只需要改 mcb.*，其余模块会自动跟随。
 
-{ lib, ... }:
+{ lib, config, ... }:
 
 let
   inherit (lib) mkOption types;
@@ -288,4 +288,11 @@ in
       };
     };
   };
+
+  config.assertions = [
+    {
+      assertion = (lib.length config.mcb.users == 0) || (lib.elem config.mcb.user config.mcb.users);
+      message = "mcb.user must be included in mcb.users when mcb.users is set.";
+    }
+  ];
 }

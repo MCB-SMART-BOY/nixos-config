@@ -4,19 +4,44 @@
 { config, ... }:
 
 let
-  # Legacy 方式下手动拉取 Home Manager（固定 release-25.11）
-  home-manager = builtins.fetchTarball "https://github.com/nix-community/home-manager/archive/release-25.11.tar.gz";
+  # Legacy 方式：从 flake.lock 读取固定版本，保证可复现
+  lock = builtins.fromJSON (builtins.readFile ./flake.lock);
+  mkGithubTarball =
+    name:
+    let
+      node = lock.nodes.${name}.locked;
+    in
+    builtins.fetchTarball {
+      url = "https://github.com/${node.owner}/${node.repo}/archive/${node.rev}.tar.gz";
+      sha256 = node.narHash;
+    };
+
+  nixpkgsSrc = mkGithubTarball "nixpkgs";
+  nixpkgsUnstableSrc = mkGithubTarball "nixpkgs-unstable";
+  nixpkgs2411Src = mkGithubTarball "nixpkgs-24_11";
+  homeManagerSrc = mkGithubTarball "home-manager";
+  noctaliaSrc = mkGithubTarball "noctalia";
+
+  inputs = {
+    nixpkgs = nixpkgsSrc;
+    nixpkgs-unstable = nixpkgsUnstableSrc;
+    nixpkgs-24_11 = nixpkgs2411Src;
+    home-manager = homeManagerSrc;
+    # 非 flake 模式下提供 Noctalia Home Manager 模块入口
+    noctalia.homeModules.default = "${noctaliaSrc}/homeModules";
+  };
 in
 {
   imports = [
     # 这里固定使用 hosts/nixos 作为默认主机入口
     ./hosts/nixos
-    (import "${home-manager}/nixos")
+    (import "${homeManagerSrc}/nixos")
   ];
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
   home-manager.backupFileExtension = "bak";
+  home-manager.extraSpecialArgs = { inherit inputs; };
   home-manager.users =
     let
       userList =
