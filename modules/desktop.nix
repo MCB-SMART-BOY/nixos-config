@@ -40,12 +40,48 @@
     GLFW_IM_MODULE = "fcitx";
     XMODIFIERS = "@im=fcitx";
     XIM_SERVERS = "fcitx";
-    # 修复 fcitx5 插件未被发现：让 GUI 会话能找到系统共享数据目录
-    XDG_DATA_DIRS = lib.mkDefault (lib.concatStringsSep ":" [
-      "/run/current-system/sw/share"
-      "/var/lib/flatpak/exports/share"
-    ]);
+    # 让非 Nix 构建/运行的二进制（不仅是 cargo）都能找到 Vulkan loader 与 GPU 驱动库
+    LD_LIBRARY_PATH = lib.mkDefault (
+      lib.concatStringsSep ":" [
+        "/run/current-system/sw/lib"
+        "/run/opengl-driver/lib"
+        "/run/opengl-driver-32/lib"
+      ]
+    );
+    # 会话级 Vulkan ICD 发现路径，覆盖 GUI 应用与非交互启动场景
+    VK_DRIVER_FILES = lib.mkDefault "/run/opengl-driver/share/vulkan/icd.d";
+    # 不强制覆盖，避免吞掉其他模块追加的桌面数据目录
+    XDG_DATA_DIRS = lib.mkDefault (
+      lib.concatStringsSep ":" [
+        "/run/opengl-driver/share"
+        "/run/opengl-driver-32/share"
+        "/run/current-system/sw/share"
+        "/var/lib/flatpak/exports/share"
+      ]
+    );
   };
+
+  # 仅在交互式 shell 注入 Vulkan 运行时变量，避免全局污染系统服务环境。
+  environment.shellInit = ''
+    if [ -z "''${LD_LIBRARY_PATH-}" ]; then
+      export LD_LIBRARY_PATH="/run/current-system/sw/lib:/run/opengl-driver/lib:/run/opengl-driver-32/lib"
+    fi
+
+    if [ -z "''${VK_ICD_FILENAMES-}" ] && [ -d /run/opengl-driver/share/vulkan/icd.d ]; then
+      vk_icd_files=""
+      for file in /run/opengl-driver/share/vulkan/icd.d/*.json; do
+        [ -e "$file" ] || continue
+        if [ -n "$vk_icd_files" ]; then
+          vk_icd_files="$vk_icd_files:$file"
+        else
+          vk_icd_files="$file"
+        fi
+      done
+      if [ -n "$vk_icd_files" ]; then
+        export VK_ICD_FILENAMES="$vk_icd_files"
+      fi
+    fi
+  '';
 
   xdg.portal = {
     # Portal 让截图/文件选择等桌面能力可用

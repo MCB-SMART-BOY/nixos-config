@@ -13,7 +13,7 @@ BRANCH="master"
 # 运行参数（由命令行或向导填充）
 TARGET_NAME=""
 TARGET_USERS=()
-OVERWRITE_MODE="overwrite"
+OVERWRITE_MODE="ask"
 OVERWRITE_MODE_SET=false
 PER_USER_TUN_ENABLED=false
 # 每用户 TUN 临时映射（用户 -> 接口 / DNS 端口）
@@ -32,6 +32,8 @@ GPU_SPECIALISATIONS_ENABLED=false
 GPU_SPECIALISATION_MODES=()
 # nixos-rebuild 模式（switch/test/build）
 MODE="switch"
+# 是否为 nixos-rebuild 附加 --upgrade（默认关闭，保证可复现）
+REBUILD_UPGRADE=false
 # 目标配置目录（默认 /etc/nixos）
 ETC_DIR="/etc/nixos"
 # 临时 DNS 是否已开启
@@ -333,6 +335,7 @@ usage() {
   --ask                   遇到 /etc/nixos 已存在时询问备份或覆盖
   --backup                当 /etc/nixos 已存在时先备份再覆盖
   --overwrite             直接覆盖 /etc/nixos（不备份）
+  --upgrade               重建时附加 --upgrade（默认不附加）
   -h, --help              显示帮助
 EOF_USAGE
 }
@@ -374,6 +377,10 @@ parse_args() {
       --overwrite)
         OVERWRITE_MODE="overwrite"
         OVERWRITE_MODE_SET=true
+        shift
+        ;;
+      --upgrade)
+        REBUILD_UPGRADE=true
         shift
         ;;
       -h|--help)
@@ -683,6 +690,44 @@ detect_per_user_tun() {
   return 1
 }
 
+extract_user_from_file() {
+  local file="$1"
+  local line=""
+  line="$(grep -E 'mcb\.user[[:space:]]*=[[:space:]]*.*"[^"]+"' "${file}" 2>/dev/null | head -n1 || true)"
+  if [[ -z "${line}" ]]; then
+    line="$(grep -E '^[[:space:]]*user[[:space:]]*=[[:space:]]*"[^"]+"' "${file}" 2>/dev/null | head -n1 || true)"
+  fi
+  if [[ -n "${line}" ]]; then
+    printf '%s' "${line}" | sed -E 's/.*"([^"]+)".*/\1/'
+  fi
+}
+
+resolve_default_user() {
+  local files=()
+  local file=""
+  local value=""
+
+  if [[ -n "${TMP_DIR}" && -n "${TARGET_NAME}" ]]; then
+    files+=("${TMP_DIR}/hosts/${TARGET_NAME}/local.nix")
+    files+=("${TMP_DIR}/hosts/${TARGET_NAME}/default.nix")
+  fi
+  if [[ -n "${ETC_DIR}" && -n "${TARGET_NAME}" ]]; then
+    files+=("${ETC_DIR}/hosts/${TARGET_NAME}/local.nix")
+    files+=("${ETC_DIR}/hosts/${TARGET_NAME}/default.nix")
+  fi
+
+  for file in "${files[@]}"; do
+    if [[ -f "${file}" ]]; then
+      value="$(extract_user_from_file "${file}")"
+      if [[ -n "${value}" ]]; then
+        printf '%s' "${value}"
+        return 0
+      fi
+    fi
+  done
+  printf '%s' "mcbnixos"
+}
+
 # 交互式配置每用户 TUN。
 configure_per_user_tun() {
   if [[ "${PER_USER_TUN_ENABLED}" != "true" ]]; then
@@ -888,14 +933,16 @@ configure_gpu() {
 
 # 交互式输入用户列表。
 prompt_users() {
+  local default_user=""
+  default_user="$(resolve_default_user)"
   if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
     if is_tty; then
       # 提供默认用户或手动输入
       local pick
-      pick="$(menu_prompt "选择用户" 1 "使用默认用户 (mcbnixos)" "输入用户列表" "返回" "退出")"
+      pick="$(menu_prompt "选择用户" 1 "使用默认用户 (${default_user})" "输入用户列表" "返回" "退出")"
       case "${pick}" in
         1)
-          TARGET_USERS=("mcbnixos")
+          TARGET_USERS=("${default_user}")
           ;;
         2)
           # 支持空格或逗号分隔
@@ -905,7 +952,7 @@ prompt_users() {
           if [[ -n "${input}" ]]; then
             read -r -a TARGET_USERS <<< "${input}"
           else
-            TARGET_USERS=("mcbnixos")
+            TARGET_USERS=("${default_user}")
           fi
           ;;
         3)
@@ -917,8 +964,8 @@ prompt_users() {
           ;;
       esac
     else
-      # 非交互模式默认 mcbnixos
-      TARGET_USERS=("mcbnixos")
+      # 非交互模式默认使用主机配置中的 mcb.user
+      TARGET_USERS=("${default_user}")
     fi
   fi
 }
@@ -1054,46 +1101,44 @@ backup_etc() {
 prepare_etc_dir() {
   # 当目录已存在时，根据策略决定是否备份/覆盖
   if [[ -d "${ETC_DIR}" && -n "$(ls -A "${ETC_DIR}" 2>/dev/null)" ]]; then
-    if [[ "${OVERWRITE_MODE_SET}" == "true" ]]; then
-      case "${OVERWRITE_MODE}" in
-        backup)
+    case "${OVERWRITE_MODE}" in
+      backup)
+        backup_etc
+        ;;
+      overwrite)
+        note "将覆盖 ${ETC_DIR}（未启用备份）"
+        ;;
+      ask)
+        if is_tty; then
+          while true; do
+            read -r -p "检测到 ${ETC_DIR} 已存在，选择 [b]备份并覆盖/[o]直接覆盖/[q]退出（默认 b）： " answer
+            case "${answer}" in
+              b|B|"")
+                backup_etc
+                OVERWRITE_MODE="backup"
+                break
+                ;;
+              o|O)
+                OVERWRITE_MODE="overwrite"
+                break
+                ;;
+              q|Q)
+                error "已退出"
+                ;;
+              *)
+                echo "无效选择，请重试。"
+                ;;
+            esac
+          done
+        else
           backup_etc
-          ;;
-        overwrite)
-          note "将覆盖 ${ETC_DIR}（未启用备份）"
-          ;;
-        ask)
-          if is_tty; then
-            while true; do
-              read -r -p "检测到 ${ETC_DIR} 已存在，选择 [b]备份并覆盖/[o]直接覆盖/[q]退出（默认 o）： " answer
-              case "${answer}" in
-                b|B)
-                  backup_etc
-                  OVERWRITE_MODE="backup"
-                  break
-                  ;;
-                o|O|"")
-                  OVERWRITE_MODE="overwrite"
-                  break
-                  ;;
-                q|Q)
-                  error "已退出"
-                  ;;
-                *)
-                  echo "无效选择，请重试。"
-                  ;;
-              esac
-            done
-          else
-            OVERWRITE_MODE="overwrite"
-          fi
-          ;;
-        *)
-          ;;
-      esac
-    else
-      note "将覆盖 ${ETC_DIR}（未启用备份）"
-    fi
+          OVERWRITE_MODE="backup"
+        fi
+        ;;
+      *)
+        error "不支持的覆盖策略：${OVERWRITE_MODE}"
+        ;;
+    esac
   fi
 }
 
@@ -1115,7 +1160,7 @@ clean_etc_dir_keep_hardware() {
 
   if [[ -d "${ETC_DIR}/hosts" ]]; then
     while IFS= read -r -d '' file; do
-      local rel="${file#${ETC_DIR}/}"
+      local rel="${file#"${ETC_DIR}"/}"
       as_root mkdir -p "${preserve_dir}/$(dirname "${rel}")"
       as_root cp -a "${file}" "${preserve_dir}/${rel}"
     done < <(find "${ETC_DIR}/hosts" -maxdepth 2 -name hardware-configuration.nix -print0 2>/dev/null)
@@ -1267,9 +1312,9 @@ sync_repo_to_etc() {
 rebuild_system() {
   log "重建系统（${MODE}），目标：${TARGET_NAME}"
   local nix_config="experimental-features = nix-command flakes"
-  # 默认带 --upgrade 拉取新包
+  # 默认不带 --upgrade，显式请求时再升级上游依赖
   local rebuild_args=("${MODE}" "--show-trace")
-  if [[ "${ROOTLESS}" != "true" ]]; then
+  if [[ "${REBUILD_UPGRADE}" == "true" ]]; then
     rebuild_args+=("--upgrade")
   fi
   # 合并外部 NIX_CONFIG（如用户自定义缓存）
@@ -1297,6 +1342,11 @@ print_summary() {
   printf '%s主机：%s%s\n' "${COLOR_BOLD}" "${TARGET_NAME}" "${COLOR_RESET}"
   printf '%s用户：%s%s\n' "${COLOR_BOLD}" "${TARGET_USERS[*]}" "${COLOR_RESET}"
   printf '%s覆盖策略：%s%s\n' "${COLOR_BOLD}" "${OVERWRITE_MODE}" "${COLOR_RESET}"
+  if [[ "${REBUILD_UPGRADE}" == "true" ]]; then
+    printf '%s依赖升级：%s%s\n' "${COLOR_BOLD}" "启用 (--upgrade)" "${COLOR_RESET}"
+  else
+    printf '%s依赖升级：%s%s\n' "${COLOR_BOLD}" "关闭" "${COLOR_RESET}"
+  fi
   if [[ "${PER_USER_TUN_ENABLED}" == "true" ]]; then
     if [[ ${#USER_TUN[@]} -gt 0 ]]; then
       printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
@@ -1427,7 +1477,14 @@ main() {
   banner
   parse_args "$@"
   if [[ "${OVERWRITE_MODE_SET}" == "false" ]]; then
-    note "未指定覆盖策略，默认覆盖 /etc/nixos（可用 --backup 或 --ask）"
+    if is_tty; then
+      OVERWRITE_MODE="ask"
+      note "未指定覆盖策略，交互模式默认询问（--ask）"
+    else
+      OVERWRITE_MODE="backup"
+      note "未指定覆盖策略，非交互模式默认备份并覆盖（--backup）"
+    fi
+    OVERWRITE_MODE_SET=true
   fi
   section "环境检查"
   check_env

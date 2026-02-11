@@ -45,7 +45,7 @@ chmod +x run.sh
 
 方式 B：手动克隆到 /etc/nixos
 ```bash
-sudo rm -rf /etc/nixos
+sudo mv /etc/nixos /etc/nixos.backup.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
 sudo git clone https://github.com/MCB-SMART-BOY/nixos-config.git /etc/nixos
 ```
 
@@ -114,6 +114,11 @@ mcb.users = [ "mcbnixos" "mcblaptopnixos" ];
 - 是否启用 per-user TUN
 - GPU 模式（可选）
 
+默认行为：
+- 交互模式未指定覆盖策略时，默认 `--ask`
+- 非交互模式未指定覆盖策略时，默认 `--backup`
+- 默认不附加 `--upgrade`，需要时可显式传入 `./run.sh --upgrade`
+
 脚本会写入 `hosts/<hostname>/local.nix` 做临时覆盖，不会破坏你的主配置。
 
 ---
@@ -170,9 +175,9 @@ sudo nixos-rebuild switch --specialisation gpu-hybrid
 sudo nixos-rebuild switch --specialisation gpu-dgpu
 ```
 
-Waybar 一键切换：
+桌面栏一键切换：
 - 模块 `GPU:xxx` 可点开下拉选择
-- 脚本路径：`home/users/<user>/scripts/waybar-gpu-mode`
+- 脚本路径：`home/users/<user>/scripts/noctalia-gpu-mode`
 
 注意：
 - BIOS 若设为 dGPU-only，切换到 igpu/hybrid 可能黑屏

@@ -53,6 +53,8 @@ let
     procps
     util-linux
     systemd
+    # Vulkan 用户态 loader（提供 libvulkan.so.1）
+    vulkan-loader
   ];
 
   networkCli = with pkgs; [
@@ -287,6 +289,8 @@ let
     radare2
     # 网络抓包
     wireshark
+    # Vulkan 诊断
+    vulkan-tools
     # 开发协作
     gh
     # 二进制查看

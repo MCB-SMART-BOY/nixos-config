@@ -24,6 +24,18 @@ in
   ++ lib.optional (hardwareFile != null) hardwareFile
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
+  # 允许在仓库/CI 环境中评估 flake（此时通常没有机器私有 hardware-configuration.nix）
+  fileSystems = lib.mkIf (hardwareFile == null) {
+    "/" = {
+      # 评估占位值：若用于真实部署会快速失败，避免误挂载错误磁盘。
+      device = "/dev/disk/by-label/__MISSING_HARDWARE_CONFIGURATION__";
+      fsType = "ext4";
+    };
+  };
+  warnings = lib.optional (hardwareFile == null) ''
+    hosts/laptop/hardware-configuration.nix 缺失；当前根文件系统为评估占位值，不可用于实际部署。
+  '';
+
   mcb = {
     # 笔记本用户与代理设置
     user = "mcblaptopnixos";
@@ -67,8 +79,6 @@ in
       ];
     };
   };
-
-  boot.kernelPackages = pkgs.linuxPackages_latest;
 
   networking.hostName = "laptop";
   system.stateVersion = "25.11";

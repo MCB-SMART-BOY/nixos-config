@@ -34,9 +34,10 @@ chmod +x run.sh
 脚本行为要点：
 - 拉取仓库并同步到 `/etc/nixos`
 - 失败自动临时切换 DNS 再重试
-- 默认执行 `nixos-rebuild switch --show-trace --upgrade`
+- 默认执行 `nixos-rebuild switch --show-trace`（不自动 `--upgrade`）
 - 保留本机 `hardware-configuration.nix`
-- 支持 `--host` / `--user` / `--users` / `--backup` / `--overwrite` / `--ask`
+- 覆盖策略默认更安全：交互式默认 `--ask`，非交互默认 `--backup`
+- 支持 `--host` / `--user` / `--users` / `--backup` / `--overwrite` / `--ask` / `--upgrade`
 
 ### 2) 日常更新
 
@@ -112,9 +113,9 @@ mcb.hardware.gpu.specialisations.modes = [ "igpu" "hybrid" "dgpu" ];
 - BIOS 若设为 dGPU-only，切换到 igpu/hybrid 可能黑屏
 - 要使用 hybrid，必须补齐 iGPU/dGPU busId
 
-### Waybar 一键切换
-Waybar 模块 `GPU:xxx` 支持点击下拉选择，脚本路径：
-- `home/users/<user>/scripts/waybar-gpu-mode`
+### 桌面栏一键切换
+Noctalia 模块 `GPU:xxx` 支持点击下拉选择，脚本路径：
+- `home/users/<user>/scripts/noctalia-gpu-mode`
 
 切换会执行 `nixos-rebuild switch --specialisation ...`，建议切换后重启系统以保证稳定。
 
