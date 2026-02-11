@@ -61,24 +61,23 @@
     );
   };
 
-  # 仅在交互式 shell 注入 Vulkan 运行时变量，避免全局污染系统服务环境。
+  # 会话变量是主策略；这里仅补充兼容：把 ICD 目录展开为 VK_ICD_FILENAMES 列表。
   environment.shellInit = ''
-    if [ -z "''${LD_LIBRARY_PATH-}" ]; then
-      export LD_LIBRARY_PATH="/run/current-system/sw/lib:/run/opengl-driver/lib:/run/opengl-driver-32/lib"
-    fi
-
-    if [ -z "''${VK_ICD_FILENAMES-}" ] && [ -d /run/opengl-driver/share/vulkan/icd.d ]; then
-      vk_icd_files=""
-      for file in /run/opengl-driver/share/vulkan/icd.d/*.json; do
-        [ -e "$file" ] || continue
+    if [ -z "''${VK_ICD_FILENAMES-}" ]; then
+      icd_dir="''${VK_DRIVER_FILES:-/run/opengl-driver/share/vulkan/icd.d}"
+      if [ -d "$icd_dir" ]; then
+        vk_icd_files=""
+        for file in "$icd_dir"/*.json; do
+          [ -e "$file" ] || continue
+          if [ -n "$vk_icd_files" ]; then
+            vk_icd_files="$vk_icd_files:$file"
+          else
+            vk_icd_files="$file"
+          fi
+        done
         if [ -n "$vk_icd_files" ]; then
-          vk_icd_files="$vk_icd_files:$file"
-        else
-          vk_icd_files="$file"
+          export VK_ICD_FILENAMES="$vk_icd_files"
         fi
-      done
-      if [ -n "$vk_icd_files" ]; then
-        export VK_ICD_FILENAMES="$vk_icd_files"
       fi
     fi
   '';

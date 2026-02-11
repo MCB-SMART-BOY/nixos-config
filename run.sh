@@ -412,8 +412,19 @@ has_any_hardware_config() {
   return 1
 }
 
+should_require_hardware_config() {
+  # rootless + build 仅做构建/评估，不强制要求目标目录存在硬件文件
+  if [[ "${ROOTLESS}" == "true" && "${MODE}" == "build" ]]; then
+    return 1
+  fi
+  return 0
+}
+
 # 选定主机后检查硬件配置是否存在。
 ensure_host_hardware_config() {
+  if ! should_require_hardware_config; then
+    return 0
+  fi
   if [[ -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
     return 0
   fi
@@ -462,11 +473,6 @@ check_env() {
     rm -f /tmp/mcb-sudo-check.$$ 2>/dev/null || true
   fi
 
-  # /etc/nixos 必须包含硬件配置（避免覆盖后无法启动）
-  if ! has_any_hardware_config "${ETC_DIR}"; then
-    error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hosts/<hostname>/hardware-configuration.nix；请先运行 nixos-generate-config。"
-  fi
-
   # rootless 模式下校验写入路径与 rebuild 模式
   if [[ "${ROOTLESS}" == "true" ]]; then
     if [[ ! -w "${ETC_DIR}" ]]; then
@@ -491,6 +497,15 @@ check_env() {
       warn "rootless 模式无法切换系统，将自动改为 build。"
       MODE="build"
     fi
+  fi
+
+  # 仅在可切换系统场景强制要求硬件配置；rootless+build 可依赖 host fallback 做评估/构建
+  if should_require_hardware_config; then
+    if ! has_any_hardware_config "${ETC_DIR}"; then
+      error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hosts/<hostname>/hardware-configuration.nix；请先运行 nixos-generate-config。"
+    fi
+  else
+    note "rootless + build 模式：跳过硬件配置强制检查（仅构建/评估）。"
   fi
 }
 
