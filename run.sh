@@ -6,7 +6,7 @@ set -euo pipefail
 # 版本号（优先读取仓库 VERSION 文件）。
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 VERSION_FILE="${SCRIPT_DIR}/VERSION"
-RUN_SH_VERSION="v2026.02.13"
+RUN_SH_VERSION="v2026.02.13.1"
 if [[ -r "${VERSION_FILE}" ]]; then
   version_from_file="$(tr -d '[:space:]' < "${VERSION_FILE}")"
   if [[ -n "${version_from_file}" ]]; then
