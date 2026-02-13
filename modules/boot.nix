@@ -10,9 +10,12 @@
 
 let
   cpuVendor = config.mcb.cpuVendor;
-  nvidiaEnabled = config.mcb.hardware.nvidia.enable || config.mcb.hardware.gpu.mode != "igpu";
-  # Linux 新分支常先于闭源/混合 NVIDIA 模块适配；NVIDIA 主机默认回退到稳定内核。
-  defaultKernelPackages = if nvidiaEnabled then pkgs.linuxPackages else pkgs.linuxPackages_latest;
+  # 固定到最新 longterm 稳定分支（当前为 6.18）；缺失时回退到发行版默认稳定内核。
+  latestStableKernelPackages =
+    if lib.hasAttrByPath [ "linuxKernel" "packages" "linux_6_18" ] pkgs then
+      pkgs.linuxKernel.packages.linux_6_18
+    else
+      pkgs.linuxPackages;
   kvmModule =
     if cpuVendor == "amd" then
       "kvm-amd"
@@ -33,8 +36,8 @@ in
       efi.canTouchEfiVariables = true;
     };
 
-    # 默认使用 latest；检测到 NVIDIA/hybrid/dgpu 时自动回退稳定分支以保证可构建。
-    kernelPackages = lib.mkDefault defaultKernelPackages;
+    # 默认固定为最新 longterm 稳定内核（6.18 分支）。
+    kernelPackages = lib.mkDefault latestStableKernelPackages;
     kernelModules = [
       "tun"
     ]
