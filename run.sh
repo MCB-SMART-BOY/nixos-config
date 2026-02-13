@@ -3,6 +3,17 @@
 
 set -euo pipefail
 
+# 版本号（优先读取仓库 VERSION 文件）。
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+VERSION_FILE="${SCRIPT_DIR}/VERSION"
+RUN_SH_VERSION="v2026.02.13"
+if [[ -r "${VERSION_FILE}" ]]; then
+  version_from_file="$(tr -d '[:space:]' < "${VERSION_FILE}")"
+  if [[ -n "${version_from_file}" ]]; then
+    RUN_SH_VERSION="${version_from_file}"
+  fi
+fi
+
 # 仓库地址与分支（仅在未检测到本地仓库时使用）
 REPO_URLS=(
   "https://gitee.com/MCB-SMART-BOY/nixos-config.git"
@@ -134,7 +145,7 @@ as_root() {
 # 打印脚本标题。
 banner() {
   printf '%s\n' "${COLOR_BOLD}==========================================${COLOR_RESET}"
-  printf '%s\n' "${COLOR_BOLD}        NixOS 一键部署（run.sh）           ${COLOR_RESET}"
+  printf '%s\n' "${COLOR_BOLD}  NixOS 一键部署（run.sh ${RUN_SH_VERSION}） ${COLOR_RESET}"
   printf '%s\n' "${COLOR_BOLD}==========================================${COLOR_RESET}"
 }
 

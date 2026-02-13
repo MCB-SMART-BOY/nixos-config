@@ -31,6 +31,66 @@ let
     pkgs.coreutils
     pkgs.procps
   ];
+  resolvePkg =
+    path:
+    let
+      eval =
+        if lib.hasAttrByPath path pkgs then
+          builtins.tryEval (lib.getAttrFromPath path pkgs)
+        else
+          {
+            success = false;
+            value = null;
+          };
+    in
+    if eval.success then eval.value else null;
+  # 让外部二进制（AppImage/上游 tarball）更容易找到图形运行时依赖。
+  graphicsRuntimeLibs = lib.unique (
+    lib.filter (x: x != null) [
+      (resolvePkg [ "libglvnd" ])
+      (resolvePkg [ "vulkan-loader" ])
+      (resolvePkg [ "mesa" ])
+      (resolvePkg [ "libdrm" ])
+      (resolvePkg [ "wayland" ])
+      (resolvePkg [ "libxkbcommon" ])
+      (resolvePkg [
+        "xorg"
+        "libX11"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libXext"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libXrender"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libXrandr"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libXi"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libXcursor"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libXinerama"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libXfixes"
+      ])
+      (resolvePkg [
+        "xorg"
+        "libxcb"
+      ])
+    ]
+  );
 
   # 为指定用户生成 clash-verge-service 的 systemd 服务
   mkClashService =
@@ -134,7 +194,10 @@ in
   services.openssh.enable = true;
 
   # 让非 Nix 动态链接程序可运行（需要时启用）
-  programs.nix-ld.enable = true;
+  programs.nix-ld = {
+    enable = true;
+    libraries = lib.mkAfter graphicsRuntimeLibs;
+  };
 
   # 为代理服务准备所需目录（仅 proxyMode=tun 时）
   systemd.tmpfiles.rules =
