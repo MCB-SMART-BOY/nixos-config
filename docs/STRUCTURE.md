@@ -38,7 +38,7 @@
 - `hosts/<hostname>/local.nix`
   - 本机覆盖配置（可选，`run.sh` 可生成）
 - `hosts/<hostname>/system.nix`
-  - 可选系统架构字符串（如 `"aarch64-linux"`）
+  - 必填系统架构字符串（如 `"x86_64-linux"` / `"aarch64-linux"`）
 - `hosts/profiles/`
   - 主机配置组合（desktop/server）
 

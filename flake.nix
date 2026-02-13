@@ -35,13 +35,24 @@
             envSystem = builtins.getEnv "NIX_SYSTEM";
           in
           if envSystem != "" then envSystem else "x86_64-linux";
-      # 允许为每个 host 指定 system（hosts/<name>/system.nix），否则使用当前系统
+      # 内置默认架构仅用于已知主机；新增主机请显式提供 hosts/<name>/system.nix。
+      hostSystemDefaults = {
+        laptop = "x86_64-linux";
+        nixos = "x86_64-linux";
+        server = "x86_64-linux";
+      };
+      # 每个 host 应显式指定 system（hosts/<name>/system.nix），避免跨架构误评估/误构建。
       hostSystem =
         name:
         let
           systemFile = ./hosts + "/${name}/system.nix";
         in
-        if builtins.pathExists systemFile then import systemFile else defaultSystem;
+        if builtins.pathExists systemFile then
+          import systemFile
+        else if builtins.hasAttr name hostSystemDefaults then
+          hostSystemDefaults.${name}
+        else
+          throw "Missing hosts/${name}/system.nix. Please define an explicit target system (e.g. \"x86_64-linux\").";
       # 自动读取 hosts/ 下的主机目录（排除 profiles）
       hostEntries = builtins.readDir ./hosts;
       hostNames = builtins.filter (name: hostEntries.${name} == "directory" && name != "profiles") (

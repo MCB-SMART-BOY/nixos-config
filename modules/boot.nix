@@ -37,12 +37,13 @@ in
     ]
     ++ lib.optional (kvmModule != null) kvmModule;
 
-    # 内核网络参数优化（BBR、队列、转发等）
+    # 内核网络参数优化（BBR、队列等）
+    # 转发默认关闭：仅在确实充当网关时再在 host 层显式开启。
     kernel.sysctl = {
       "net.core.default_qdisc" = "fq";
       "net.ipv4.tcp_congestion_control" = "bbr";
-      "net.ipv4.ip_forward" = 1;
-      "net.ipv6.conf.all.forwarding" = 1;
+      "net.ipv4.ip_forward" = lib.mkDefault 0;
+      "net.ipv6.conf.all.forwarding" = lib.mkDefault 0;
       "net.netfilter.nf_conntrack_max" = 131072;
       "net.netfilter.nf_conntrack_tcp_timeout_established" = 1200;
       "net.core.rmem_max" = 16777216;

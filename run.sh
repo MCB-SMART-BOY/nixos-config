@@ -1,24 +1,44 @@
 #!/usr/bin/env bash
-# 一键部署 NixOS 配置（从 GitHub/Gitee 拉取）。无参数默认流程。
+# 一键部署 NixOS 配置（优先本地仓库，必要时再从 GitHub/Gitee 拉取）。
 
 set -euo pipefail
 
-# 仓库地址与分支
+# 仓库地址与分支（仅在未检测到本地仓库时使用）
 REPO_URLS=(
   "https://gitee.com/MCB-SMART-BOY/nixos-config.git"
   "https://github.com/MCB-SMART-BOY/nixos-config.git"
 )
 BRANCH="master"
+SOURCE_REF=""
+ALLOW_REMOTE_HEAD=false
+SOURCE_COMMIT=""
+SOURCE_CHOICE_SET=false
 
-# 运行参数（由命令行或向导填充）
+# 运行状态（由向导填充）
 TARGET_NAME=""
 TARGET_USERS=()
+TARGET_ADMIN_USERS=()
+DEPLOY_MODE="manage-users"   # manage-users | update-existing
+DEPLOY_MODE_SET=false
+FORCE_REMOTE_SOURCE=false
 OVERWRITE_MODE="ask"
 OVERWRITE_MODE_SET=false
 PER_USER_TUN_ENABLED=false
+HOST_PROFILE_KIND="unknown"
 # 每用户 TUN 临时映射（用户 -> 接口 / DNS 端口）
 declare -A USER_TUN
 declare -A USER_DNS
+# 服务器软件/虚拟化临时覆盖
+SERVER_OVERRIDES_ENABLED=false
+SERVER_ENABLE_DEV=""
+SERVER_ENABLE_NETWORK_GUI=""
+SERVER_ENABLE_BROWSERS_AND_MEDIA=""
+SERVER_ENABLE_GEEK_TOOLS=""
+SERVER_ENABLE_INSECURE_TOOLS=""
+SERVER_ENABLE_DOCKER=""
+SERVER_ENABLE_LIBVIRTD=""
+# 自动生成的 Home Manager 用户模板
+CREATED_HOME_USERS=()
 # GPU 临时覆盖
 GPU_OVERRIDE=false
 GPU_MODE=""
@@ -32,7 +52,7 @@ GPU_SPECIALISATIONS_ENABLED=false
 GPU_SPECIALISATION_MODES=()
 # nixos-rebuild 模式（switch/test/build）
 MODE="switch"
-# 是否为 nixos-rebuild 附加 --upgrade（默认关闭，保证可复现）
+# 是否在 nixos-rebuild 时升级上游依赖（默认关闭，保证可复现）
 REBUILD_UPGRADE=false
 # 目标配置目录（默认 /etc/nixos）
 ETC_DIR="/etc/nixos"
@@ -51,7 +71,7 @@ PROGRESS_CURRENT=0
 WIZARD_ACTION=""
 
 # 脚本流程概览：
-# 1) 检查环境 2) 选择主机/用户 3) 拉取仓库
+# 1) 检查环境 2) 选择主机/用户 3) 准备源代码
 # 4) 同步到 /etc/nixos 5) nixos-rebuild 6) 打印摘要
 
 # 检测终端是否支持颜色输出
@@ -216,6 +236,23 @@ reset_tun_maps() {
   USER_DNS=()
 }
 
+# 清空管理员用户临时配置。
+reset_admin_users() {
+  TARGET_ADMIN_USERS=()
+}
+
+# 清空服务器软件覆盖配置。
+reset_server_overrides() {
+  SERVER_OVERRIDES_ENABLED=false
+  SERVER_ENABLE_DEV=""
+  SERVER_ENABLE_NETWORK_GUI=""
+  SERVER_ENABLE_BROWSERS_AND_MEDIA=""
+  SERVER_ENABLE_GEEK_TOOLS=""
+  SERVER_ENABLE_INSECURE_TOOLS=""
+  SERVER_ENABLE_DOCKER=""
+  SERVER_ENABLE_LIBVIRTD=""
+}
+
 # 清空 GPU 临时配置。
 reset_gpu_override() {
   GPU_OVERRIDE=false
@@ -250,7 +287,7 @@ normalize_pci_bus_id() {
   printf 'PCI:%s:%s:%s' "${bus}" "${dev}" "${func}"
 }
 
-detect_bus_id_from_lspci() {
+detect_bus_ids_from_lspci() {
   local vendor="$1"
   if ! command -v lspci >/dev/null 2>&1; then
     return 0
@@ -268,9 +305,17 @@ detect_bus_id_from_lspci() {
     local addr="${line%% *}"
     if [[ "${addr}" == *":"*"."* ]]; then
       normalize_pci_bus_id "${addr}"
-      return 0
     fi
   done < <(lspci -D -d ::03xx 2>/dev/null || true)
+}
+
+detect_bus_id_from_lspci() {
+  local vendor="$1"
+  local first=""
+  first="$(detect_bus_ids_from_lspci "${vendor}" | head -n1 || true)"
+  if [[ -n "${first}" ]]; then
+    printf '%s' "${first}"
+  fi
 }
 
 extract_bus_id_from_file() {
@@ -323,76 +368,204 @@ resolve_bus_id_default() {
   done
 }
 
+bus_candidates_for_vendor() {
+  local vendor="$1"
+  local -A seen=()
+  local result=()
+  local value=""
+
+  while IFS= read -r value; do
+    [[ -n "${value}" ]] || continue
+    if [[ -z "${seen[${value}]+x}" ]]; then
+      result+=("${value}")
+      seen["${value}"]=1
+    fi
+  done < <(detect_bus_ids_from_lspci "${vendor}" || true)
+
+  local fallback=""
+  fallback="$(resolve_bus_id_default "${vendor}" || true)"
+  if [[ -n "${fallback}" && -z "${seen[${fallback}]+x}" ]]; then
+    result=("${fallback}" "${result[@]}")
+  fi
+
+  if [[ ${#result[@]} -gt 0 ]]; then
+    printf '%s\n' "${result[@]}"
+  fi
+}
+
+# 设置部署模式，并同步源策略。
+set_deploy_mode() {
+  local mode="$1"
+  case "${mode}" in
+    manage-users|users)
+      DEPLOY_MODE="manage-users"
+      FORCE_REMOTE_SOURCE=false
+      ;;
+    update-existing|update)
+      DEPLOY_MODE="update-existing"
+      FORCE_REMOTE_SOURCE=true
+      ;;
+    *)
+      error "不支持的部署模式：${mode}"
+      ;;
+  esac
+  DEPLOY_MODE_SET=true
+}
+
+# 交互式选择部署模式。
+prompt_deploy_mode() {
+  if [[ "${DEPLOY_MODE_SET}" == "true" || ! -t 0 || ! -t 1 ]]; then
+    return 0
+  fi
+  local pick
+  pick="$(menu_prompt "选择部署模式" 1 "新增/调整用户并部署（可修改用户/权限）" "仅更新当前配置（网络仓库最新，不改用户/权限）")"
+  case "${pick}" in
+    1)
+      set_deploy_mode "manage-users"
+      ;;
+    2)
+      set_deploy_mode "update-existing"
+      ;;
+  esac
+}
+
+# 交互式选择覆盖策略（替代命令行参数）。
+prompt_overwrite_mode() {
+  if [[ "${OVERWRITE_MODE_SET}" == "true" ]]; then
+    return 0
+  fi
+  if ! is_tty; then
+    OVERWRITE_MODE="backup"
+    OVERWRITE_MODE_SET=true
+    return 0
+  fi
+  local pick
+  pick="$(menu_prompt "选择覆盖策略（/etc/nixos 已存在时）" 1 "先备份再覆盖（推荐）" "直接覆盖（不备份）" "执行时再询问")"
+  case "${pick}" in
+    1) OVERWRITE_MODE="backup" ;;
+    2) OVERWRITE_MODE="overwrite" ;;
+    3) OVERWRITE_MODE="ask" ;;
+  esac
+  OVERWRITE_MODE_SET=true
+}
+
+# 交互式选择是否在重建时升级上游依赖。
+prompt_rebuild_upgrade() {
+  if ! is_tty; then
+    REBUILD_UPGRADE=false
+    return 0
+  fi
+  REBUILD_UPGRADE="$(ask_bool "重建时升级上游依赖？" "false")"
+}
+
+# 交互式选择源代码来源与版本策略。
+prompt_source_strategy() {
+  if [[ "${SOURCE_CHOICE_SET}" == "true" ]]; then
+    return 0
+  fi
+
+  local local_repo=""
+  local_repo="$(detect_local_repo_dir || true)"
+
+  if ! is_tty; then
+    if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+      FORCE_REMOTE_SOURCE=true
+      ALLOW_REMOTE_HEAD=true
+      SOURCE_REF=""
+    else
+      if [[ -n "${local_repo}" ]]; then
+        FORCE_REMOTE_SOURCE=false
+        ALLOW_REMOTE_HEAD=false
+        SOURCE_REF=""
+      else
+        FORCE_REMOTE_SOURCE=true
+        ALLOW_REMOTE_HEAD=false
+      fi
+    fi
+    SOURCE_CHOICE_SET=true
+    return 0
+  fi
+
+  local options=()
+  local default_index=1
+  if [[ -n "${local_repo}" ]]; then
+    options+=("使用本地仓库（推荐）: ${local_repo}")
+  fi
+  options+=("使用网络仓库固定版本（输入 commit/tag）")
+  options+=("使用网络仓库最新版本（HEAD）")
+
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    default_index=${#options[@]}
+  fi
+
+  local pick
+  pick="$(menu_prompt "选择配置来源" "${default_index}" "${options[@]}")"
+
+  if [[ -n "${local_repo}" && "${pick}" == "1" ]]; then
+    FORCE_REMOTE_SOURCE=false
+    ALLOW_REMOTE_HEAD=false
+    SOURCE_REF=""
+  else
+    local remote_pick="${pick}"
+    if [[ -n "${local_repo}" ]]; then
+      remote_pick=$((pick - 1))
+    fi
+    case "${remote_pick}" in
+      1)
+        FORCE_REMOTE_SOURCE=true
+        ALLOW_REMOTE_HEAD=false
+        while true; do
+          read -r -p "请输入远端固定版本（commit/tag）： " SOURCE_REF
+          if [[ -n "${SOURCE_REF}" ]]; then
+            break
+          fi
+          echo "版本不能为空，请重试。"
+        done
+        ;;
+      2)
+        FORCE_REMOTE_SOURCE=true
+        ALLOW_REMOTE_HEAD=true
+        SOURCE_REF=""
+        ;;
+    esac
+  fi
+
+  SOURCE_CHOICE_SET=true
+}
+
+# 校验部署模式与运行时状态是否冲突。
+validate_mode_conflicts() {
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    if [[ ${#TARGET_USERS[@]} -gt 0 ]]; then
+      error "仅更新模式不允许修改用户列表；该模式会保留现有用户与权限。"
+    fi
+  fi
+}
+
 # 显示使用帮助。
 usage() {
   cat <<EOF_USAGE
-用法: run.sh [选项]
+用法:
+  ./run.sh
 
-选项:
-  -H, --host <name>        选择主机目录名（hosts/<name>）
-  -u, --user <name>        指定单个用户名（可重复）
-  -U, --users "<a b>"      指定多个用户名（空格或逗号分隔）
-  --ask                   遇到 /etc/nixos 已存在时询问备份或覆盖
-  --backup                当 /etc/nixos 已存在时先备份再覆盖
-  --overwrite             直接覆盖 /etc/nixos（不备份）
-  --upgrade               重建时附加 --upgrade（默认不附加）
-  -h, --help              显示帮助
+说明:
+  本脚本为全交互式向导，不需要任何命令行参数。
+  所有配置项（部署模式、来源、覆盖策略、用户、权限、GPU、TUN 等）
+  均在执行过程中通过菜单选择。
 EOF_USAGE
 }
 
 # 解析命令行参数。
 parse_args() {
-  # 逐个解析命令行参数
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      -H|--host)
-        [[ $# -ge 2 ]] || { usage; error "缺少参数：--host"; }
-        TARGET_NAME="$2"
-        shift 2
-        ;;
-      -u|--user)
-        [[ $# -ge 2 ]] || { usage; error "缺少参数：--user"; }
-        TARGET_USERS+=("$2")
-        shift 2
-        ;;
-      -U|--users)
-        [[ $# -ge 2 ]] || { usage; error "缺少参数：--users"; }
-        raw_users="$2"
-        # 支持逗号或空格分隔
-        raw_users="${raw_users//,/ }"
-        read -r -a more_users <<< "${raw_users}"
-        TARGET_USERS+=("${more_users[@]}")
-        shift 2
-        ;;
-      --backup)
-        OVERWRITE_MODE="backup"
-        OVERWRITE_MODE_SET=true
-        shift
-        ;;
-      --ask)
-        OVERWRITE_MODE="ask"
-        OVERWRITE_MODE_SET=true
-        shift
-        ;;
-      --overwrite)
-        OVERWRITE_MODE="overwrite"
-        OVERWRITE_MODE_SET=true
-        shift
-        ;;
-      --upgrade)
-        REBUILD_UPGRADE=true
-        shift
-        ;;
-      -h|--help)
-        usage
-        exit 0
-        ;;
-      *)
-        usage
-        error "不支持的参数：$1"
-        ;;
-    esac
-  done
+  if [[ $# -eq 0 ]]; then
+    return 0
+  fi
+  if [[ $# -eq 1 && ( "$1" == "-h" || "$1" == "--help" ) ]]; then
+    usage
+    exit 0
+  fi
+  usage
+  error "此脚本已改为全交互模式，请直接运行 ./run.sh（不需要参数）。"
 }
 
 # 检测是否存在硬件配置文件。
@@ -634,7 +807,9 @@ list_hosts() {
     done
   fi
 
-  printf '%s\n' "${hosts[@]}"
+  if [[ ${#hosts[@]} -gt 0 ]]; then
+    printf '%s\n' "${hosts[@]}"
+  fi
 }
 
 # 选择目标主机。
@@ -677,6 +852,43 @@ validate_host() {
   if [[ ! -d "${repo_dir}/hosts/${TARGET_NAME}" ]]; then
     error "主机不存在：hosts/${TARGET_NAME}"
   fi
+}
+
+# 检测主机 profile 类型（server/desktop/unknown）。
+detect_host_profile_kind() {
+  local repo_dir="$1"
+  local host_file="${repo_dir}/hosts/${TARGET_NAME}/default.nix"
+  HOST_PROFILE_KIND="unknown"
+  if [[ ! -f "${host_file}" ]]; then
+    return 0
+  fi
+  if grep -qE '\.\./profiles/server\.nix' "${host_file}"; then
+    HOST_PROFILE_KIND="server"
+  elif grep -qE '\.\./profiles/desktop\.nix' "${host_file}"; then
+    HOST_PROFILE_KIND="desktop"
+  fi
+}
+
+# 询问布尔开关（返回 true/false）。
+ask_bool() {
+  local prompt="$1"
+  local default="${2:-false}"
+  if ! is_tty; then
+    printf '%s' "${default}"
+    return 0
+  fi
+
+  local default_index=2
+  if [[ "${default}" == "true" ]]; then
+    default_index=1
+  fi
+  local pick
+  pick="$(menu_prompt "${prompt}" "${default_index}" "是 (true)" "否 (false)")"
+  case "${pick}" in
+    1) printf '%s' "true" ;;
+    2) printf '%s' "false" ;;
+    *) printf '%s' "${default}" ;;
+  esac
 }
 
 # 检测每用户 TUN 配置是否完整。
@@ -743,6 +955,27 @@ resolve_default_user() {
   printf '%s' "mcbnixos"
 }
 
+# 列出仓库中已存在的 Home Manager 用户目录。
+list_existing_home_users() {
+  local repo_dir="$1"
+  local users_dir="${repo_dir}/home/users"
+  local users=()
+  if [[ -d "${users_dir}" ]]; then
+    local entry=""
+    for entry in "${users_dir}"/*; do
+      [[ -d "${entry}" ]] || continue
+      local name
+      name="$(basename "${entry}")"
+      if [[ "${name}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+        users+=("${name}")
+      fi
+    done
+  fi
+  if [[ ${#users[@]} -gt 0 ]]; then
+    printf '%s\n' "${users[@]}"
+  fi
+}
+
 # 交互式配置每用户 TUN。
 configure_per_user_tun() {
   if [[ "${PER_USER_TUN_ENABLED}" != "true" ]]; then
@@ -752,7 +985,7 @@ configure_per_user_tun() {
   if is_tty; then
     # 让用户选择配置方式
     local pick
-    pick="$(menu_prompt "TUN 配置方式" 1 "沿用主机配置" "使用默认接口/端口" "逐个设置" "返回")"
+    pick="$(menu_prompt "TUN 配置方式" 1 "沿用主机配置" "使用默认接口/端口 (tun0/tun1 + 1053..)" "使用常见接口名 (Meta/Mihomo/clash0)" "返回")"
     case "${pick}" in
       4)
         WIZARD_ACTION="back"
@@ -776,44 +1009,25 @@ configure_per_user_tun() {
         ;;
       3)
         reset_tun_maps
+        local idx=0
+        local user
+        local common_ifaces=("Meta" "Mihomo" "clash0" "tun0" "tun1" "tun2")
+        for user in "${TARGET_USERS[@]}"; do
+          local iface="tun${idx}"
+          if (( idx < ${#common_ifaces[@]} )); then
+            iface="${common_ifaces[$idx]}"
+          fi
+          USER_TUN["${user}"]="${iface}"
+          USER_DNS["${user}"]=$((1053 + idx))
+          idx=$((idx + 1))
+        done
+        return 0
         ;;
     esac
   else
     reset_tun_maps
     return 0
   fi
-
-  local idx=0
-  local user
-  for user in "${TARGET_USERS[@]}"; do
-    local default_iface="tun${idx}"
-    local default_dns=$((1053 + idx))
-    local iface="${default_iface}"
-    local dns_port="${default_dns}"
-
-    if is_tty; then
-      # 逐个询问每个用户的接口/端口
-      read -r -p "用户 ${user} 的 TUN 接口名（默认 ${default_iface}）： " iface_input
-      if [[ -n "${iface_input}" ]]; then
-        iface="${iface_input}"
-      fi
-      read -r -p "用户 ${user} 的 DNS 端口（默认 ${default_dns}）： " dns_input
-      if [[ -n "${dns_input}" ]]; then
-        dns_port="${dns_input}"
-      fi
-    fi
-
-    if [[ ! "${iface}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-      error "TUN 接口名不合法：${iface}"
-    fi
-    if [[ ! "${dns_port}" =~ ^[0-9]+$ ]] || ((dns_port < 1 || dns_port > 65535)); then
-      error "DNS 端口不合法：${dns_port}"
-    fi
-
-    USER_TUN["${user}"]="${iface}"
-    USER_DNS["${user}"]="${dns_port}"
-    idx=$((idx + 1))
-  done
 }
 
 # 交互式配置 GPU。
@@ -874,71 +1088,101 @@ configure_gpu() {
         ;;
     esac
 
-    # iGPU busId
+    # iGPU busId（从检测结果中选择）
     if [[ "${GPU_IGPU_VENDOR}" == "intel" ]]; then
-      local default_intel=""
-      default_intel="$(resolve_bus_id_default intel || true)"
-      while true; do
-        if [[ -n "${default_intel}" ]]; then
-          read -r -p "Intel iGPU busId（如 PCI:0:2:0，默认 ${default_intel}）： " GPU_INTEL_BUS
-          if [[ -z "${GPU_INTEL_BUS}" ]]; then
-            GPU_INTEL_BUS="${default_intel}"
-          fi
-        else
-          read -r -p "Intel iGPU busId（如 PCI:0:2:0）： " GPU_INTEL_BUS
-        fi
-        [[ -n "${GPU_INTEL_BUS}" ]] && break
-        echo "不能为空，请重试。"
-      done
+      local intel_candidates=()
+      mapfile -t intel_candidates < <(bus_candidates_for_vendor intel)
+      if [[ ${#intel_candidates[@]} -eq 0 ]]; then
+        pick="$(menu_prompt "未检测到 Intel iGPU busId" 1 "沿用主机配置" "返回")"
+        case "${pick}" in
+          1)
+            reset_gpu_override
+            return 0
+            ;;
+          2)
+            WIZARD_ACTION="back"
+            return 0
+            ;;
+        esac
+      fi
+      local intel_options=("${intel_candidates[@]}" "返回")
+      pick="$(menu_prompt "选择 Intel iGPU busId" 1 "${intel_options[@]}")"
+      if (( pick == ${#intel_options[@]} )); then
+        WIZARD_ACTION="back"
+        return 0
+      fi
+      GPU_INTEL_BUS="${intel_options[$((pick - 1))]}"
     else
-      local default_amd=""
-      default_amd="$(resolve_bus_id_default amd || true)"
-      while true; do
-        if [[ -n "${default_amd}" ]]; then
-          read -r -p "AMD iGPU busId（如 PCI:4:0:0，默认 ${default_amd}）： " GPU_AMD_BUS
-          if [[ -z "${GPU_AMD_BUS}" ]]; then
-            GPU_AMD_BUS="${default_amd}"
-          fi
-        else
-          read -r -p "AMD iGPU busId（如 PCI:4:0:0）： " GPU_AMD_BUS
-        fi
-        [[ -n "${GPU_AMD_BUS}" ]] && break
-        echo "不能为空，请重试。"
-      done
+      local amd_candidates=()
+      mapfile -t amd_candidates < <(bus_candidates_for_vendor amd)
+      if [[ ${#amd_candidates[@]} -eq 0 ]]; then
+        pick="$(menu_prompt "未检测到 AMD iGPU busId" 1 "沿用主机配置" "返回")"
+        case "${pick}" in
+          1)
+            reset_gpu_override
+            return 0
+            ;;
+          2)
+            WIZARD_ACTION="back"
+            return 0
+            ;;
+        esac
+      fi
+      local amd_options=("${amd_candidates[@]}" "返回")
+      pick="$(menu_prompt "选择 AMD iGPU busId" 1 "${amd_options[@]}")"
+      if (( pick == ${#amd_options[@]} )); then
+        WIZARD_ACTION="back"
+        return 0
+      fi
+      GPU_AMD_BUS="${amd_options[$((pick - 1))]}"
     fi
 
-    # NVIDIA busId
-    local default_nvidia=""
-    default_nvidia="$(resolve_bus_id_default nvidia || true)"
-    while true; do
-      if [[ -n "${default_nvidia}" ]]; then
-        read -r -p "NVIDIA dGPU busId（如 PCI:1:0:0，默认 ${default_nvidia}）： " GPU_NVIDIA_BUS
-        if [[ -z "${GPU_NVIDIA_BUS}" ]]; then
-          GPU_NVIDIA_BUS="${default_nvidia}"
-        fi
-      else
-        read -r -p "NVIDIA dGPU busId（如 PCI:1:0:0）： " GPU_NVIDIA_BUS
-      fi
-      [[ -n "${GPU_NVIDIA_BUS}" ]] && break
-      echo "不能为空，请重试。"
-    done
+    # NVIDIA busId（从检测结果中选择）
+    local nvidia_candidates=()
+    mapfile -t nvidia_candidates < <(bus_candidates_for_vendor nvidia)
+    if [[ ${#nvidia_candidates[@]} -eq 0 ]]; then
+      pick="$(menu_prompt "未检测到 NVIDIA dGPU busId" 1 "沿用主机配置" "返回")"
+      case "${pick}" in
+        1)
+          reset_gpu_override
+          return 0
+          ;;
+        2)
+          WIZARD_ACTION="back"
+          return 0
+          ;;
+      esac
+    fi
+    local nvidia_options=("${nvidia_candidates[@]}" "返回")
+    pick="$(menu_prompt "选择 NVIDIA dGPU busId" 1 "${nvidia_options[@]}")"
+    if (( pick == ${#nvidia_options[@]} )); then
+      WIZARD_ACTION="back"
+      return 0
+    fi
+    GPU_NVIDIA_BUS="${nvidia_options[$((pick - 1))]}"
   fi
 
   if [[ "${GPU_MODE}" == "hybrid" || "${GPU_MODE}" == "dgpu" ]]; then
-    local answer=""
-    read -r -p "NVIDIA 使用开源内核模块？ [Y/n] " answer
-    case "${answer}" in
-      n|N) GPU_NVIDIA_OPEN="false" ;;
-      *) GPU_NVIDIA_OPEN="true" ;;
+    pick="$(menu_prompt "NVIDIA 使用开源内核模块？" 1 "是（open=true）" "否（open=false）" "返回")"
+    case "${pick}" in
+      1) GPU_NVIDIA_OPEN="true" ;;
+      2) GPU_NVIDIA_OPEN="false" ;;
+      3)
+        WIZARD_ACTION="back"
+        return 0
+        ;;
     esac
   fi
 
   if [[ "${GPU_MODE}" == "hybrid" ]]; then
-    local answer=""
-    read -r -p "生成 GPU specialisation（igpu/hybrid/dgpu）以便切换？ [Y/n] " answer
-    case "${answer}" in
-      n|N) GPU_SPECIALISATIONS_ENABLED=false ;;
-      *) GPU_SPECIALISATIONS_ENABLED=true ;;
+    pick="$(menu_prompt "生成 GPU specialisation（igpu/hybrid/dgpu）以便切换？" 1 "是" "否" "返回")"
+    case "${pick}" in
+      1) GPU_SPECIALISATIONS_ENABLED=true ;;
+      2) GPU_SPECIALISATIONS_ENABLED=false ;;
+      3)
+        WIZARD_ACTION="back"
+        return 0
+        ;;
     esac
     if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" ]]; then
       GPU_SPECIALISATION_MODES=("igpu" "hybrid" "dgpu")
@@ -946,43 +1190,263 @@ configure_gpu() {
   fi
 }
 
+# 判断用户是否在列表中。
+user_in_list() {
+  local needle="$1"
+  shift
+  local item
+  for item in "$@"; do
+    if [[ "${item}" == "${needle}" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+# 向 TARGET_USERS 添加用户（去重）。
+add_target_user() {
+  local user="$1"
+  if ! user_in_list "${user}" "${TARGET_USERS[@]}"; then
+    TARGET_USERS+=("${user}")
+  fi
+}
+
+# 从 TARGET_USERS 移除用户。
+remove_target_user() {
+  local user="$1"
+  local kept=()
+  local item
+  for item in "${TARGET_USERS[@]}"; do
+    if [[ "${item}" != "${user}" ]]; then
+      kept+=("${item}")
+    fi
+  done
+  TARGET_USERS=("${kept[@]}")
+}
+
+# 切换 TARGET_USERS 中用户选中状态。
+toggle_target_user() {
+  local user="$1"
+  if user_in_list "${user}" "${TARGET_USERS[@]}"; then
+    remove_target_user "${user}"
+  else
+    add_target_user "${user}"
+  fi
+}
+
+# 向 TARGET_ADMIN_USERS 添加用户（去重）。
+add_admin_user() {
+  local user="$1"
+  if ! user_in_list "${user}" "${TARGET_ADMIN_USERS[@]}"; then
+    TARGET_ADMIN_USERS+=("${user}")
+  fi
+}
+
+# 从 TARGET_ADMIN_USERS 移除用户。
+remove_admin_user() {
+  local user="$1"
+  local kept=()
+  local item
+  for item in "${TARGET_ADMIN_USERS[@]}"; do
+    if [[ "${item}" != "${user}" ]]; then
+      kept+=("${item}")
+    fi
+  done
+  TARGET_ADMIN_USERS=("${kept[@]}")
+}
+
+# 切换 TARGET_ADMIN_USERS 中用户选中状态。
+toggle_admin_user() {
+  local user="$1"
+  if user_in_list "${user}" "${TARGET_ADMIN_USERS[@]}"; then
+    remove_admin_user "${user}"
+  else
+    add_admin_user "${user}"
+  fi
+}
+
+# 从已存在用户中勾选目标用户。
+select_existing_users_menu() {
+  local users=("$@")
+  local pick
+  while true; do
+    local options=()
+    local user=""
+    for user in "${users[@]}"; do
+      if user_in_list "${user}" "${TARGET_USERS[@]}"; then
+        options+=("[x] ${user}")
+      else
+        options+=("[ ] ${user}")
+      fi
+    done
+    options+=("完成")
+    options+=("返回")
+
+    pick="$(menu_prompt "勾选已有用户（可重复切换）" 1 "${options[@]}")"
+    if (( pick >= 1 && pick <= ${#users[@]} )); then
+      toggle_target_user "${users[$((pick - 1))]}"
+      continue
+    fi
+    if (( pick == ${#users[@]} + 1 )); then
+      return 0
+    fi
+    return 1
+  done
+}
+
+# 从已选用户中勾选管理员。
+select_admin_users_menu() {
+  local pick
+  while true; do
+    local options=()
+    local user=""
+    for user in "${TARGET_USERS[@]}"; do
+      if user_in_list "${user}" "${TARGET_ADMIN_USERS[@]}"; then
+        options+=("[x] ${user}")
+      else
+        options+=("[ ] ${user}")
+      fi
+    done
+    options+=("完成")
+    options+=("返回")
+
+    pick="$(menu_prompt "勾选管理员用户（可重复切换）" 1 "${options[@]}")"
+    if (( pick >= 1 && pick <= ${#TARGET_USERS[@]} )); then
+      toggle_admin_user "${TARGET_USERS[$((pick - 1))]}"
+      continue
+    fi
+    if (( pick == ${#TARGET_USERS[@]} + 1 )); then
+      return 0
+    fi
+    return 1
+  done
+}
+
 # 交互式输入用户列表。
 prompt_users() {
   local default_user=""
   default_user="$(resolve_default_user)"
-  if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
-    if is_tty; then
-      # 提供默认用户或手动输入
-      local pick
-      pick="$(menu_prompt "选择用户" 1 "使用默认用户 (${default_user})" "输入用户列表" "返回" "退出")"
-      case "${pick}" in
-        1)
-          TARGET_USERS=("${default_user}")
-          ;;
-        2)
-          # 支持空格或逗号分隔
-          local input
-          read -r -p "用户名列表（空格或逗号分隔）： " input
-          input="${input//,/ }"
-          if [[ -n "${input}" ]]; then
-            read -r -a TARGET_USERS <<< "${input}"
-          else
-            TARGET_USERS=("${default_user}")
-          fi
-          ;;
-        3)
-          WIZARD_ACTION="back"
-          return 0
-          ;;
-        4)
-          error "已退出"
-          ;;
-      esac
-    else
-      # 非交互模式默认使用主机配置中的 mcb.user
+
+  if ! is_tty; then
+    if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
       TARGET_USERS=("${default_user}")
     fi
+    return 0
   fi
+
+  if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
+    TARGET_USERS=("${default_user}")
+  fi
+
+  while true; do
+    local current_users="未选择"
+    if [[ ${#TARGET_USERS[@]} -gt 0 ]]; then
+      current_users="${TARGET_USERS[*]}"
+    fi
+
+    local pick
+    pick="$(menu_prompt "选择用户（当前：${current_users}）" 1 "仅使用默认用户 (${default_user})" "从已有 Home 用户中选择" "新增用户（手写用户名）" "清空已选用户" "完成" "返回" "退出")"
+    case "${pick}" in
+      1)
+        TARGET_USERS=("${default_user}")
+        ;;
+      2)
+        local existing_users=()
+        mapfile -t existing_users < <(list_existing_home_users "${TMP_DIR}" | sort -u)
+        if [[ ${#existing_users[@]} -eq 0 ]]; then
+          warn "未发现可选的已有 Home 用户目录。"
+          continue
+        fi
+        select_existing_users_menu "${existing_users[@]}" || true
+        ;;
+      3)
+        local input=""
+        read -r -p "输入新增用户名（留空取消）： " input
+        if [[ -z "${input}" ]]; then
+          continue
+        fi
+        if [[ ! "${input}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+          warn "用户名不合法：${input}"
+          continue
+        fi
+        add_target_user "${input}"
+        ;;
+      4)
+        TARGET_USERS=()
+        ;;
+      5)
+        if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
+          warn "请至少选择一个用户。"
+          continue
+        fi
+        return 0
+        ;;
+      6)
+        WIZARD_ACTION="back"
+        return 0
+        ;;
+      7)
+        error "已退出"
+        ;;
+    esac
+  done
+}
+
+# 交互式输入管理员用户列表（wheel）。
+prompt_admin_users() {
+  local default_admin="${TARGET_USERS[0]}"
+  if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
+    error "用户列表为空，无法选择管理员。"
+  fi
+
+  if ! is_tty; then
+    if [[ ${#TARGET_ADMIN_USERS[@]} -eq 0 ]]; then
+      TARGET_ADMIN_USERS=("${default_admin}")
+    fi
+    return 0
+  fi
+
+  if [[ ${#TARGET_ADMIN_USERS[@]} -eq 0 ]]; then
+    TARGET_ADMIN_USERS=("${default_admin}")
+  fi
+
+  while true; do
+    local current_admins="未选择"
+    if [[ ${#TARGET_ADMIN_USERS[@]} -gt 0 ]]; then
+      current_admins="${TARGET_ADMIN_USERS[*]}"
+    fi
+
+    local pick
+    pick="$(menu_prompt "管理员权限（wheel，当前：${current_admins}）" 1 "仅主用户 (${default_admin})" "所有用户" "自定义勾选管理员" "清空管理员" "完成" "返回" "退出")"
+    case "${pick}" in
+      1)
+        TARGET_ADMIN_USERS=("${default_admin}")
+        ;;
+      2)
+        TARGET_ADMIN_USERS=("${TARGET_USERS[@]}")
+        ;;
+      3)
+        select_admin_users_menu || true
+        ;;
+      4)
+        TARGET_ADMIN_USERS=()
+        ;;
+      5)
+        if [[ ${#TARGET_ADMIN_USERS[@]} -eq 0 ]]; then
+          warn "至少需要一个管理员用户。"
+          continue
+        fi
+        return 0
+        ;;
+      6)
+        WIZARD_ACTION="back"
+        return 0
+        ;;
+      7)
+        error "已退出"
+        ;;
+    esac
+  done
 }
 
 # 用户列表去重并保持顺序。
@@ -999,6 +1463,20 @@ dedupe_users() {
   TARGET_USERS=("${unique[@]}")
 }
 
+# 管理员列表去重并保持顺序。
+dedupe_admin_users() {
+  local user
+  local -A seen=()
+  local unique=()
+  for user in "${TARGET_ADMIN_USERS[@]}"; do
+    if [[ -z "${seen[${user}]+x}" ]]; then
+      unique+=("${user}")
+      seen["${user}"]=1
+    fi
+  done
+  TARGET_ADMIN_USERS=("${unique[@]}")
+}
+
 # 校验用户列表与格式。
 validate_users() {
   local user
@@ -1008,6 +1486,134 @@ validate_users() {
       error "用户名不合法：${user}"
     fi
   done
+}
+
+# 校验管理员列表：格式合法且必须是用户子集。
+validate_admin_users() {
+  local user
+  if [[ ${#TARGET_ADMIN_USERS[@]} -eq 0 ]]; then
+    TARGET_ADMIN_USERS=("${TARGET_USERS[0]}")
+  fi
+  for user in "${TARGET_ADMIN_USERS[@]}"; do
+    if [[ ! "${user}" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+      error "管理员用户名不合法：${user}"
+    fi
+    if [[ ! " ${TARGET_USERS[*]} " =~ [[:space:]]${user}[[:space:]] ]]; then
+      error "管理员用户必须包含在用户列表中：${user}"
+    fi
+  done
+}
+
+# 交互式配置服务器软件/虚拟化覆盖项。
+configure_server_overrides() {
+  if [[ "${HOST_PROFILE_KIND}" != "server" ]]; then
+    reset_server_overrides
+    return 0
+  fi
+
+  if ! is_tty; then
+    reset_server_overrides
+    return 0
+  fi
+
+  local pick
+  pick="$(menu_prompt "服务器软件配置" 1 "沿用主机配置" "开发服务器预设（Dev + Geek + Docker）" "自定义开关" "返回")"
+  case "${pick}" in
+    1)
+      reset_server_overrides
+      return 0
+      ;;
+    2)
+      SERVER_OVERRIDES_ENABLED=true
+      SERVER_ENABLE_DEV="true"
+      SERVER_ENABLE_NETWORK_GUI="false"
+      SERVER_ENABLE_BROWSERS_AND_MEDIA="false"
+      SERVER_ENABLE_GEEK_TOOLS="true"
+      SERVER_ENABLE_INSECURE_TOOLS="false"
+      SERVER_ENABLE_DOCKER="true"
+      SERVER_ENABLE_LIBVIRTD="false"
+      return 0
+      ;;
+    3)
+      SERVER_OVERRIDES_ENABLED=true
+      SERVER_ENABLE_DEV="$(ask_bool "启用开发工具（mcb.packages.enableDev）？" "false")"
+      SERVER_ENABLE_NETWORK_GUI="$(ask_bool "启用网络图形工具（mcb.packages.enableNetworkGui）？" "false")"
+      SERVER_ENABLE_BROWSERS_AND_MEDIA="$(ask_bool "启用浏览器/媒体应用（mcb.packages.enableBrowsersAndMedia）？" "false")"
+      SERVER_ENABLE_GEEK_TOOLS="$(ask_bool "启用调试/诊断工具（mcb.packages.enableGeekTools）？" "false")"
+      SERVER_ENABLE_INSECURE_TOOLS="$(ask_bool "启用不安全软件组（mcb.packages.enableInsecureTools）？" "false")"
+      SERVER_ENABLE_DOCKER="$(ask_bool "启用 Docker（mcb.virtualisation.docker.enable）？" "false")"
+      SERVER_ENABLE_LIBVIRTD="$(ask_bool "启用 Libvirt/KVM（mcb.virtualisation.libvirtd.enable）？" "false")"
+      return 0
+      ;;
+    4)
+      WIZARD_ACTION="back"
+      return 0
+      ;;
+  esac
+}
+
+# 为缺失用户自动生成 Home Manager 最小入口模板。
+ensure_user_home_entries() {
+  local repo_dir="$1"
+  local profile_import="../../profiles/full.nix"
+  if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
+    profile_import="../../profiles/minimal.nix"
+  fi
+
+  local user=""
+  for user in "${TARGET_USERS[@]}"; do
+    local user_dir="${repo_dir}/home/users/${user}"
+    local user_file="${user_dir}/default.nix"
+    if [[ -f "${user_file}" ]]; then
+      continue
+    fi
+
+    mkdir -p "${user_dir}"
+    cat > "${user_file}" <<EOF_USER
+{ ... }:
+
+let
+  user = "${user}";
+in
+{
+  imports = [
+    ${profile_import}
+  ];
+
+  home.username = user;
+  home.homeDirectory = "/home/\${user}";
+  home.stateVersion = "25.11";
+
+  programs.home-manager.enable = true;
+  xdg.enable = true;
+}
+EOF_USER
+    CREATED_HOME_USERS+=("${user}")
+    warn "已为新用户自动生成 Home Manager 入口：home/users/${user}/default.nix"
+  done
+}
+
+# 仅更新模式下保留当前主机 local.nix，避免覆盖现有用户/权限。
+preserve_existing_local_override() {
+  local repo_dir="$1"
+  if [[ "${DEPLOY_MODE}" != "update-existing" ]]; then
+    return 0
+  fi
+  if [[ -z "${TARGET_NAME}" ]]; then
+    return 0
+  fi
+  local src="${ETC_DIR}/hosts/${TARGET_NAME}/local.nix"
+  local dst="${repo_dir}/hosts/${TARGET_NAME}/local.nix"
+  if [[ -f "${src}" ]]; then
+    mkdir -p "$(dirname "${dst}")"
+    if cp -a "${src}" "${dst}"; then
+      note "仅更新模式：已保留现有 hosts/${TARGET_NAME}/local.nix"
+    else
+      warn "仅更新模式：复制现有 local.nix 失败，将继续使用仓库版本。"
+    fi
+  else
+    note "仅更新模式：未发现现有 hosts/${TARGET_NAME}/local.nix，将按仓库默认配置更新。"
+  fi
 }
 
 # 写入 hosts/<host>/local.nix 覆盖项。
@@ -1028,10 +1634,17 @@ write_local_override() {
 
   local primary="${TARGET_USERS[0]}"
   local list=""
+  local admin_list=""
   local user
+  if [[ ${#TARGET_ADMIN_USERS[@]} -eq 0 ]]; then
+    TARGET_ADMIN_USERS=("${primary}")
+  fi
   # 生成用户列表字符串
   for user in "${TARGET_USERS[@]}"; do
     list="${list} \"${user}\""
+  done
+  for user in "${TARGET_ADMIN_USERS[@]}"; do
+    admin_list="${admin_list} \"${user}\""
   done
 
   {
@@ -1041,6 +1654,7 @@ write_local_override() {
     echo "{"
     echo "  mcb.user = lib.mkForce \"${primary}\";"
     echo "  mcb.users = lib.mkForce [${list} ];"
+    echo "  mcb.adminUsers = lib.mkForce [${admin_list} ];"
 
     if [[ "${PER_USER_TUN_ENABLED}" == "true" && ${#USER_TUN[@]} -gt 0 ]]; then
       echo "  mcb.perUserTun.interfaces = lib.mkForce {"
@@ -1090,6 +1704,16 @@ write_local_override() {
           echo "  mcb.hardware.gpu.specialisations.modes = lib.mkForce [${mode_list} ];"
         fi
       fi
+    fi
+
+    if [[ "${SERVER_OVERRIDES_ENABLED}" == "true" ]]; then
+      echo "  mcb.packages.enableDev = lib.mkForce ${SERVER_ENABLE_DEV};"
+      echo "  mcb.packages.enableNetworkGui = lib.mkForce ${SERVER_ENABLE_NETWORK_GUI};"
+      echo "  mcb.packages.enableBrowsersAndMedia = lib.mkForce ${SERVER_ENABLE_BROWSERS_AND_MEDIA};"
+      echo "  mcb.packages.enableGeekTools = lib.mkForce ${SERVER_ENABLE_GEEK_TOOLS};"
+      echo "  mcb.packages.enableInsecureTools = lib.mkForce ${SERVER_ENABLE_INSECURE_TOOLS};"
+      echo "  mcb.virtualisation.docker.enable = lib.mkForce ${SERVER_ENABLE_DOCKER};"
+      echo "  mcb.virtualisation.libvirtd.enable = lib.mkForce ${SERVER_ENABLE_LIBVIRTD};"
     fi
 
     echo "}"
@@ -1266,14 +1890,78 @@ temp_dns_disable() {
   fi
 }
 
+# 检测本地仓库目录（优先当前目录，其次脚本所在目录）。
+detect_local_repo_dir() {
+  local script_dir=""
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local candidates=(
+    "$(pwd)"
+    "${script_dir}"
+  )
+  local dir
+  for dir in "${candidates[@]}"; do
+    if [[ -f "${dir}/flake.nix" && -d "${dir}/hosts" && -d "${dir}/modules" && -d "${dir}/home" ]]; then
+      printf '%s' "${dir}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# 未使用本地仓库时，要求固定远端来源版本（除非显式允许跟随远端 HEAD）。
+require_remote_source_pin() {
+  if [[ "${ALLOW_REMOTE_HEAD}" == "true" ]]; then
+    warn "当前将跟随远端分支最新提交（存在供应链风险）。"
+    return 0
+  fi
+  if [[ -z "${SOURCE_REF}" ]]; then
+    error "未检测到本地仓库，且未选择远端固定版本；请在向导中选择固定版本或明确选择远端最新版本。"
+  fi
+}
+
+# 使用本地仓库作为部署源，避免依赖远端浮动分支。
+prepare_local_source() {
+  local tmp_dir="$1"
+  local source_dir="$2"
+  log "使用本地仓库：${source_dir}"
+  rm -rf "${tmp_dir}"
+  mkdir -p "${tmp_dir}"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --exclude '.git/' "${source_dir}/" "${tmp_dir}/"
+  else
+    (cd "${source_dir}" && tar --exclude=.git -cf - .) | tar -C "${tmp_dir}" -xf -
+  fi
+  if git -C "${source_dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    SOURCE_COMMIT="$(git -C "${source_dir}" rev-parse HEAD 2>/dev/null || true)"
+  fi
+  if [[ -n "${SOURCE_COMMIT}" ]]; then
+    note "本地源提交：${SOURCE_COMMIT}"
+  fi
+}
+
 # 克隆配置仓库。
 clone_repo() {
   local tmp_dir="$1"
   local url="$2"
+
+  if [[ -n "${SOURCE_REF}" ]]; then
+    log "拉取仓库：${url}（固定 ref: ${SOURCE_REF}）"
+    # 固定 ref 模式：完整克隆后切到指定提交/标签，避免跟随浮动分支。
+    if git clone "${url}" "${tmp_dir}" \
+      && git -C "${tmp_dir}" checkout --detach "${SOURCE_REF}" >/dev/null 2>&1; then
+      SOURCE_COMMIT="$(git -C "${tmp_dir}" rev-parse HEAD 2>/dev/null || true)"
+      success "仓库拉取完成（${SOURCE_COMMIT}）"
+      return 0
+    fi
+    warn "仓库拉取或 checkout 失败：${url}（ref: ${SOURCE_REF}）"
+    return 1
+  fi
+
   log "拉取仓库：${url}（${BRANCH}）"
-  # 使用浅克隆加快速度
+  # 仅在显式允许时使用远端分支 HEAD。
   if git clone --depth 1 --branch "${BRANCH}" "${url}" "${tmp_dir}"; then
-    success "仓库拉取完成"
+    SOURCE_COMMIT="$(git -C "${tmp_dir}" rev-parse HEAD 2>/dev/null || true)"
+    success "仓库拉取完成（${SOURCE_COMMIT}）"
     return 0
   fi
   warn "仓库拉取失败：${url}"
@@ -1284,6 +1972,7 @@ clone_repo() {
 clone_repo_any() {
   local tmp_dir="$1"
   local url
+  SOURCE_COMMIT=""
   # 依次尝试 Gitee / GitHub
   for url in "${REPO_URLS[@]}"; do
     rm -rf "${tmp_dir}"
@@ -1354,14 +2043,36 @@ rebuild_system() {
 # 打印部署摘要与提示。
 print_summary() {
   section "部署概要"
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    printf '%s部署模式：%s%s\n' "${COLOR_BOLD}" "仅更新当前配置（保留用户/权限）" "${COLOR_RESET}"
+  else
+    printf '%s部署模式：%s%s\n' "${COLOR_BOLD}" "新增/调整用户并部署" "${COLOR_RESET}"
+  fi
   printf '%s主机：%s%s\n' "${COLOR_BOLD}" "${TARGET_NAME}" "${COLOR_RESET}"
-  printf '%s用户：%s%s\n' "${COLOR_BOLD}" "${TARGET_USERS[*]}" "${COLOR_RESET}"
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    if [[ -n "${SOURCE_REF}" ]]; then
+      printf '%s源策略：%s%s\n' "${COLOR_BOLD}" "网络仓库固定版本 (${SOURCE_REF})" "${COLOR_RESET}"
+    else
+      printf '%s源策略：%s%s\n' "${COLOR_BOLD}" "网络仓库最新 HEAD" "${COLOR_RESET}"
+    fi
+    printf '%s用户/权限：%s%s\n' "${COLOR_BOLD}" "保持当前主机 local.nix" "${COLOR_RESET}"
+  else
+    printf '%s用户：%s%s\n' "${COLOR_BOLD}" "${TARGET_USERS[*]}" "${COLOR_RESET}"
+    printf '%s管理员：%s%s\n' "${COLOR_BOLD}" "${TARGET_ADMIN_USERS[*]}" "${COLOR_RESET}"
+  fi
+  if [[ -n "${SOURCE_COMMIT}" ]]; then
+    printf '%s源提交：%s%s\n' "${COLOR_BOLD}" "${SOURCE_COMMIT}" "${COLOR_RESET}"
+  fi
   printf '%s覆盖策略：%s%s\n' "${COLOR_BOLD}" "${OVERWRITE_MODE}" "${COLOR_RESET}"
   if [[ "${REBUILD_UPGRADE}" == "true" ]]; then
-    printf '%s依赖升级：%s%s\n' "${COLOR_BOLD}" "启用 (--upgrade)" "${COLOR_RESET}"
+    printf '%s依赖升级：%s%s\n' "${COLOR_BOLD}" "启用" "${COLOR_RESET}"
   else
     printf '%s依赖升级：%s%s\n' "${COLOR_BOLD}" "关闭" "${COLOR_RESET}"
   fi
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    return 0
+  fi
+
   if [[ "${PER_USER_TUN_ENABLED}" == "true" ]]; then
     if [[ ${#USER_TUN[@]} -gt 0 ]]; then
       printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
@@ -1402,6 +2113,17 @@ print_summary() {
   else
     printf '%sGPU：%s%s\n' "${COLOR_BOLD}" "沿用主机配置" "${COLOR_RESET}"
   fi
+
+  if [[ "${SERVER_OVERRIDES_ENABLED}" == "true" ]]; then
+    printf '%s服务器软件覆盖：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
+    printf '  - enableDev=%s\n' "${SERVER_ENABLE_DEV}"
+    printf '  - enableNetworkGui=%s\n' "${SERVER_ENABLE_NETWORK_GUI}"
+    printf '  - enableBrowsersAndMedia=%s\n' "${SERVER_ENABLE_BROWSERS_AND_MEDIA}"
+    printf '  - enableGeekTools=%s\n' "${SERVER_ENABLE_GEEK_TOOLS}"
+    printf '  - enableInsecureTools=%s\n' "${SERVER_ENABLE_INSECURE_TOOLS}"
+    printf '  - docker.enable=%s\n' "${SERVER_ENABLE_DOCKER}"
+    printf '  - libvirtd.enable=%s\n' "${SERVER_ENABLE_LIBVIRTD}"
+  fi
 }
 
 # 交互式向导主流程。
@@ -1409,12 +2131,46 @@ wizard_flow() {
   local step=1
   WIZARD_ACTION=""
 
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    while true; do
+      case "${step}" in
+        1)
+          select_host "${TMP_DIR}"
+          validate_host "${TMP_DIR}"
+          detect_host_profile_kind "${TMP_DIR}"
+          step=2
+          ;;
+        2)
+          print_summary
+          if is_tty; then
+            wizard_back_or_quit "确认仅更新当前配置并继续？"
+            case "${WIZARD_ACTION}" in
+              back)
+                TARGET_NAME=""
+                step=1
+                ;;
+              continue)
+                return 0
+                ;;
+              *)
+                return 0
+                ;;
+            esac
+          else
+            return 0
+          fi
+          ;;
+      esac
+    done
+  fi
+
   while true; do
     case "${step}" in
       1)
         # 选择主机
         select_host "${TMP_DIR}"
         validate_host "${TMP_DIR}"
+        detect_host_profile_kind "${TMP_DIR}"
         step=2
         ;;
       2)
@@ -1423,16 +2179,36 @@ wizard_flow() {
         prompt_users
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
           TARGET_USERS=()
+          reset_admin_users
           reset_tun_maps
+          reset_gpu_override
+          reset_server_overrides
           TARGET_NAME=""
           step=1
           continue
         fi
         dedupe_users
         validate_users
+        reset_admin_users
+        reset_tun_maps
+        reset_gpu_override
+        reset_server_overrides
         step=3
         ;;
       3)
+        # 选择管理员用户（wheel）
+        WIZARD_ACTION=""
+        prompt_admin_users
+        if [[ "${WIZARD_ACTION}" == "back" ]]; then
+          reset_admin_users
+          step=2
+          continue
+        fi
+        dedupe_admin_users
+        validate_admin_users
+        step=4
+        ;;
+      4)
         # 检测并配置 per-user TUN
         if detect_per_user_tun "${TMP_DIR}"; then
           PER_USER_TUN_ENABLED=true
@@ -1444,33 +2220,58 @@ wizard_flow() {
           configure_per_user_tun
           if [[ "${WIZARD_ACTION}" == "back" ]]; then
             reset_tun_maps
-            step=2
+            step=3
             continue
           fi
         else
           reset_tun_maps
         fi
-        step=4
+        step=5
         ;;
-      4)
-        # 配置 GPU 覆盖（可选）
+      5)
+        # 配置 GPU 覆盖（可选，server 主机默认跳过）
+        if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
+          reset_gpu_override
+          step=6
+          continue
+        fi
         WIZARD_ACTION=""
         configure_gpu
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
           reset_gpu_override
-          step=3
+          step=4
           continue
         fi
-        step=5
+        step=6
         ;;
-      5)
+      6)
+        # 服务器软件/虚拟化配置（仅 server profile）
+        if [[ "${HOST_PROFILE_KIND}" != "server" ]]; then
+          reset_server_overrides
+          step=7
+          continue
+        fi
+        WIZARD_ACTION=""
+        configure_server_overrides
+        if [[ "${WIZARD_ACTION}" == "back" ]]; then
+          reset_server_overrides
+          step=5
+          continue
+        fi
+        step=7
+        ;;
+      7)
         # 最终确认
         print_summary
         if is_tty; then
           wizard_back_or_quit "确认以上配置"
           case "${WIZARD_ACTION}" in
             back)
-              step=4
+              if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
+                step=6
+              else
+                step=5
+              fi
               ;;
             continue)
               return 0
@@ -1491,15 +2292,15 @@ wizard_flow() {
 main() {
   banner
   parse_args "$@"
-  if [[ "${OVERWRITE_MODE_SET}" == "false" ]]; then
-    if is_tty; then
-      OVERWRITE_MODE="ask"
-      note "未指定覆盖策略，交互模式默认询问（--ask）"
-    else
-      OVERWRITE_MODE="backup"
-      note "未指定覆盖策略，非交互模式默认备份并覆盖（--backup）"
-    fi
-    OVERWRITE_MODE_SET=true
+  prompt_deploy_mode
+  validate_mode_conflicts
+  prompt_overwrite_mode
+  prompt_rebuild_upgrade
+  prompt_source_strategy
+
+  if [[ -n "${SOURCE_REF}" && "${ALLOW_REMOTE_HEAD}" == "true" ]]; then
+    warn "检测到来源策略冲突，将优先使用固定版本。"
+    ALLOW_REMOTE_HEAD=false
   fi
   section "环境检查"
   check_env
@@ -1517,18 +2318,38 @@ main() {
   }
   trap cleanup EXIT
 
-  # 先拉取仓库（失败时尝试临时 DNS）
-  section "拉取仓库"
-  if ! clone_repo_any "${TMP_DIR}"; then
-    log "尝试临时切换阿里云 DNS 后重试"
-    temp_dns_enable
-    rm -rf "${TMP_DIR}"
-    TMP_DIR="$(mktemp -d)"
+  # 按模式准备源代码：默认优先本地；仅更新模式强制走远端。
+  section "准备源代码"
+  if [[ "${FORCE_REMOTE_SOURCE}" == "true" ]]; then
+    require_remote_source_pin
     if ! clone_repo_any "${TMP_DIR}"; then
-      error "仓库拉取失败，请检查网络"
+      log "尝试临时切换阿里云 DNS 后重试"
+      temp_dns_enable
+      rm -rf "${TMP_DIR}"
+      TMP_DIR="$(mktemp -d)"
+      if ! clone_repo_any "${TMP_DIR}"; then
+        error "仓库拉取失败，请检查网络"
+      fi
+    fi
+  else
+    local source_dir=""
+    source_dir="$(detect_local_repo_dir || true)"
+    if [[ -n "${source_dir}" ]]; then
+      prepare_local_source "${TMP_DIR}" "${source_dir}"
+    else
+      require_remote_source_pin
+      if ! clone_repo_any "${TMP_DIR}"; then
+        log "尝试临时切换阿里云 DNS 后重试"
+        temp_dns_enable
+        rm -rf "${TMP_DIR}"
+        TMP_DIR="$(mktemp -d)"
+        if ! clone_repo_any "${TMP_DIR}"; then
+          error "仓库拉取失败，请检查网络"
+        fi
+      fi
     fi
   fi
-  progress_step "拉取仓库"
+  progress_step "准备源代码"
 
   section "脚本自检"
   self_check_scripts "${TMP_DIR}"
@@ -1536,8 +2357,16 @@ main() {
 
   # 交互式向导：选择主机/用户/TUN
   wizard_flow
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    preserve_existing_local_override "${TMP_DIR}"
+  else
+    ensure_user_home_entries "${TMP_DIR}"
+    if [[ ${#CREATED_HOME_USERS[@]} -gt 0 ]]; then
+      warn "已自动创建用户 Home Manager 模板：${CREATED_HOME_USERS[*]}"
+    fi
+    write_local_override "${TMP_DIR}"
+  fi
   ensure_host_hardware_config
-  write_local_override "${TMP_DIR}"
   progress_step "收集配置"
   confirm_continue "确认以上配置并继续同步？"
   section "同步与构建"

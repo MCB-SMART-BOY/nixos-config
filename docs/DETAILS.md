@@ -9,7 +9,7 @@
 - 改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
 - 改应用主题：`home/users/<user>/config/`
 - 改输入法：`modules/i18n.nix` + `home/users/<user>/config/fcitx5/profile`
-- GPU 特化切换：Waybar `GPU:xxx`（脚本：`home/users/<user>/scripts/waybar-gpu-mode`）
+- GPU 特化切换：Noctalia `GPU:xxx`（脚本：`home/users/<user>/scripts/noctalia-gpu-mode`）
 
 ---
 

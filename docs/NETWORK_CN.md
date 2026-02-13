@@ -38,9 +38,9 @@
    如果只有 `127.0.0.1` 但 Clash DNS 未启用，会导致解析失败。
    如果 Clash DNS 监听端口非 53（如 1053），请在 `hosts/<hostname>/default.nix` 设置 `mcb.proxyDnsPort = 1053;`。
 
-## Waybar 代理指示
+## Noctalia 代理指示
 
-Waybar 的代理图标由 `home/users/<user>/scripts/waybar-proxy-status` 提供，默认检测 `clash-verge-service@<user>` / `clash-verge-service` / `mihomo`。
+Noctalia 的代理图标由 `home/users/<user>/scripts/noctalia-proxy-status` 提供，默认检测 `clash-verge-service@<user>` / `clash-verge-service` / `mihomo`。
 如使用其他服务名，请修改脚本后重建。
 
 ## 多用户 TUN（按用户路由）
@@ -67,6 +67,9 @@ mcb.perUserTun.dnsPorts = {
 - 每个用户的 Clash 配置里，`tun.device` 必须与上面的接口名一致
 - per-user 方案通过 `ip rule` 按 UID 路由，不支持全局强制 DNS
 - 若启用 `redirectDns`，会通过 iptables OUTPUT 按 UID 重定向 DNS，请确保 Clash 的 DNS 监听端口与 `dnsPorts` 一致
+- 默认保留全局 `/run/clash-verge-rev/service.sock`（兼容路径，指向 `mcb.user` 的实例）
+- 同时提供按用户区分路径：`/run/clash-verge-rev/service-<user>.sock`
+- 如需关闭全局兼容路径，可设置 `mcb.perUserTun.compatGlobalServiceSocket = false;`
 - 多实例同时运行时，需确保各用户端口不冲突
 
 ## 方案 1：使用国内镜像（可选）

@@ -2,7 +2,12 @@
 # 代理相关服务与网络模块紧密配合。
 # 注意：proxyMode 在 hosts/*/default.nix 中设置。
 
-{ config, pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 
 let
   # 代理服务需要的网络权限能力
@@ -15,11 +20,8 @@ let
   proxyMode = config.mcb.proxyMode;
   proxyServiceEnabled = proxyMode == "tun";
   perUserTunEnabled = config.mcb.perUserTun.enable;
-  userList =
-    if config.mcb.users != [ ] then
-      config.mcb.users
-    else
-      [ config.mcb.user ];
+  keepGlobalServiceSocket = config.mcb.perUserTun.compatGlobalServiceSocket;
+  userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
   proxyEnabled = proxyMode == "http" && proxyUrl != "";
   clashPath = lib.makeBinPath [
     pkgs.clash-verge-rev
@@ -31,7 +33,8 @@ let
   ];
 
   # 为指定用户生成 clash-verge-service 的 systemd 服务
-  mkClashService = user:
+  mkClashService =
+    user:
     let
       clashHome = "/home/${user}";
       clashConfig = "${clashHome}/.config";
@@ -39,7 +42,7 @@ let
       clashCache = "${clashHome}/.cache";
       clashState = "${clashHome}/.local/state";
       runtimeDirName = "clash-verge-rev-${user}";
-      userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
+      userGroup = user;
       tunDevice =
         if perUserTunEnabled then
           (config.mcb.perUserTun.interfaces.${user} or "")
@@ -63,7 +66,7 @@ let
         User = user;
         Group = userGroup;
         WorkingDirectory = clashHome;
-        UMask = "0002";
+        UMask = "0077";
         PermissionsStartOnly = true;
         RuntimeDirectory = runtimeDirName;
         RuntimeDirectoryMode = "0700";
@@ -87,7 +90,7 @@ let
               "${clashData}/clash-verge-rev" \
               "${clashCache}/clash-verge-rev" \
               "${clashState}/clash-verge-rev"; do
-              ${pkgs.coreutils}/bin/install -d -m 2775 -o ${user} -g ${userGroup} "$dir"
+              ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$dir"
             done
             ${pkgs.coreutils}/bin/chown -R ${user}:${userGroup} \
               "${clashConfig}/clash-verge" \
@@ -137,33 +140,46 @@ in
   systemd.tmpfiles.rules =
     lib.optionals proxyServiceEnabled (
       let
-        socketLinks = map (user:
+        defaultSocketLink = "L+ /run/clash-verge-rev/service.sock - - - - /run/clash-verge-rev-${config.mcb.user}/service.sock";
+        socketLinks = map (
+          user:
           "L+ /run/clash-verge-rev/service-${user}.sock - - - - /run/clash-verge-rev-${user}/service.sock"
         ) userList;
       in
-      lib.concatLists (map (user:
-        let
-          userGroup = lib.attrByPath [ user "group" ] "users" config.users.users;
-        in
-        [
-          "d /home/${user}/.config/clash-verge 2775 ${user} ${userGroup} -"
-          "d /home/${user}/.config/clash-verge-rev 2775 ${user} ${userGroup} -"
-          "d /home/${user}/.local/share/clash-verge 2775 ${user} ${userGroup} -"
-          "d /home/${user}/.local/share/clash-verge-rev 2775 ${user} ${userGroup} -"
-          "d /home/${user}/.cache/clash-verge-rev 2775 ${user} ${userGroup} -"
-          "d /home/${user}/.local/state/clash-verge-rev 2775 ${user} ${userGroup} -"
-        ]) userList)
+      lib.concatLists (
+        map (user: [
+          "d /home/${user}/.config/clash-verge 0700 ${user} ${user} -"
+          "d /home/${user}/.config/clash-verge-rev 0700 ${user} ${user} -"
+          "d /home/${user}/.local/share/clash-verge 0700 ${user} ${user} -"
+          "d /home/${user}/.local/share/clash-verge-rev 0700 ${user} ${user} -"
+          "d /home/${user}/.cache/clash-verge-rev 0700 ${user} ${user} -"
+          "d /home/${user}/.local/state/clash-verge-rev 0700 ${user} ${user} -"
+        ]) userList
+      )
       ++ [
-        # GUI 默认使用固定 IPC 路径：/run/clash-verge-rev/service.sock
-        # 额外提供按用户区分的 socket 方便多用户配置
         "d /run/clash-verge-rev 0755 root root -"
-        "L+ /run/clash-verge-rev/service.sock - - - - /run/clash-verge-rev-${config.mcb.user}/service.sock"
+      ]
+      ++ lib.optionals (!perUserTunEnabled || keepGlobalServiceSocket) [
+        # 单用户模式总是保留默认 IPC 路径。
+        # per-user 模式下可通过 compatGlobalServiceSocket 开关保留兼容路径。
+        defaultSocketLink
       ]
       ++ socketLinks
     )
     ++ lib.optionals config.services.mihomo.enable [
       "d /var/lib/mihomo 0755 root root -"
     ];
+
+  warnings = lib.optionals (proxyServiceEnabled && perUserTunEnabled && !keepGlobalServiceSocket) [
+    "Per-user TUN 模式已禁用全局 /run/clash-verge-rev/service.sock；请使用 /run/clash-verge-rev/service-<user>.sock。"
+  ];
+
+  assertions = lib.optionals proxyServiceEnabled [
+    {
+      assertion = lib.all (user: lib.hasAttr user config.users.groups) userList;
+      message = "Each managed user must have a dedicated primary group (users.groups.<name>) for clash-verge-service.";
+    }
+  ];
 
   # Clash Verge 使用 runtime IPC；多用户时隔离运行时目录避免冲突
   systemd.services = lib.mkMerge [
@@ -173,10 +189,12 @@ in
     })
     # 多用户代理服务（每个用户一个实例）
     (lib.mkIf (proxyServiceEnabled && perUserTunEnabled) (
-      lib.listToAttrs (map (user: {
-        name = "clash-verge-service@${user}";
-        value = mkClashService user;
-      }) userList)
+      lib.listToAttrs (
+        map (user: {
+          name = "clash-verge-service@${user}";
+          value = mkClashService user;
+        }) userList
+      )
     ))
     # http 代理模式时，把代理注入 nix-daemon 环境
     (lib.mkIf proxyEnabled {

@@ -17,6 +17,7 @@ let
     else
       null;
   allUsers = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
+  adminUsers = if config.mcb.adminUsers != [ ] then config.mcb.adminUsers else [ config.mcb.user ];
 in
 {
   imports = [
@@ -95,18 +96,24 @@ in
 
   programs.zsh.enable = true;
 
-  # 创建系统用户并加入常用组
+  # 为每个用户创建私有组，避免共享 users 组导致跨用户目录权限扩大。
+  users.groups = lib.genAttrs allUsers (_: { });
+
+  # 创建系统用户并按需加入组
   users.users = lib.genAttrs allUsers (name: {
     isNormalUser = true;
     description = name;
-    extraGroups = [
-      "wheel"
-      "networkmanager"
-      "video"
-      "audio"
-    ]
-    ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
-    ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
+    group = name;
+    extraGroups =
+      (lib.optionals (lib.elem name adminUsers) [ "wheel" ])
+      ++ [
+        "users"
+        "networkmanager"
+        "video"
+        "audio"
+      ]
+      ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
+      ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
     shell = pkgs.zsh;
     linger = true;
   });

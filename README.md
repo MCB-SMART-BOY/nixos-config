@@ -26,18 +26,24 @@
 ### 1) 一键部署（推荐）
 
 ```bash
-curl -fsSL -o run.sh https://raw.githubusercontent.com/MCB-SMART-BOY/nixos-config/master/run.sh
-chmod +x run.sh
+git clone https://github.com/MCB-SMART-BOY/nixos-config.git
+cd nixos-config
+# 建议先审查代码，再执行
 ./run.sh
 ```
 
 脚本行为要点：
 - 拉取仓库并同步到 `/etc/nixos`
 - 失败自动临时切换 DNS 再重试
-- 默认执行 `nixos-rebuild switch --show-trace`（不自动 `--upgrade`）
+- 默认执行 `nixos-rebuild switch --show-trace`
 - 保留本机 `hardware-configuration.nix`
-- 覆盖策略默认更安全：交互式默认 `--ask`，非交互默认 `--backup`
-- 支持 `--host` / `--user` / `--users` / `--backup` / `--overwrite` / `--ask` / `--upgrade`
+- 支持两种部署模式：新增/调整用户，或仅更新当前配置（保留用户/权限）
+- 覆盖策略、来源策略、是否升级依赖都通过向导菜单选择
+- 向导模式下除“新增用户名”外，其他配置均可通过菜单选择
+- 可交互选择管理员用户（`mcb.adminUsers`）
+- server profile 支持开发预设与自定义软件/虚拟化开关
+- 新增未预置用户时自动生成 `home/users/<name>/default.nix` 模板
+- 脚本为全交互模式：直接运行 `./run.sh` 即可
 
 ### 2) 日常更新
 

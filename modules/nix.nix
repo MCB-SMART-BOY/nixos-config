@@ -1,7 +1,7 @@
 # Nix 本体配置：flakes、缓存、GC、zram 等系统级设置。
 # 这些设置影响构建性能与磁盘占用。
 
-{ lib, ... }:
+{ config, lib, ... }:
 
 {
   nix = {
@@ -41,7 +41,10 @@
   nixpkgs.config = {
     # 允许非自由软件（如 Chrome）
     allowUnfree = true;
-    permittedInsecurePackages = [ "ventoy-1.1.07" ];
+    # 仅在显式开启 mcb.packages.enableInsecureTools 时允许不安全包。
+    permittedInsecurePackages = lib.optionals config.mcb.packages.enableInsecureTools [
+      "ventoy-1.1.07"
+    ];
   };
 
   zramSwap = {

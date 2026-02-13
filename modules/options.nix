@@ -23,6 +23,13 @@ in
       description = "All system users managed by this host (Home Manager will be enabled for each).";
     };
 
+    # 拥有管理员权限（wheel）的用户列表
+    adminUsers = mkOption {
+      type = types.listOf types.str;
+      default = [ ];
+      description = "Users granted admin privileges (wheel). Defaults to mcb.user when unset in host config.";
+    };
+
     # CPU 厂商，用于选择正确的 KVM 模块（见 modules/boot.nix）
     cpuVendor = mkOption {
       type = types.enum [
@@ -111,6 +118,13 @@ in
         type = types.attrsOf types.port;
         default = { };
         description = "Per-user DNS listen port mapping (user -> port).";
+      };
+
+      # 是否保留全局 service.sock 兼容路径（指向 mcb.user 对应实例）
+      compatGlobalServiceSocket = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Keep /run/clash-verge-rev/service.sock as a compatibility symlink in per-user mode (points to mcb.user instance).";
       };
 
       # 策略路由表 ID 起始值
@@ -293,6 +307,14 @@ in
     {
       assertion = (lib.length config.mcb.users == 0) || (lib.elem config.mcb.user config.mcb.users);
       message = "mcb.user must be included in mcb.users when mcb.users is set.";
+    }
+    {
+      assertion =
+        (lib.length config.mcb.adminUsers == 0)
+        || (lib.all (
+          user: lib.elem user (if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ])
+        ) config.mcb.adminUsers);
+      message = "mcb.adminUsers must be a subset of managed users (mcb.users or mcb.user).";
     }
   ];
 }

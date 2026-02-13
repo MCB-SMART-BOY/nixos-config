@@ -2,7 +2,13 @@
 # 是本项目最复杂的模块之一，改动前务必理解流程。
 # 新手提示：大部分输入来自 hosts/*/default.nix 的 mcb.* 选项。
 
-{ config, lib, options, pkgs, ... }:
+{
+  config,
+  lib,
+  options,
+  pkgs,
+  ...
+}:
 
 let
   # === 读取 mcb.* 基础选项 ===
@@ -12,11 +18,7 @@ let
   perUserInterfaces = config.mcb.perUserTun.interfaces;
   perUserDnsRedirect = perUserTunEnabled && config.mcb.perUserTun.redirectDns;
   perUserDnsPorts = config.mcb.perUserTun.dnsPorts;
-  userList =
-    if config.mcb.users != [ ] then
-      config.mcb.users
-    else
-      [ config.mcb.user ];
+  userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
   # 合并所有可被信任的 TUN 接口（用于防火墙与策略路由）
   tunInterfacesEffective = lib.unique (
     (lib.optionals (tunInterface != "") [ tunInterface ])
@@ -27,16 +29,11 @@ let
   proxyMode = config.mcb.proxyMode;
   proxyServiceEnabled = proxyMode == "tun";
   proxyEnabled = proxyMode == "http" && proxyUrl != "";
-  proxyDnsEnabled =
-    proxyServiceEnabled
-    && config.mcb.enableProxyDns;
+  proxyDnsEnabled = proxyServiceEnabled && config.mcb.enableProxyDns;
   proxyDnsAddr = config.mcb.proxyDnsAddr;
   proxyDnsPort = config.mcb.proxyDnsPort;
   proxyDnsTarget =
-    if proxyDnsPort == 53 then
-      proxyDnsAddr
-    else
-      "${proxyDnsAddr}:${toString proxyDnsPort}";
+    if proxyDnsPort == 53 then proxyDnsAddr else "${proxyDnsAddr}:${toString proxyDnsPort}";
   resolvedHasDns = lib.hasAttrByPath [ "services" "resolved" "dns" ] options;
   resolvedHasFallback = lib.hasAttrByPath [ "services" "resolved" "fallbackDns" ] options;
   # systemd-resolved 额外配置（避免与已有选项重复）
@@ -46,7 +43,8 @@ let
   '';
 
   # 为“每个用户单独 TUN”生成 systemd oneshot 服务
-  mkRouteService = idx: user:
+  mkRouteService =
+    idx: user:
     let
       iface = perUserInterfaces.${user};
       tableId = config.mcb.perUserTun.tableBase + idx;
@@ -167,7 +165,13 @@ let
 in
 {
   # === 参数校验：开启 per-user TUN 时必须满足的前置条件 ===
-  assertions = lib.optionals perUserTunEnabled [
+  assertions = [
+    {
+      assertion = proxyMode != "http" || proxyUrl != "";
+      message = "mcb.proxyMode = \"http\" requires a non-empty mcb.proxyUrl.";
+    }
+  ]
+  ++ lib.optionals perUserTunEnabled [
     {
       assertion = proxyMode == "tun";
       message = "mcb.perUserTun.enable requires mcb.proxyMode = \"tun\".";
@@ -186,7 +190,8 @@ in
         == lib.length (lib.attrValues perUserInterfaces);
       message = "mcb.perUserTun.interfaces must use unique interface names per user.";
     }
-  ] ++ lib.optionals perUserDnsRedirect [
+  ]
+  ++ lib.optionals perUserDnsRedirect [
     {
       assertion = lib.all (user: lib.hasAttr user perUserDnsPorts) userList;
       message = "mcb.perUserTun.dnsPorts must define a port for each user when redirectDns is enabled.";
@@ -214,16 +219,18 @@ in
     # 防火墙：允许代理 DNS/本地面板端口，同时信任 TUN 接口
     firewall = {
       enable = true;
-      checkReversePath = "loose";
-      allowedTCPPorts =
-        [
-          22
-        ];
+      # 默认使用严格反向路径检查，减少源地址伪造风险。
+      checkReversePath = "strict";
+      allowedTCPPorts = [
+        22
+      ];
       allowedUDPPorts = lib.optionals (proxyDnsEnabled && tunInterfacesEffective == [ ]) [ proxyDnsPort ];
       interfaces =
-        (lib.optionalAttrs proxyDnsEnabled (lib.genAttrs tunInterfacesEffective (_: {
-          allowedUDPPorts = [ proxyDnsPort ];
-        })))
+        (lib.optionalAttrs proxyDnsEnabled (
+          lib.genAttrs tunInterfacesEffective (_: {
+            allowedUDPPorts = [ proxyDnsPort ];
+          })
+        ))
         // (lib.optionalAttrs proxyServiceEnabled {
           lo = {
             allowedTCPPorts = [
@@ -233,53 +240,55 @@ in
           };
         });
       trustedInterfaces =
-        tunInterfacesEffective ++ [
-          "tun+"
-          "utun+"
-          "docker0"
-          "virbr0"
-        ];
+        tunInterfacesEffective
+        ++ lib.optionals config.virtualisation.docker.enable [ "docker0" ]
+        ++ lib.optionals config.virtualisation.libvirtd.enable [ "virbr0" ];
     };
   };
 
   systemd.services = lib.mkIf (proxyServiceEnabled && perUserTunEnabled) (
-    lib.listToAttrs (lib.imap0 (idx: user: {
-      name = "mcb-tun-route@${user}";
-      value = mkRouteService idx user;
-    }) userList)
+    lib.listToAttrs (
+      lib.imap0 (idx: user: {
+        name = "mcb-tun-route@${user}";
+        value = mkRouteService idx user;
+      }) userList
+    )
   );
 
   systemd.paths = lib.mkIf (proxyServiceEnabled && perUserTunEnabled) (
-    lib.listToAttrs (lib.imap0 (idx: user:
-      let
-        iface = perUserInterfaces.${user};
-      in
-      {
-        name = "mcb-tun-route@${user}";
-        value = {
-          wantedBy = [ "multi-user.target" ];
-          pathConfig = {
-            PathExists = "/sys/class/net/${iface}";
-            Unit = "mcb-tun-route@${user}.service";
+    lib.listToAttrs (
+      lib.imap0 (
+        idx: user:
+        let
+          iface = perUserInterfaces.${user};
+        in
+        {
+          name = "mcb-tun-route@${user}";
+          value = {
+            wantedBy = [ "multi-user.target" ];
+            pathConfig = {
+              PathExists = "/sys/class/net/${iface}";
+              Unit = "mcb-tun-route@${user}.service";
+            };
           };
-        };
-      }) userList)
+        }
+      ) userList
+    )
   );
 
-  services.resolved =
-    {
-      enable = true;
-    }
-    // lib.optionalAttrs (resolvedHasDns && proxyDnsEnabled) {
-      dns = [ proxyDnsTarget ];
-    }
-    // lib.optionalAttrs (resolvedHasFallback && !proxyDnsEnabled) {
-      fallbackDns = [
-        "223.5.5.5"
-        "1.1.1.1"
-      ];
-    }
-    // lib.optionalAttrs (resolvedExtraConfig != "") {
-      extraConfig = resolvedExtraConfig;
-    };
+  services.resolved = {
+    enable = true;
+  }
+  // lib.optionalAttrs (resolvedHasDns && proxyDnsEnabled) {
+    dns = [ proxyDnsTarget ];
+  }
+  // lib.optionalAttrs (resolvedHasFallback && !proxyDnsEnabled) {
+    fallbackDns = [
+      "223.5.5.5"
+      "1.1.1.1"
+    ];
+  }
+  // lib.optionalAttrs (resolvedExtraConfig != "") {
+    extraConfig = resolvedExtraConfig;
+  };
 }

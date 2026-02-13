@@ -38,10 +38,12 @@ sudo nixos-generate-config
 
 方式 A：使用一键部署脚本（推荐）
 ```bash
-curl -fsSL -o run.sh https://raw.githubusercontent.com/MCB-SMART-BOY/nixos-config/master/run.sh
-chmod +x run.sh
+git clone https://github.com/MCB-SMART-BOY/nixos-config.git
+cd nixos-config
 ./run.sh
 ```
+
+脚本是全交互向导：运行后会让你在菜单中选择配置来源（本地仓库 / 远端固定版本 / 远端最新版本）。
 
 方式 B：手动克隆到 /etc/nixos
 ```bash
@@ -54,6 +56,7 @@ sudo git clone https://github.com/MCB-SMART-BOY/nixos-config.git /etc/nixos
 如果是新主机，创建：
 ```bash
 sudo mkdir -p /etc/nixos/hosts/<hostname>
+echo '"x86_64-linux"' | sudo tee /etc/nixos/hosts/<hostname>/system.nix
 ```
 
 最小主机入口示例：
@@ -109,17 +112,25 @@ mcb.users = [ "mcbnixos" "mcblaptopnixos" ];
 ```
 
 脚本会引导你选择：
+- 部署模式（新增/调整用户，或仅更新当前配置）
 - 主机（hosts 目录）
-- 用户列表
+- 用户列表（支持勾选已有用户；仅新增用户名需要手写）
+- 管理员用户列表（wheel，勾选式）
 - 是否启用 per-user TUN
 - GPU 模式（可选）
+- server profile 的软件/虚拟化开关（可选）
 
 默认行为：
-- 交互模式未指定覆盖策略时，默认 `--ask`
-- 非交互模式未指定覆盖策略时，默认 `--backup`
-- 默认不附加 `--upgrade`，需要时可显式传入 `./run.sh --upgrade`
+- 覆盖策略通过菜单选择（备份覆盖 / 直接覆盖 / 执行时询问）
+- 来源策略通过菜单选择（本地仓库 / 远端固定版本 / 远端最新版本）
+- 是否升级依赖通过菜单选择
+- 仅更新模式会保留 `hosts/<hostname>/local.nix`，不修改现有用户/权限
+
+说明：
+- `run.sh` 不再需要命令行参数，直接执行 `./run.sh` 即可
 
 脚本会写入 `hosts/<hostname>/local.nix` 做临时覆盖，不会破坏你的主配置。
+若输入了仓库中不存在的新用户，脚本会自动创建 `home/users/<name>/default.nix` 最小模板。
 
 ---
 

@@ -221,13 +221,17 @@ let
 
   systemTools = with pkgs; [
     # 存储与下载
-    ventoy
     qbittorrent
     aria2
     yt-dlp
     # 系统工具
     gparted
     pavucontrol
+  ];
+
+  insecureTools = with pkgs; [
+    # 明确标记为不安全/过时的软件，默认不安装。
+    ventoy
   ];
 
   theming = with pkgs; [
@@ -342,6 +346,7 @@ let
     (lib.optionals cfg.enableEntertainment entertainment)
     (lib.optionals cfg.enableGaming gaming)
     (lib.optionals cfg.enableSystemTools systemTools)
+    (lib.optionals cfg.enableInsecureTools insecureTools)
     (lib.optionals cfg.enableTheming theming)
     (lib.optionals cfg.enableXorgCompat xorgCompat)
     (lib.optionals cfg.enableGeekTools geekTools)
@@ -413,6 +418,11 @@ in
       type = lib.types.bool;
       default = false;
       description = "Install system utilities.";
+    };
+    enableInsecureTools = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Install insecure/legacy packages (disabled by default).";
     };
     enableTheming = lib.mkOption {
       type = lib.types.bool;

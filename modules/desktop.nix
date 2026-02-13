@@ -40,14 +40,6 @@
     GLFW_IM_MODULE = "fcitx";
     XMODIFIERS = "@im=fcitx";
     XIM_SERVERS = "fcitx";
-    # 让非 Nix 构建/运行的二进制（不仅是 cargo）都能找到 Vulkan loader 与 GPU 驱动库
-    LD_LIBRARY_PATH = lib.mkDefault (
-      lib.concatStringsSep ":" [
-        "/run/current-system/sw/lib"
-        "/run/opengl-driver/lib"
-        "/run/opengl-driver-32/lib"
-      ]
-    );
     # 会话级 Vulkan ICD 发现路径，覆盖 GUI 应用与非交互启动场景
     VK_DRIVER_FILES = lib.mkDefault "/run/opengl-driver/share/vulkan/icd.d";
     # 不强制覆盖，避免吞掉其他模块追加的桌面数据目录
