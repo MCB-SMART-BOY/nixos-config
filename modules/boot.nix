@@ -30,8 +30,8 @@ in
       efi.canTouchEfiVariables = true;
     };
 
-    # 使用稳定内核（驱动兼容性更好）；需要最新内核时在 host 层覆盖
-    kernelPackages = lib.mkDefault pkgs.linuxPackages;
+    # 默认使用最新内核分支；如需回退可在 host 层覆盖为 linuxPackages
+    kernelPackages = lib.mkDefault pkgs.linuxPackages_latest;
     kernelModules = [
       "tun"
     ]

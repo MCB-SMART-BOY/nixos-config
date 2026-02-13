@@ -13,6 +13,8 @@ SOURCE_REF=""
 ALLOW_REMOTE_HEAD=false
 SOURCE_COMMIT=""
 SOURCE_CHOICE_SET=false
+# 远端拉取超时（秒），用于避免某镜像无响应导致“卡住”。
+GIT_CLONE_TIMEOUT_SEC="${GIT_CLONE_TIMEOUT_SEC:-90}"
 
 # 运行状态（由向导填充）
 TARGET_NAME=""
@@ -205,7 +207,12 @@ menu_prompt() {
       printf '  %s) %s\n' "${i}" "${opt}" >&2
       i=$((i + 1))
     done
-    read -r -p "请选择 [1-${total}]（默认 ${default_index}）： " choice
+    read -r -p "请选择 [1-${total}]（默认 ${default_index}，输入 q 退出）： " choice
+    case "${choice}" in
+      q|Q)
+        error "已退出"
+        ;;
+    esac
     if [[ -z "${choice}" ]]; then
       choice="${default_index}"
     fi
@@ -1939,30 +1946,55 @@ prepare_local_source() {
   fi
 }
 
+# 带超时保护执行 git 命令（避免镜像无响应时长时间卡住）。
+run_git_with_timeout() {
+  local timeout_sec="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --foreground "${timeout_sec}" "$@"
+  else
+    "$@"
+  fi
+}
+
 # 克隆配置仓库。
 clone_repo() {
   local tmp_dir="$1"
   local url="$2"
+  local clone_timeout="${GIT_CLONE_TIMEOUT_SEC}"
 
   if [[ -n "${SOURCE_REF}" ]]; then
-    log "拉取仓库：${url}（固定 ref: ${SOURCE_REF}）"
+    log "拉取仓库：${url}（固定 ref: ${SOURCE_REF}，超时 ${clone_timeout}s）"
     # 固定 ref 模式：完整克隆后切到指定提交/标签，避免跟随浮动分支。
-    if git clone "${url}" "${tmp_dir}" \
-      && git -C "${tmp_dir}" checkout --detach "${SOURCE_REF}" >/dev/null 2>&1; then
-      SOURCE_COMMIT="$(git -C "${tmp_dir}" rev-parse HEAD 2>/dev/null || true)"
-      success "仓库拉取完成（${SOURCE_COMMIT}）"
-      return 0
+    if run_git_with_timeout "${clone_timeout}" \
+      env GIT_TERMINAL_PROMPT=0 git -c http.lowSpeedLimit=1024 -c http.lowSpeedTime=20 clone "${url}" "${tmp_dir}"; then
+      if env GIT_TERMINAL_PROMPT=0 git -C "${tmp_dir}" checkout --detach "${SOURCE_REF}" >/dev/null 2>&1; then
+        SOURCE_COMMIT="$(git -C "${tmp_dir}" rev-parse HEAD 2>/dev/null || true)"
+        success "仓库拉取完成（${SOURCE_COMMIT}）"
+        return 0
+      fi
+      warn "已拉取仓库，但 checkout 失败：${url}（ref: ${SOURCE_REF}）"
+      return 1
+    fi
+    local rc=$?
+    if [[ ${rc} -eq 124 ]]; then
+      warn "仓库拉取超时：${url}（${clone_timeout}s）"
     fi
     warn "仓库拉取或 checkout 失败：${url}（ref: ${SOURCE_REF}）"
     return 1
   fi
 
-  log "拉取仓库：${url}（${BRANCH}）"
+  log "拉取仓库：${url}（${BRANCH}，超时 ${clone_timeout}s）"
   # 仅在显式允许时使用远端分支 HEAD。
-  if git clone --depth 1 --branch "${BRANCH}" "${url}" "${tmp_dir}"; then
+  if run_git_with_timeout "${clone_timeout}" \
+    env GIT_TERMINAL_PROMPT=0 git -c http.lowSpeedLimit=1024 -c http.lowSpeedTime=20 clone --depth 1 --branch "${BRANCH}" "${url}" "${tmp_dir}"; then
     SOURCE_COMMIT="$(git -C "${tmp_dir}" rev-parse HEAD 2>/dev/null || true)"
     success "仓库拉取完成（${SOURCE_COMMIT}）"
     return 0
+  fi
+  local rc=$?
+  if [[ ${rc} -eq 124 ]]; then
+    warn "仓库拉取超时：${url}（${clone_timeout}s）"
   fi
   warn "仓库拉取失败：${url}"
   return 1
@@ -1972,9 +2004,13 @@ clone_repo() {
 clone_repo_any() {
   local tmp_dir="$1"
   local url
+  local index=0
+  local total="${#REPO_URLS[@]}"
   SOURCE_COMMIT=""
-  # 依次尝试 Gitee / GitHub
+  # 依次尝试多个镜像
   for url in "${REPO_URLS[@]}"; do
+    index=$((index + 1))
+    note "尝试镜像 (${index}/${total})：${url}"
     rm -rf "${tmp_dir}"
     mkdir -p "${tmp_dir}"
     if clone_repo "${tmp_dir}" "${url}"; then
@@ -1982,6 +2018,45 @@ clone_repo_any() {
     fi
   done
   return 1
+}
+
+# 准备源代码（本地或远端），失败时返回非 0。
+prepare_source_repo() {
+  local tmp_dir="$1"
+
+  if [[ "${FORCE_REMOTE_SOURCE}" == "true" ]]; then
+    require_remote_source_pin
+    if ! clone_repo_any "${tmp_dir}"; then
+      log "尝试临时切换阿里云 DNS 后重试"
+      temp_dns_enable
+      rm -rf "${tmp_dir}"
+      mkdir -p "${tmp_dir}"
+      if ! clone_repo_any "${tmp_dir}"; then
+        return 1
+      fi
+    fi
+    return 0
+  fi
+
+  local source_dir=""
+  source_dir="$(detect_local_repo_dir || true)"
+  if [[ -n "${source_dir}" ]]; then
+    prepare_local_source "${tmp_dir}" "${source_dir}"
+    return 0
+  fi
+
+  require_remote_source_pin
+  if ! clone_repo_any "${tmp_dir}"; then
+    log "尝试临时切换阿里云 DNS 后重试"
+    temp_dns_enable
+    rm -rf "${tmp_dir}"
+    mkdir -p "${tmp_dir}"
+    if ! clone_repo_any "${tmp_dir}"; then
+      return 1
+    fi
+  fi
+
+  return 0
 }
 
 # 同步仓库到 /etc/nixos。
@@ -2320,35 +2395,31 @@ main() {
 
   # 按模式准备源代码：默认优先本地；仅更新模式强制走远端。
   section "准备源代码"
-  if [[ "${FORCE_REMOTE_SOURCE}" == "true" ]]; then
-    require_remote_source_pin
-    if ! clone_repo_any "${TMP_DIR}"; then
-      log "尝试临时切换阿里云 DNS 后重试"
-      temp_dns_enable
-      rm -rf "${TMP_DIR}"
-      TMP_DIR="$(mktemp -d)"
-      if ! clone_repo_any "${TMP_DIR}"; then
-        error "仓库拉取失败，请检查网络"
-      fi
+  while true; do
+    if prepare_source_repo "${TMP_DIR}"; then
+      break
     fi
-  else
-    local source_dir=""
-    source_dir="$(detect_local_repo_dir || true)"
-    if [[ -n "${source_dir}" ]]; then
-      prepare_local_source "${TMP_DIR}" "${source_dir}"
-    else
-      require_remote_source_pin
-      if ! clone_repo_any "${TMP_DIR}"; then
-        log "尝试临时切换阿里云 DNS 后重试"
-        temp_dns_enable
-        rm -rf "${TMP_DIR}"
-        TMP_DIR="$(mktemp -d)"
-        if ! clone_repo_any "${TMP_DIR}"; then
-          error "仓库拉取失败，请检查网络"
-        fi
-      fi
+
+    if ! is_tty; then
+      error "仓库拉取失败，请检查网络或更换来源策略"
     fi
-  fi
+
+    local retry_pick
+    retry_pick="$(menu_prompt "准备源代码失败，下一步" 1 "重试当前来源" "重新选择来源策略" "退出")"
+    case "${retry_pick}" in
+      1)
+        continue
+        ;;
+      2)
+        SOURCE_CHOICE_SET=false
+        prompt_source_strategy
+        continue
+        ;;
+      3)
+        error "已退出"
+        ;;
+    esac
+  done
   progress_step "准备源代码"
 
   section "脚本自检"
