@@ -319,6 +319,21 @@ in
     terminal = false;
   };
 
+  xdg.desktopEntries."yesplaymusic" = {
+    name = "YesPlayMusic";
+    comment = "A third-party music player for Netease Music";
+    exec = "electron-auto-gpu yesplaymusic --no-sandbox %U";
+    icon = "yesplaymusic";
+    categories = [
+      "AudioVideo"
+      "Audio"
+      "Player"
+      "Music"
+    ];
+    startupNotify = true;
+    terminal = false;
+  };
+
   systemd.user.services.xwaylandvideobridge = lib.mkIf (xwaylandBridgePkg != null) {
     Unit = {
       Description = "XWayland Video Bridge (screen sharing for X11 apps)";

@@ -142,3 +142,4 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 - 修改主机配置：编辑 `hosts/<hostname>/default.nix`
 - 自定义应用配置：放入 `home/users/<user>/config/` 后在 `files.nix` 中接入
 - 关闭系统层游戏功能：`mcb.system.enableGaming = false;`
+- 音乐应用说明：`enableMusic` 会安装 `yesplaymusic`（仓库内自定义包）与 `go-musicfox`/`musicfox` 启动包装器（启动前会自动修正 `go-musicfox.ini` 的 `player.engine=mpv`、`player.mpvBin`、`unm.sources`、`unm.skipInvalidTracks`、`unm.searchLimit`）

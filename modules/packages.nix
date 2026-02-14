@@ -42,6 +42,128 @@ let
     ])
   ];
 
+  musicfoxWrapper = pkgs.writeShellScript "musicfox-wrapper" ''
+        set -euo pipefail
+
+        musicfox_root="''${MUSICFOX_ROOT:-''${XDG_CONFIG_HOME:-$HOME/.config}/go-musicfox}"
+        cfg_file="$musicfox_root/go-musicfox.ini"
+
+        mkdir -p "$musicfox_root"
+
+        # Bootstrap config with sane Linux defaults when no config exists yet.
+        if [ ! -f "$cfg_file" ]; then
+          cat > "$cfg_file" <<CFG
+    [player]
+    engine=mpv
+    mpvBin=${pkgs.mpv}/bin/mpv
+
+    [unm]
+    switch=true
+    sources=kuwo,kugou,migu,qq
+    searchLimit=3
+    skipInvalidTracks=true
+    CFG
+        fi
+
+        ensure_ini_key() {
+          local file="$1"
+          local section="$2"
+          local key="$3"
+          local value="$4"
+
+          local tmp
+          tmp="$(${pkgs.coreutils}/bin/mktemp)"
+
+          ${pkgs.gawk}/bin/awk \
+            -v section="$section" \
+            -v key="$key" \
+            -v value="$value" \
+            '
+            function print_missing_if_needed() {
+              if (in_section && !found_key) {
+                print key "=" value
+              }
+            }
+
+            BEGIN {
+              in_section = 0
+              section_seen = 0
+              found_key = 0
+            }
+
+            /^[[:space:]]*\[/ {
+              print_missing_if_needed()
+              in_section = 0
+            }
+
+            {
+              line = $0
+
+              if (match(line, /^[[:space:]]*\[([^]]+)\][[:space:]]*$/, m)) {
+                if (m[1] == section) {
+                  in_section = 1
+                  section_seen = 1
+                  found_key = 0
+                } else {
+                  in_section = 0
+                }
+
+                print line
+                next
+              }
+
+              if (in_section && match(line, "^[[:space:]]*" key "[[:space:]]*=")) {
+                if (!found_key) {
+                  print key "=" value
+                  found_key = 1
+                }
+                next
+              }
+
+              print line
+            }
+
+            END {
+              print_missing_if_needed()
+
+              if (!section_seen) {
+                if (NR > 0) {
+                  print ""
+                }
+                print "[" section "]"
+                print key "=" value
+              }
+            }
+            ' "$file" > "$tmp"
+
+          ${pkgs.coreutils}/bin/mv "$tmp" "$file"
+        }
+
+        ensure_ini_key "$cfg_file" "player" "engine" "mpv"
+        ensure_ini_key "$cfg_file" "player" "mpvBin" "${pkgs.mpv}/bin/mpv"
+        ensure_ini_key "$cfg_file" "unm" "switch" "true"
+        ensure_ini_key "$cfg_file" "unm" "sources" "kuwo,kugou,migu,qq"
+        ensure_ini_key "$cfg_file" "unm" "searchLimit" "3"
+        ensure_ini_key "$cfg_file" "unm" "skipInvalidTracks" "true"
+
+        export MUSICFOX_ROOT="$musicfox_root"
+        exec ${pkgs.go-musicfox}/bin/musicfox "$@"
+  '';
+
+  # Wrap musicfox startup and harden playback-related defaults.
+  goMusicfoxCompat = pkgs.runCommand "go-musicfox-compat" { } ''
+    mkdir -p "$out/bin"
+    install -Dm755 ${musicfoxWrapper} "$out/bin/.musicfox-wrapper"
+    ln -s .musicfox-wrapper "$out/bin/musicfox"
+    ln -s .musicfox-wrapper "$out/bin/go-musicfox"
+  '';
+
+  yesplaymusicPkg =
+    if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
+      pkgs.callPackage ../pkgs/yesplaymusic.nix { }
+    else
+      null;
+
   baseRuntime = with pkgs; [
     # 基础运行时工具
     bash
@@ -323,14 +445,17 @@ let
     mangal
   ];
 
-  music = with pkgs; [
-    # 音乐播放
-    go-musicfox
-    ncspot
-    mpd
-    ncmpcpp
-    playerctl
-  ];
+  music =
+    with pkgs;
+    [
+      # 音乐播放
+      goMusicfoxCompat
+      ncspot
+      mpd
+      ncmpcpp
+      playerctl
+    ]
+    ++ lib.optionals (yesplaymusicPkg != null) [ yesplaymusicPkg ];
 
   # 按开关拼装最终包组
   groups = lib.concatLists [
