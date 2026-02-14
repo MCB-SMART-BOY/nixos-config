@@ -51,6 +51,19 @@ let
       (resolvePkg [ "vulkan-loader" ])
       (resolvePkg [ "mesa" ])
       (resolvePkg [ "libdrm" ])
+      (resolvePkg [
+        "glib"
+        "out"
+      ])
+      (resolvePkg [
+        "fontconfig"
+        "lib"
+      ])
+      (resolvePkg [ "freetype" ])
+      (resolvePkg [
+        "dbus"
+        "lib"
+      ])
       (resolvePkg [ "wayland" ])
       (resolvePkg [ "libxkbcommon" ])
       (resolvePkg [

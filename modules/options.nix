@@ -222,6 +222,7 @@ in
           type = types.listOf types.str;
           default = [
             "/run/current-system/sw/lib"
+            "/run/current-system/sw/share/nix-ld/lib"
             "/run/opengl-driver/lib"
             "/run/opengl-driver-32/lib"
           ];
