@@ -120,6 +120,40 @@ let
       name = "noctalia-proxy-status";
       runtimeInputs = [ pkgs.systemd ];
     };
+
+    steam-gamescope = pkgs.writeShellApplication {
+      name = "steam-gamescope";
+      runtimeInputs = [
+        pkgs.coreutils
+        pkgs.gamescope
+      ];
+      text = ''
+        set -euo pipefail
+
+        # Keep this wrapper self-contained when launched from desktop entries.
+        export PATH="/run/current-system/sw/bin:/run/wrappers/bin:''${HOME:-}/.nix-profile/bin:''${HOME:-}/.local/bin:''${PATH:-}"
+
+        if ! command -v gamescope >/dev/null 2>&1; then
+          echo "steam-gamescope: gamescope not found in PATH" >&2
+          exit 1
+        fi
+
+        if ! command -v steam >/dev/null 2>&1; then
+          echo "steam-gamescope: steam not found in PATH" >&2
+          exit 1
+        fi
+
+        # Steam runtime may mis-handle directory-style Vulkan vars inherited from session.
+        unset VK_DRIVER_FILES
+        unset VK_ICD_FILENAMES
+
+        if [[ $# -eq 0 ]]; then
+          exec gamescope -f -- steam -vgui
+        fi
+
+        exec gamescope -f -- steam "$@"
+      '';
+    };
   };
 
   # 软链到 ~/.local/bin，方便手动执行
@@ -145,4 +179,5 @@ in
   home.file.".local/bin/noctalia-disk" = mkBinLink "noctalia-disk";
   home.file.".local/bin/noctalia-power" = mkBinLink "noctalia-power";
   home.file.".local/bin/noctalia-proxy-status" = mkBinLink "noctalia-proxy-status";
+  home.file.".local/bin/steam-gamescope" = mkBinLink "steam-gamescope";
 }
