@@ -326,6 +326,18 @@ let
       obs-studio
       libreoffice-still
       xournalpp
+      # 论文写作/阅读工具链
+      sioyek
+      zotero
+      pandoc
+      typst
+      tinymist
+      texstudio
+      texlab
+      texlive.combined.scheme-medium
+      biber
+      qpdf
+      poppler-utils
     ]
     ++ lib.optionals (obsV4l2sink != null) [ obsV4l2sink ];
 

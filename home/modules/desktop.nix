@@ -237,6 +237,77 @@ in
     electronAutoGpu
   ];
 
+  # 论文相关文件默认使用 LibreOffice / Sioyek，避免 WPS 抢占默认关联。
+  xdg.mimeApps = {
+    enable = true;
+    defaultApplications = {
+      # PDF / PostScript
+      "application/pdf" = [ "sioyek.desktop" ];
+      "application/postscript" = [ "sioyek.desktop" ];
+      # Word 文档
+      "application/msword" = [ "libreoffice-writer.desktop" ];
+      "application/rtf" = [ "libreoffice-writer.desktop" ];
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document" = [
+        "libreoffice-writer.desktop"
+      ];
+      "application/vnd.oasis.opendocument.text" = [ "libreoffice-writer.desktop" ];
+      # Excel 表格
+      "application/vnd.ms-excel" = [ "libreoffice-calc.desktop" ];
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" = [
+        "libreoffice-calc.desktop"
+      ];
+      "application/vnd.oasis.opendocument.spreadsheet" = [ "libreoffice-calc.desktop" ];
+      # PowerPoint 演示
+      "application/vnd.ms-powerpoint" = [ "libreoffice-impress.desktop" ];
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation" = [
+        "libreoffice-impress.desktop"
+      ];
+      "application/vnd.oasis.opendocument.presentation" = [ "libreoffice-impress.desktop" ];
+      # 文献管理
+      "x-scheme-handler/zotero" = [ "zotero.desktop" ];
+      "text/x-bibtex" = [ "zotero.desktop" ];
+      "application/x-research-info-systems" = [ "zotero.desktop" ];
+    };
+  };
+
+  xdg.desktopEntries."sioyek" = {
+    name = "Sioyek";
+    genericName = "PDF Viewer";
+    comment = "PDF viewer optimized for research papers";
+    exec = "sioyek %U";
+    icon = "sioyek";
+    categories = [
+      "Office"
+      "Viewer"
+    ];
+    mimeType = [
+      "application/pdf"
+      "application/postscript"
+    ];
+    startupNotify = true;
+    terminal = false;
+  };
+
+  xdg.desktopEntries."zotero" = {
+    name = "Zotero";
+    genericName = "Reference Manager";
+    comment = "Collect, organize and cite research";
+    exec = "zotero %U";
+    icon = "zotero";
+    categories = [
+      "Office"
+      "Education"
+      "Science"
+    ];
+    mimeType = [
+      "x-scheme-handler/zotero"
+      "text/x-bibtex"
+      "application/x-research-info-systems"
+    ];
+    startupNotify = true;
+    terminal = false;
+  };
+
   # Override upstream desktop entry so GUI launcher also goes through adaptive wrapper.
   xdg.desktopEntries."dev.zed.Zed" = {
     name = "Zed";
