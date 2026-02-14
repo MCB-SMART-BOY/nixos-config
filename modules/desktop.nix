@@ -9,6 +9,10 @@
   ...
 }:
 
+let
+  graphicsRuntime = config.mcb.desktop.graphicsRuntime;
+  graphicsLibraryPath = lib.concatStringsSep ":" graphicsRuntime.libraryPath;
+in
 {
   programs.niri.enable = true;
   programs.dconf.enable = true;
@@ -51,16 +55,6 @@
     GLFW_IM_MODULE = "fcitx";
     XMODIFIERS = "@im=fcitx";
     XIM_SERVERS = "fcitx";
-    # 让非 Nix 构建/运行的二进制（例如 rustup + cargo）也能找到 Vulkan loader 与 GPU 驱动库。
-    LD_LIBRARY_PATH = lib.mkDefault (
-      lib.concatStringsSep ":" [
-        "/run/current-system/sw/lib"
-        "/run/opengl-driver/lib"
-        "/run/opengl-driver-32/lib"
-      ]
-    );
-    # 会话级 Vulkan ICD 发现路径，覆盖 GUI 应用与非交互启动场景
-    VK_DRIVER_FILES = lib.mkDefault "/run/opengl-driver/share/vulkan/icd.d";
     # 不强制覆盖，避免吞掉其他模块追加的桌面数据目录
     XDG_DATA_DIRS = lib.mkDefault (
       lib.concatStringsSep ":" [
@@ -70,16 +64,22 @@
         "/var/lib/flatpak/exports/share"
       ]
     );
+  }
+  // lib.optionalAttrs graphicsRuntime.enable {
+    # 让非 Nix 构建/运行的二进制（例如 rustup + cargo）也能找到 Vulkan loader 与 GPU 驱动库。
+    LD_LIBRARY_PATH = lib.mkDefault graphicsLibraryPath;
+    # 会话级 Vulkan ICD 发现路径，覆盖 GUI 应用与非交互启动场景
+    VK_DRIVER_FILES = lib.mkDefault graphicsRuntime.vulkanIcdDir;
   };
 
   # 会话变量是主策略；这里仅补充兼容：兜底 LD_LIBRARY_PATH，并把 ICD 目录展开为 VK_ICD_FILENAMES 列表。
-  environment.shellInit = ''
+  environment.shellInit = lib.mkIf graphicsRuntime.enable ''
     if [ -z "''${LD_LIBRARY_PATH-}" ]; then
-      export LD_LIBRARY_PATH="/run/current-system/sw/lib:/run/opengl-driver/lib:/run/opengl-driver-32/lib"
+      export LD_LIBRARY_PATH="${graphicsLibraryPath}"
     fi
 
     if [ -z "''${VK_ICD_FILENAMES-}" ]; then
-      icd_dir="''${VK_DRIVER_FILES:-/run/opengl-driver/share/vulkan/icd.d}"
+      icd_dir="''${VK_DRIVER_FILES:-${graphicsRuntime.vulkanIcdDir}}"
       if [ -d "$icd_dir" ]; then
         vk_icd_files=""
         for file in "$icd_dir"/*.json; do

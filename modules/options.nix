@@ -210,6 +210,32 @@ in
       };
     };
 
+    desktop = {
+      graphicsRuntime = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Export compatibility graphics runtime env for desktop sessions (LD_LIBRARY_PATH + Vulkan ICD path).";
+        };
+
+        libraryPath = mkOption {
+          type = types.listOf types.str;
+          default = [
+            "/run/current-system/sw/lib"
+            "/run/opengl-driver/lib"
+            "/run/opengl-driver-32/lib"
+          ];
+          description = "Library search paths exported to LD_LIBRARY_PATH when graphics runtime compatibility env is enabled.";
+        };
+
+        vulkanIcdDir = mkOption {
+          type = types.str;
+          default = "/run/opengl-driver/share/vulkan/icd.d";
+          description = "Default Vulkan ICD directory for VK_DRIVER_FILES and shell fallback expansion.";
+        };
+      };
+    };
+
     hardware = {
       nvidia = {
         enable = mkOption {
@@ -309,12 +335,20 @@ in
       message = "mcb.user must be included in mcb.users when mcb.users is set.";
     }
     {
+      assertion = lib.length config.mcb.users == lib.length (lib.unique config.mcb.users);
+      message = "mcb.users must not contain duplicate entries.";
+    }
+    {
       assertion =
         (lib.length config.mcb.adminUsers == 0)
         || (lib.all (
           user: lib.elem user (if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ])
         ) config.mcb.adminUsers);
       message = "mcb.adminUsers must be a subset of managed users (mcb.users or mcb.user).";
+    }
+    {
+      assertion = lib.length config.mcb.adminUsers == lib.length (lib.unique config.mcb.adminUsers);
+      message = "mcb.adminUsers must not contain duplicate entries.";
     }
   ];
 }

@@ -54,6 +54,29 @@
 
 ---
 
+## 桌面图形运行时（Vulkan / 非 Nix 二进制）
+
+关键字段（`mcb.desktop.graphicsRuntime.*`）：
+- `enable`：是否导出兼容运行时环境变量（`LD_LIBRARY_PATH` + `VK_DRIVER_FILES`）
+- `libraryPath`：写入 `LD_LIBRARY_PATH` 的库路径列表
+- `vulkanIcdDir`：Vulkan ICD 目录（会用于 `VK_DRIVER_FILES` 与 shell 兜底展开）
+
+默认值已覆盖常见桌面场景（Steam、rustup/cargo、上游二进制包）。若你有特殊运行时需求，可在主机配置里覆盖：
+
+```nix
+mcb.desktop.graphicsRuntime = {
+  enable = true;
+  libraryPath = [
+    "/run/current-system/sw/lib"
+    "/run/opengl-driver/lib"
+    "/run/opengl-driver-32/lib"
+  ];
+  vulkanIcdDir = "/run/opengl-driver/share/vulkan/icd.d";
+};
+```
+
+---
+
 ## GPU 配置
 
 关键字段：
@@ -110,6 +133,7 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 - 负责拉取、同步、构建
 - 可在向导中选择主机/用户/TUN/GPU
 - 会写入 `hosts/<hostname>/local.nix` 覆盖配置
+- 建议部署前先执行 `nix flake check`（现已包含脚本语法检查）
 
 ---
 

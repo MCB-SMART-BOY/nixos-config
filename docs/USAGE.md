@@ -230,10 +230,11 @@ mcb.perUserTun.dnsPorts = {
 
 推荐流程（每次更新时）：
 1. 拉取或编辑配置，保持变更小而清晰
-2. 如需更新依赖：`nix flake update`
-3. 使用 `nixos-rebuild test` 先测试
-4. 通过后再 `nixos-rebuild switch`
-5. 核心组件更新后重启系统
+2. 先运行 `nix flake check`（包含配置评估与脚本语法检查）
+3. 如需更新依赖：`nix flake update`
+4. 使用 `nixos-rebuild test` 先测试
+5. 通过后再 `nixos-rebuild switch`
+6. 核心组件更新后重启系统
 
 最佳实践：
 - 变更前先 `git status`，保持提交粒度小

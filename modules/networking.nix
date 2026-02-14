@@ -170,6 +170,14 @@ in
       assertion = proxyMode != "http" || proxyUrl != "";
       message = "mcb.proxyMode = \"http\" requires a non-empty mcb.proxyUrl.";
     }
+    {
+      assertion = !proxyServiceEnabled || perUserTunEnabled || tunInterface != "";
+      message = "mcb.proxyMode = \"tun\" requires mcb.tunInterface when per-user TUN is disabled.";
+    }
+    {
+      assertion = !proxyDnsEnabled || proxyDnsAddr != "";
+      message = "mcb.enableProxyDns = true requires a non-empty mcb.proxyDnsAddr.";
+    }
   ]
   ++ lib.optionals perUserTunEnabled [
     {

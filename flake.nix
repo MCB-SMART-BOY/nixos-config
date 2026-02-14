@@ -58,6 +58,7 @@
       hostNames = builtins.filter (name: hostEntries.${name} == "directory" && name != "profiles") (
         builtins.attrNames hostEntries
       );
+      pkgsForDefault = nixpkgs.legacyPackages.${defaultSystem};
       # 为每个主机构造 nixosSystem，并注入 Home Manager
       mkHost =
         name:
@@ -73,10 +74,18 @@
                 # 从 mcb.users 收集所有用户，否则使用单一 mcb.user
                 userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
                 # 将每个用户映射到 home/users/<name>
-                mkUser = name: {
-                  inherit name;
-                  value = import (./home/users + "/${name}");
-                };
+                mkUser =
+                  name:
+                  let
+                    userModule = ./home/users + "/${name}/default.nix";
+                  in
+                  if builtins.pathExists userModule then
+                    {
+                      inherit name;
+                      value = import userModule;
+                    }
+                  else
+                    throw "Missing Home Manager entry for user '${name}': expected ${toString userModule}";
               in
               {
                 # Home Manager 与系统共享同一套 pkgs
@@ -99,6 +108,39 @@
         }) hostNames
       );
 
-      formatter.${defaultSystem} = nixpkgs.legacyPackages.${defaultSystem}.nixfmt;
+      checks.${defaultSystem}.shell-syntax =
+        pkgsForDefault.runCommand "shell-syntax-check"
+          {
+            nativeBuildInputs = with pkgsForDefault; [
+              bash
+              coreutils
+              findutils
+              gnugrep
+            ];
+          }
+          ''
+            set -euo pipefail
+            cd ${self}
+
+            check_file() {
+              local file="$1"
+              if [ ! -f "$file" ]; then
+                return 0
+              fi
+              if head -n 1 "$file" | grep -q '^#!'; then
+                bash -n "$file"
+              fi
+            }
+
+            check_file run.sh
+
+            while IFS= read -r -d "" file; do
+              check_file "$file"
+            done < <(find home/users -type f -path "*/scripts/*" -print0)
+
+            touch "$out"
+          '';
+
+      formatter.${defaultSystem} = pkgsForDefault.nixfmt;
     };
 }
