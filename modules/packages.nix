@@ -338,7 +338,7 @@ let
       biber
       qpdf
       poppler-utils
-      eudic
+      goldendict-ng
     ]
     ++ lib.optionals (obsV4l2sink != null) [ obsV4l2sink ];
 
