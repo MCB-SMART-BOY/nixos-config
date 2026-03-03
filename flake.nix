@@ -73,10 +73,8 @@
           modules = [
             (./hosts + "/${name}")
             home-manager.nixosModules.home-manager
-            ({ pkgs, ... }: {
-              nixpkgs.overlays = [ overlay ];
-            })
-              { config, ... }:
+            (
+              { config, pkgs, ... }:
               let
                 # 从 mcb.users 收集所有用户，否则使用单一 mcb.user
                 userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
@@ -95,6 +93,7 @@
                     throw "Missing Home Manager entry for user '${name}': expected ${toString userModule}";
               in
               {
+                nixpkgs.overlays = [ overlay ];
                 # Home Manager 与系统共享同一套 pkgs
                 home-manager.useGlobalPkgs = true;
                 home-manager.useUserPackages = true;
