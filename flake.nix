@@ -59,6 +59,11 @@
         builtins.attrNames hostEntries
       );
       pkgsForDefault = nixpkgs.legacyPackages.${defaultSystem};
+      overlay = final: prev: {
+        valkey = prev.valkey.overrideAttrs (old: {
+          doCheck = false;
+        });
+      };
       # 为每个主机构造 nixosSystem，并注入 Home Manager
       mkHost =
         name:
@@ -68,7 +73,9 @@
           modules = [
             (./hosts + "/${name}")
             home-manager.nixosModules.home-manager
-            (
+            ({ pkgs, ... }: {
+              nixpkgs.overlays = [ overlay ];
+            })
               { config, ... }:
               let
                 # 从 mcb.users 收集所有用户，否则使用单一 mcb.user
