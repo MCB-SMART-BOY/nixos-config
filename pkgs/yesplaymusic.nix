@@ -46,7 +46,7 @@ appimageTools.wrapType2 {
       xorg.libXext
       xorg.libXfixes
       xorg.libXrandr
-      xorg.libxcb
+      libxcb
     ];
 
   extraInstallCommands = ''
