@@ -10,9 +10,21 @@
 // 如果必须指定，请确保名称 (eDP-1) 是准确的（可通过 `niri msg outputs` 查看）
 output "eDP-1" {
     mode "3200x2000@165.002"
-    scale 2 // 推荐高分屏设置缩放
+    scale 2
+    position x=0 y=0
 }
 
+output "DP-5" {
+    mode "3840x2160@160.000"
+    scale 2
+    position x=-1920 y=-80
+}
+
+output "DP-1" {
+    mode "3840x2160@160.000"
+    scale 2
+    position x=-1920 y=-80
+}
 // ══════════════════════════════════════════════════════════════════
 // ⌨️ 输入配置
 // ══════════════════════════════════════════════════════════════════
@@ -254,6 +266,12 @@ binds {
     Mod+C { center-column; }
     // 切换列内 Tab 显示（适合同一列多个窗口）
     Mod+W { toggle-column-tabbed-display; }
+
+    Mod+Comma  { focus-monitor-previous; }
+    Mod+Period { focus-monitor-next; }
+    Mod+Shift+Period { move-window-to-monitor-next; }
+    Mod+Shift+Comma { move-window-to-monitor-previous; }
+    
 
     // 微调大小
     Mod+Minus { set-column-width "-10%"; }
