@@ -272,6 +272,8 @@ let
   dev = with pkgs; [
     # 工具链
     rustup
+    opam
+    elan
     # rust-analyzer 通过 rustup 安装（rustup component add rust-analyzer）
     gnumake
     cmake
@@ -285,6 +287,7 @@ let
     nodePackages.typescript-language-server
     vscode-fhs
     zed-editor-fhs
+    isabelle
     # Python 环境
     uv
     conda
