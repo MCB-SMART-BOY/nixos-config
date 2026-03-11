@@ -22,6 +22,9 @@ cargo.allFeatures = true
 cargo.buildScripts.enable = true
 procMacro.enable = true
 
+[language-server.ocamllsp]
+command = "ocamllsp"
+
 [language-server.nil]
 command = "nil"
 config.nil.formatting.command = ["nixfmt"]
@@ -68,6 +71,19 @@ roots = ["Cargo.toml", "Cargo.lock"]
 auto-format = true
 language-servers = ["rust-analyzer"]
 indent = { tab-width = 4, unit = "    " }
+
+# Ocaml
+[[language]]
+name = "ocaml"
+scope = "source.ocaml"
+injection-regex = "ocaml"
+file-types = ["ml", "mli", "mll", "mly"]
+roots = ["dune-project", ".merlin", "*.opam"]
+auto-format = true
+formatter = { command = "ocamlformat"}
+language-servers = ["ocamllsp"]
+block-comment-tokens = { start = "(*", end = "*)" }
+indent = { tab-width = 2, unit = "  " }
 
 # ❄️ Nix
 [[language]]

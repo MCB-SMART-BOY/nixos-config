@@ -302,6 +302,8 @@ let
     black
     stylua
     shfmt
+    # uml
+    drawio
   ];
 
   chat = with pkgs; [
