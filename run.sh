@@ -63,6 +63,7 @@ GPU_NVIDIA_BUS=""
 GPU_NVIDIA_OPEN=""
 GPU_SPECIALISATIONS_ENABLED=false
 GPU_SPECIALISATION_MODES=()
+GPU_SPECIALISATIONS_SET=false
 # nixos-rebuild 模式（switch/test/build）
 MODE="switch"
 # 是否在 nixos-rebuild 时升级上游依赖（默认关闭，保证可复现）
@@ -285,6 +286,7 @@ reset_gpu_override() {
   GPU_NVIDIA_OPEN=""
   GPU_SPECIALISATIONS_ENABLED=false
   GPU_SPECIALISATION_MODES=()
+  GPU_SPECIALISATIONS_SET=false
 }
 
 # 规整 PCI busId（0000:00:02.0 -> PCI:0:2:0）。
@@ -1352,8 +1354,14 @@ configure_gpu() {
   if [[ "${GPU_MODE}" == "hybrid" ]]; then
     pick="$(menu_prompt "生成 GPU specialisation（igpu/hybrid/dgpu）以便切换？" 1 "是" "否" "返回")"
     case "${pick}" in
-      1) GPU_SPECIALISATIONS_ENABLED=true ;;
-      2) GPU_SPECIALISATIONS_ENABLED=false ;;
+      1)
+        GPU_SPECIALISATIONS_ENABLED=true
+        GPU_SPECIALISATIONS_SET=true
+        ;;
+      2)
+        GPU_SPECIALISATIONS_ENABLED=false
+        GPU_SPECIALISATIONS_SET=true
+        ;;
       3)
         WIZARD_ACTION="back"
         return 0
@@ -1931,9 +1939,9 @@ write_local_override() {
         fi
         echo "  };"
       fi
-      if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" ]]; then
-        echo "  mcb.hardware.gpu.specialisations.enable = lib.mkForce true;"
-        if [[ ${#GPU_SPECIALISATION_MODES[@]} -gt 0 ]]; then
+      if [[ "${GPU_SPECIALISATIONS_SET}" == "true" ]]; then
+        echo "  mcb.hardware.gpu.specialisations.enable = lib.mkForce ${GPU_SPECIALISATIONS_ENABLED};"
+        if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" && ${#GPU_SPECIALISATION_MODES[@]} -gt 0 ]]; then
           local mode_list=""
           local mode
           for mode in "${GPU_SPECIALISATION_MODES[@]}"; do
