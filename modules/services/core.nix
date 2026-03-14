@@ -99,7 +99,6 @@ let
         "libXfixes"
       ])
       (resolvePkg [
-        "xorg"
         "libxcb"
       ])
     ]
