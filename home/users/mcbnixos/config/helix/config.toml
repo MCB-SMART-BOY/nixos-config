@@ -1,6 +1,5 @@
 # Helix 编辑器配置
 # ~/.config/helix/config.toml
-# 目标版本：Helix 25.07（预览版）
 
 # 主题配色
 theme = "nord-night"
