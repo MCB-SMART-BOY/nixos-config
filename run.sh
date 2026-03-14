@@ -1570,12 +1570,31 @@ configure_server_overrides() {
   esac
 }
 
-# 为缺失用户自动生成 Home Manager 最小入口模板。
+# 为缺失用户自动生成 Home Manager 入口模板，并补齐默认用户配置。
 ensure_user_home_entries() {
   local repo_dir="$1"
   local profile_import="../../profiles/full.nix"
+  local extra_imports=(
+    "./git.nix"
+  )
+  local include_user_files=true
   if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
     profile_import="../../profiles/minimal.nix"
+    include_user_files=false
+  fi
+  local default_user=""
+  local template_user=""
+  local template_dir=""
+  default_user="$(resolve_default_user)"
+  if [[ -n "${default_user}" && -d "${repo_dir}/home/users/${default_user}" ]]; then
+    template_user="${default_user}"
+    template_dir="${repo_dir}/home/users/${default_user}"
+  elif [[ -d "${repo_dir}/home/users/mcbnixos" ]]; then
+    template_user="mcbnixos"
+    template_dir="${repo_dir}/home/users/mcbnixos"
+  fi
+  if [[ -n "${template_dir}" ]]; then
+    note "新用户模板来源：home/users/${template_user}"
   fi
 
   local user=""
@@ -1587,6 +1606,50 @@ ensure_user_home_entries() {
     fi
 
     mkdir -p "${user_dir}"
+    if [[ -n "${template_dir}" && "${user_dir}" != "${template_dir}" ]]; then
+      if [[ "${include_user_files}" == "true" ]]; then
+        local item=""
+        for item in config assets scripts; do
+          if [[ -e "${template_dir}/${item}" && ! -e "${user_dir}/${item}" ]]; then
+            cp -a "${template_dir}/${item}" "${user_dir}/${item}"
+          fi
+        done
+        local template_file=""
+        for template_file in files.nix scripts.nix; do
+          if [[ -f "${template_dir}/${template_file}" && ! -f "${user_dir}/${template_file}" ]]; then
+            cp -a "${template_dir}/${template_file}" "${user_dir}/${template_file}"
+          fi
+        done
+      fi
+    fi
+    if [[ ! -f "${user_dir}/git.nix" ]]; then
+      cat > "${user_dir}/git.nix" <<'EOF_GIT'
+# 默认 Git 身份（请按需修改）
+{ config, ... }:
+
+{
+  programs.git.settings.user = {
+    name = config.home.username;
+    # email = "you@example.com";
+  };
+}
+EOF_GIT
+    fi
+    local import_lines="    ${profile_import}"
+    local extra_import
+    for extra_import in "${extra_imports[@]}"; do
+      if [[ -f "${user_dir}/${extra_import}" ]]; then
+        import_lines+=$'\n'"    ${extra_import}"
+      fi
+    done
+    if [[ "${include_user_files}" == "true" ]]; then
+      if [[ -f "${user_dir}/files.nix" ]]; then
+        import_lines+=$'\n'"    ./files.nix"
+      fi
+      if [[ -f "${user_dir}/scripts.nix" ]]; then
+        import_lines+=$'\n'"    ./scripts.nix"
+      fi
+    fi
     cat > "${user_file}" <<EOF_USER
 { ... }:
 
@@ -1595,7 +1658,7 @@ let
 in
 {
   imports = [
-    ${profile_import}
+${import_lines}
   ];
 
   home.username = user;
