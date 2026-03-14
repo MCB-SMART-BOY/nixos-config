@@ -274,17 +274,19 @@ let
     rustup
     opam
     elan
-    # rust-analyzer 通过 rustup 安装（rustup component add rust-analyzer）
+    # Rust 工具链统一由 rustup 管理（rust-analyzer/rustfmt/clippy）
     gnumake
     cmake
     pkg-config
     openssl
     gcc
     binutils
+    clang-tools
     # 编辑器与开发环境
     neovim
     helix
     nodePackages.typescript-language-server
+    nodePackages.prettier
     vscode-fhs
     zed-editor-fhs
     isabelle
@@ -292,7 +294,10 @@ let
     uv
     conda
     # 语言服务器与格式化
-    nil
+    bash-language-server
+    pyright
+    vscode-langservers-extracted
+    nixd
     marksman
     taplo
     yaml-language-server

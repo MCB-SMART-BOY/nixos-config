@@ -22,12 +22,46 @@ cargo.allFeatures = true
 cargo.buildScripts.enable = true
 procMacro.enable = true
 
-[language-server.ocamllsp]
-command = "ocamllsp"
+[language-server.nixd]
+command = "nixd"
+[language-server.nixd.config]
+nixpkgs.expr = '''
+let
+  flake = builtins.getFlake /etc/nixos;
+in
+import flake.inputs.nixpkgs { system = builtins.currentSystem; }
+'''
+options.nixos.expr = '''
+let
+  flake = builtins.getFlake /etc/nixos;
+  hostEnv = builtins.getEnv "NIXD_HOST";
+  hostFile =
+    if builtins.pathExists /etc/hostname then
+      builtins.replaceStrings ["\n"] [""] (builtins.readFile /etc/hostname)
+    else
+      "";
+  host =
+    if hostEnv != "" then
+      hostEnv
+    else if hostFile != "" then
+      hostFile
+    else
+      "nixos";
+  cfgs = flake.nixosConfigurations;
+in
+if builtins.hasAttr host cfgs then
+  cfgs.${host}.options
+else
+  cfgs.nixos.options
+'''
 
-[language-server.nil]
-command = "nil"
-config.nil.formatting.command = ["nixfmt"]
+[language-server.bash-language-server]
+command = "bash-language-server"
+args = ["start"]
+
+[language-server.pyright]
+command = "pyright-langserver"
+args = ["--stdio"]
 
 [language-server.taplo]
 command = "taplo"
@@ -45,6 +79,18 @@ args = ["--stdio"]
 command = "typescript-language-server"
 args = ["--stdio"]
 
+[language-server.vscode-html-language-server]
+command = "vscode-html-language-server"
+args = ["--stdio"]
+
+[language-server.vscode-css-language-server]
+command = "vscode-css-language-server"
+args = ["--stdio"]
+
+[language-server.vscode-json-language-server]
+command = "vscode-json-language-server"
+args = ["--stdio"]
+
 [language-server.clangd]
 command = "clangd"
 args = ["--background-index", "--clang-tidy"]
@@ -54,6 +100,10 @@ command = "lua-language-server"
 
 [language-server.gopls]
 command = "gopls"
+
+[language-server.ocamllsp]
+command = "opam"
+args = ["exec", "--", "ocamllsp"]
 
 # ══════════════════════════════════════════════════════════════════
 # 👅 语言绑定配置
@@ -71,19 +121,7 @@ roots = ["Cargo.toml", "Cargo.lock"]
 auto-format = true
 language-servers = ["rust-analyzer"]
 indent = { tab-width = 4, unit = "    " }
-
-# Ocaml
-[[language]]
-name = "ocaml"
-scope = "source.ocaml"
-injection-regex = "ocaml"
-file-types = ["ml", "mli", "mll", "mly"]
-roots = ["dune-project", ".merlin", "*.opam"]
-auto-format = true
-formatter = { command = "ocamlformat"}
-language-servers = ["ocamllsp"]
-block-comment-tokens = { start = "(*", end = "*)" }
-indent = { tab-width = 2, unit = "  " }
+formatter = { command = "rustfmt" }
 
 # ❄️ Nix
 [[language]]
@@ -93,7 +131,7 @@ injection-regex = "nix"
 file-types = ["nix"]
 roots = ["flake.nix", "shell.nix", "default.nix"]
 comment-token = "#"
-language-servers = ["nil"]
+language-servers = ["nixd"]
 indent = { tab-width = 2, unit = "  " }
 auto-format = true
 formatter = { command = "nixfmt" }
@@ -140,6 +178,7 @@ injection-regex = "(shell|bash|zsh|sh)"
 file-types = ["sh", "bash", "zsh", ".zshrc", ".bashrc", ".bash_profile", ".zshenv", ".zprofile"]
 roots = []
 comment-token = "#"
+language-servers = ["bash-language-server"]
 indent = { tab-width = 2, unit = "  " }
 auto-format = true
 formatter = { command = "shfmt", args = ["-i", "2"] }
@@ -152,6 +191,7 @@ injection-regex = "python"
 file-types = ["py", "pyi", "py3", "pyw", "ptl"]
 roots = ["pyproject.toml", "setup.py", "Poetry.lock", "requirements.txt"]
 comment-token = "#"
+language-servers = ["pyright"]
 indent = { tab-width = 4, unit = "    " }
 auto-format = true
 formatter = { command = "black", args = ["--quiet", "-"] }
@@ -225,31 +265,82 @@ language-servers = ["gopls"]
 indent = { tab-width = 4, unit = "\t" }
 auto-format = true
 
-# 📄 JSON
-[[language]]
-name = "json"
-scope = "source.json"
-injection-regex = "json"
-file-types = ["json", "jsonc", "json5"]
-roots = []
-indent = { tab-width = 2, unit = "  " }
-auto-format = true
-# 使用 jq 格式化 JSON（需要 jq）
-formatter = { command = "jq", args = ["." ] }
-
 # 🌐 HTML / CSS
 [[language]]
 name = "html"
 scope = "text.html.basic"
 injection-regex = "html"
 file-types = ["html", "htm"]
+language-servers = ["vscode-html-language-server"]
 indent = { tab-width = 2, unit = "  " }
 auto-format = true
+formatter = { command = "prettier", args = ["--parser", "html"] }
 
 [[language]]
 name = "css"
 scope = "source.css"
 injection-regex = "css"
 file-types = ["css"]
+language-servers = ["vscode-css-language-server"]
 indent = { tab-width = 2, unit = "  " }
 auto-format = true
+formatter = { command = "prettier", args = ["--parser", "css"] }
+
+# 📄 JSON / JSONC / JSON5
+[[language]]
+name = "json"
+scope = "source.json"
+injection-regex = "json"
+file-types = ["json"]
+roots = []
+language-servers = ["vscode-json-language-server"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "prettier", args = ["--parser", "json"] }
+
+[[language]]
+name = "jsonc"
+scope = "source.json"
+injection-regex = "json"
+file-types = ["jsonc"]
+roots = []
+language-servers = ["vscode-json-language-server"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "prettier", args = ["--parser", "jsonc"] }
+
+[[language]]
+name = "json5"
+scope = "source.json"
+injection-regex = "json"
+file-types = ["json5"]
+roots = []
+language-servers = ["vscode-json-language-server"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "prettier", args = ["--parser", "json5"] }
+
+# 🐫 OCaml
+[[language]]
+name = "ocaml"
+scope = "source.ocaml"
+injection-regex = "ocaml"
+file-types = ["ml", "eliom"]
+roots = ["dune-project", "dune", ".merlin", "opam"]
+language-servers = ["ocamllsp"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "opam", args = ["exec", "--", "ocamlformat", "--impl", "-"] }
+block-comment-tokens = { start = "(*", end = "*)" }
+
+[[language]]
+name = "ocaml-interface"
+scope = "source.ocaml.interface"
+injection-regex = "ocaml"
+file-types = ["mli"]
+roots = ["dune-project", "dune", ".merlin", "opam"]
+language-servers = ["ocamllsp"]
+indent = { tab-width = 2, unit = "  " }
+auto-format = true
+formatter = { command = "opam", args = ["exec", "--", "ocamlformat", "--intf", "-"] }
+block-comment-tokens = { start = "(*", end = "*)" }
