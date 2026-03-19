@@ -3,6 +3,8 @@
 { ... }:
 
 {
+  mcb.hostRole = "desktop";
+
   # 桌面主机引入完整的系统模块
   imports = [
     ./base.nix

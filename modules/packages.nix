@@ -6,6 +6,7 @@
   config,
   lib,
   pkgs,
+  inputs,
   ...
 }:
 
@@ -14,6 +15,10 @@ let
   cfg = config.mcb.packages;
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
+  unstablePkgs = import inputs.nixpkgs-unstable {
+    system = pkgs.stdenv.hostPlatform.system;
+    config = pkgs.config;
+  };
 
   resolvePkg =
     path:
@@ -30,6 +35,38 @@ let
     if eval.success then eval.value else null;
 
   pickFirst = list: lib.findFirst (x: x != null) null list;
+
+  zedStable =
+    let
+      eval =
+        if pkgs ? zed-editor-fhs then
+          builtins.tryEval pkgs.zed-editor-fhs
+        else
+          {
+            success = false;
+            value = null;
+          };
+    in
+    if eval.success then eval.value else null;
+
+  zedUnstable =
+    let
+      eval =
+        if unstablePkgs ? zed-editor-fhs then
+          builtins.tryEval unstablePkgs.zed-editor-fhs
+        else
+          {
+            success = false;
+            value = null;
+          };
+    in
+    if eval.success then eval.value else null;
+
+  zedEditorPkg =
+    if cfg.zedChannel == "unstable" then
+      (if zedUnstable != null then zedUnstable else zedStable)
+    else
+      zedStable;
 
   obsV4l2sink = pickFirst [
     (resolvePkg [
@@ -288,7 +325,6 @@ let
     nodePackages.typescript-language-server
     nodePackages.prettier
     vscode-fhs
-    zed-editor-fhs
     isabelle
     # Python 环境
     uv
@@ -309,7 +345,7 @@ let
     shfmt
     # uml
     drawio
-  ];
+  ] ++ lib.optionals (zedEditorPkg != null) [ zedEditorPkg ];
 
   chat = with pkgs; [
     # 社交聊天
@@ -542,6 +578,14 @@ in
       default = false;
       description = "Install development toolchain packages.";
     };
+    zedChannel = lib.mkOption {
+      type = lib.types.enum [
+        "unstable"
+        "stable"
+      ];
+      default = "unstable";
+      description = "Zed package channel: use unstable by default for faster updates, or stable for conservative rollout.";
+    };
     enableChat = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -609,5 +653,14 @@ in
     };
   };
 
-  config.environment.systemPackages = groups;
+  config = {
+    assertions = [
+      {
+        assertion = (!cfg.enableDev) || (zedEditorPkg != null);
+        message = "mcb.packages.enableDev=true requires zed-editor-fhs to be available in selected zedChannel.";
+      }
+    ];
+
+    environment.systemPackages = groups;
+  };
 }

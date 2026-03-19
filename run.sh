@@ -789,7 +789,7 @@ check_env() {
   log "检查环境..."
 
   # root 直接运行；普通用户依赖 sudo（若不可用则进入 rootless）
-  if [[ "$(whoami)" == "root" ]]; then
+  if [[ "${EUID}" -eq 0 ]]; then
     warn "检测到 root，将跳过 sudo。"
     SUDO=""
   else
@@ -811,8 +811,10 @@ check_env() {
 
   # sudo 可用性检查（避免容器 no_new_privileges）
   if [[ -n "${SUDO}" ]]; then
-    if ! sudo -n true 2>/tmp/mcb-sudo-check.$$; then
-      if grep -qi "no new privileges" /tmp/mcb-sudo-check.$$ 2>/dev/null; then
+    local sudo_check_file=""
+    sudo_check_file="$(mktemp)"
+    if ! sudo -n true 2>"${sudo_check_file}"; then
+      if grep -qi "no new privileges" "${sudo_check_file}" 2>/dev/null; then
         warn "sudo 无法提权（no new privileges），进入 rootless 模式。"
         SUDO=""
         ROOTLESS=true
@@ -820,7 +822,7 @@ check_env() {
         warn "sudo 需要交互输入密码，将在需要时提示。"
       fi
     fi
-    rm -f /tmp/mcb-sudo-check.$$ 2>/dev/null || true
+    rm -f "${sudo_check_file}" 2>/dev/null || true
   fi
 
   # rootless 模式下校验写入路径与 rebuild 模式
@@ -899,9 +901,13 @@ self_check_scripts() {
   local warnings=0
   local file
   local shellcheck_available=false
+  local syntax_check_output=""
+  local shellcheck_output=""
+  syntax_check_output="$(mktemp)"
 
   if command -v shellcheck >/dev/null 2>&1; then
     shellcheck_available=true
+    shellcheck_output="$(mktemp)"
   else
     warn "未检测到 shellcheck，跳过 Lint 检查"
   fi
@@ -934,26 +940,29 @@ self_check_scripts() {
     fi
 
     if script_shebang_shell "${shebang}"; then
-      if ! bash -n "${file}" 2>/tmp/mcb-script-check.$$; then
+      if ! bash -n "${file}" 2>"${syntax_check_output}"; then
         warn "语法检查失败：${rel}"
-        sed 's/^/  /' /tmp/mcb-script-check.$$ >&2 || true
+        sed 's/^/  /' "${syntax_check_output}" >&2 || true
         errors=$((errors + 1))
       fi
-      rm -f /tmp/mcb-script-check.$$ 2>/dev/null || true
 
       if [[ "${shellcheck_available}" == "true" ]]; then
-        if ! shellcheck -x "${file}" >/tmp/mcb-shellcheck.$$ 2>&1; then
+        if ! shellcheck -x "${file}" >"${shellcheck_output}" 2>&1; then
           warn "shellcheck 警告：${rel}"
-          sed 's/^/  /' /tmp/mcb-shellcheck.$$ >&2 || true
+          sed 's/^/  /' "${shellcheck_output}" >&2 || true
           warnings=$((warnings + 1))
         fi
-        rm -f /tmp/mcb-shellcheck.$$ 2>/dev/null || true
       fi
     else
       warn "非 bash/sh 脚本，跳过语法检查：${rel}"
       warnings=$((warnings + 1))
     fi
   done
+
+  rm -f "${syntax_check_output}" 2>/dev/null || true
+  if [[ -n "${shellcheck_output}" ]]; then
+    rm -f "${shellcheck_output}" 2>/dev/null || true
+  fi
 
   if (( errors > 0 )); then
     error "脚本自检失败：${errors} 个错误（请修复后再继续）"
@@ -1070,26 +1079,50 @@ ask_bool() {
 
 # 检测每用户 TUN 配置是否完整。
 detect_per_user_tun() {
-  local host_file="$1/hosts/${TARGET_NAME}/default.nix"
-  local in_block=0
+  local repo_dir="$1"
+  local host_file=""
   local line
 
-  if [[ ! -f "${host_file}" ]]; then
-    return 1
+  # 优先通过 flake 求值读取最终配置（包含 local.nix 覆盖，准确性最高）。
+  if command -v nix >/dev/null 2>&1; then
+    local nix_config="experimental-features = nix-command flakes"
+    if [[ -n "${NIX_CONFIG:-}" ]]; then
+      nix_config="${NIX_CONFIG}"$'\n'"${nix_config}"
+    fi
+    local eval_value=""
+    eval_value="$(env NIX_CONFIG="${nix_config}" \
+      nix eval --raw "${repo_dir}#nixosConfigurations.${TARGET_NAME}.config.mcb.perUserTun.enable" 2>/dev/null || true)"
+    case "${eval_value}" in
+      true) return 0 ;;
+      false) return 1 ;;
+    esac
   fi
 
-  # 简单扫描 perUserTun.enable = true
-  while IFS= read -r line; do
-    if [[ "${line}" == *perUserTun* ]]; then
-      in_block=1
-    fi
-    if [[ ${in_block} -eq 1 && "${line}" == *"enable"* && "${line}" == *"true"* ]]; then
+  # 回退：文本扫描（兼容无 nix 命令的极简环境）
+  for host_file in \
+    "${repo_dir}/hosts/${TARGET_NAME}/local.nix" \
+    "${repo_dir}/hosts/${TARGET_NAME}/default.nix"
+  do
+    [[ -f "${host_file}" ]] || continue
+
+    if grep -qE 'mcb\.perUserTun\.enable[[:space:]]*=[[:space:]]*true' "${host_file}" 2>/dev/null; then
       return 0
     fi
-    if [[ ${in_block} -eq 1 && "${line}" == *"}"* ]]; then
-      in_block=0
-    fi
-  done < "${host_file}"
+
+    local in_block=0
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      if [[ "${line}" == *"perUserTun"* && "${line}" == *"{"* ]]; then
+        in_block=1
+      fi
+      if [[ ${in_block} -eq 1 && "${line}" == *"enable"* && "${line}" == *"true"* ]]; then
+        return 0
+      fi
+      if [[ ${in_block} -eq 1 && "${line}" == *"}"* ]]; then
+        in_block=0
+      fi
+    done < "${host_file}"
+  done
 
   return 1
 }
@@ -1761,6 +1794,13 @@ ensure_user_home_entries() {
   if [[ -n "${template_dir}" ]]; then
     note "新用户模板来源：home/users/${template_user}"
   fi
+  local copy_template_content="false"
+  if [[ "${RUN_SH_COPY_USER_TEMPLATE:-false}" == "true" ]]; then
+    copy_template_content="true"
+    note "将复制模板用户目录内容（RUN_SH_COPY_USER_TEMPLATE=true）"
+  else
+    note "默认仅生成最小用户模板（不复制 config/assets/scripts）；如需复制可设置 RUN_SH_COPY_USER_TEMPLATE=true"
+  fi
 
   local user=""
   for user in "${TARGET_USERS[@]}"; do
@@ -1772,7 +1812,7 @@ ensure_user_home_entries() {
 
     mkdir -p "${user_dir}"
     if [[ -n "${template_dir}" && "${user_dir}" != "${template_dir}" ]]; then
-      if [[ "${include_user_files}" == "true" ]]; then
+      if [[ "${include_user_files}" == "true" && "${copy_template_content}" == "true" ]]; then
         local item=""
         for item in config assets scripts; do
           if [[ -e "${template_dir}/${item}" && ! -e "${user_dir}/${item}" ]]; then
@@ -2138,11 +2178,9 @@ temp_dns_disable() {
 
 # 检测本地仓库目录（优先当前目录，其次脚本所在目录）。
 detect_local_repo_dir() {
-  local script_dir=""
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local candidates=(
     "$(pwd)"
-    "${script_dir}"
+    "${SCRIPT_DIR}"
   )
   local dir
   for dir in "${candidates[@]}"; do
@@ -2259,22 +2297,31 @@ clone_repo_any() {
   return 1
 }
 
+# 远端仓库拉取：失败后可选启用临时 DNS 再重试一次。
+clone_repo_any_with_dns_retry() {
+  local tmp_dir="$1"
+  if clone_repo_any "${tmp_dir}"; then
+    return 0
+  fi
+
+  log "尝试临时切换阿里云 DNS 后重试"
+  if ! temp_dns_enable; then
+    warn "临时 DNS 设置失败，将继续使用当前 DNS 再重试一次。"
+  fi
+
+  rm -rf "${tmp_dir}"
+  mkdir -p "${tmp_dir}"
+  clone_repo_any "${tmp_dir}"
+}
+
 # 准备源代码（本地或远端），失败时返回非 0。
 prepare_source_repo() {
   local tmp_dir="$1"
 
   if [[ "${FORCE_REMOTE_SOURCE}" == "true" ]]; then
     require_remote_source_pin
-    if ! clone_repo_any "${tmp_dir}"; then
-      log "尝试临时切换阿里云 DNS 后重试"
-      temp_dns_enable
-      rm -rf "${tmp_dir}"
-      mkdir -p "${tmp_dir}"
-      if ! clone_repo_any "${tmp_dir}"; then
-        return 1
-      fi
-    fi
-    return 0
+    clone_repo_any_with_dns_retry "${tmp_dir}"
+    return $?
   fi
 
   local source_dir=""
@@ -2285,17 +2332,7 @@ prepare_source_repo() {
   fi
 
   require_remote_source_pin
-  if ! clone_repo_any "${tmp_dir}"; then
-    log "尝试临时切换阿里云 DNS 后重试"
-    temp_dns_enable
-    rm -rf "${tmp_dir}"
-    mkdir -p "${tmp_dir}"
-    if ! clone_repo_any "${tmp_dir}"; then
-      return 1
-    fi
-  fi
-
-  return 0
+  clone_repo_any_with_dns_retry "${tmp_dir}"
 }
 
 # 同步仓库到 /etc/nixos。
@@ -2693,7 +2730,9 @@ main() {
   if ! rebuild_system; then
     if [[ "${DNS_ENABLED}" == false ]]; then
       log "尝试临时切换阿里云 DNS 后重试重建"
-      temp_dns_enable
+      if ! temp_dns_enable; then
+        warn "临时 DNS 设置失败，将继续使用当前 DNS 重试重建。"
+      fi
       if ! rebuild_system; then
         error "系统重建失败，请检查日志"
       fi

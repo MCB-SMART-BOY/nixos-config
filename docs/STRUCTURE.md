@@ -44,6 +44,7 @@
 
 - `modules/`
   - 系统级模块（网络、安全、字体、服务等）
+  - `modules/users.nix` 统一负责用户/组创建与管理员权限分配
 
 - `home/`
   - `home/users/<user>/default.nix`：用户入口

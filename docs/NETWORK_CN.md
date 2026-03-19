@@ -72,19 +72,33 @@ mcb.perUserTun.dnsPorts = {
 - 如需关闭全局兼容路径，可设置 `mcb.perUserTun.compatGlobalServiceSocket = false;`
 - 多实例同时运行时，需确保各用户端口不冲突
 
-## 方案 1：使用国内镜像（可选）
+## 方案 1：切换缓存策略（推荐）
 
-在 `modules/nix.nix` 添加以下配置：
+优先使用 `mcb.nix.cacheProfile`，无需手改 `modules/nix.nix`：
 
 ```nix
-nix.settings = {
-  substituters = [
-    "https://mirrors.ustc.edu.cn/nix-channels/store"
-    "https://mirrors.tuna.tsinghua.edu.cn/nix-channels/store"
-    "https://mirror.sjtu.edu.cn/nix-channels/store"
+# 国内镜像 + 社区缓存（默认）
+mcb.nix.cacheProfile = "cn";
+
+# 海外网络（禁用国内镜像）
+# mcb.nix.cacheProfile = "global";
+
+# 仅官方缓存
+# mcb.nix.cacheProfile = "official-only";
+```
+
+自定义缓存（例如公司内网缓存）：
+
+```nix
+mcb.nix = {
+  cacheProfile = "custom";
+  customSubstituters = [
+    "https://cache.nixos.org"
+    "https://your-cache.example.com"
   ];
-  trusted-public-keys = [
+  customTrustedPublicKeys = [
     "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY="
+    "your-cache.example.com-1:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx="
   ];
 };
 ```

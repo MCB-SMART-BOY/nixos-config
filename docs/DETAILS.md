@@ -36,6 +36,7 @@
 - 系统入口：`hosts/<hostname>/default.nix`
 - 核心聚合模块（不含桌面/虚拟化/游戏）：`modules/default.nix`
 - 选项定义：`modules/options.nix`（`mcb.*`）
+- 用户/权限模型：`modules/users.nix`（统一创建用户、组与 wheel 授权）
 - 系统包组：`modules/packages.nix`（`mcb.packages.*`）
 - 主机 Profiles：`hosts/profiles/desktop.nix` / `hosts/profiles/server.nix`
 
@@ -51,6 +52,21 @@
 - `proxyDnsAddr` / `proxyDnsPort`
 - `tunInterface` / `tunInterfaces`
 - `cpuVendor`：`intel` / `amd`
+- `hostRole`：`desktop` / `server`（影响默认用户组策略）
+- `nix.cacheProfile`：`cn` / `global` / `official-only` / `custom`
+- `packages.zedChannel`：`unstable` / `stable`（Zed 追新通道）
+
+### Zed 追新
+
+默认使用：
+```nix
+mcb.packages.zedChannel = "unstable";
+```
+
+如需回退稳定通道：
+```nix
+mcb.packages.zedChannel = "stable";
+```
 
 ---
 

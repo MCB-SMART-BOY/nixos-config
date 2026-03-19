@@ -131,6 +131,7 @@ mcb.users = [ "mcbnixos" "mcblaptopnixos" ];
 
 脚本会写入 `hosts/<hostname>/local.nix` 做临时覆盖，不会破坏你的主配置。
 若输入了仓库中不存在的新用户，脚本会自动创建 `home/users/<name>/default.nix` 最小模板。
+默认不会复制模板用户的 `config/assets/scripts`；如需复制，可设置 `RUN_SH_COPY_USER_TEMPLATE=true` 后再运行。
 
 ---
 
@@ -240,6 +241,7 @@ mcb.perUserTun.dnsPorts = {
 - 变更前先 `git status`，保持提交粒度小
 - 大改动前备份 `/etc/nixos` 或创建 Git 标签
 - 使用 `hosts/<hostname>/local.nix` 放主机私有覆盖
+- 网络环境变化时优先切换 `mcb.nix.cacheProfile`（`cn` / `global` / `official-only` / `custom`）
 - `hardware-configuration.nix` 不随意迁移到其他主机
 - per-user TUN 的接口名与 DNS 端口要唯一且对应
 - hybrid 模式必须有准确 busId

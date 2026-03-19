@@ -30,6 +30,16 @@ in
       description = "Users granted admin privileges (wheel). Defaults to mcb.user when unset in host config.";
     };
 
+    # 主机角色：影响默认用户组（桌面/服务器）
+    hostRole = mkOption {
+      type = types.enum [
+        "desktop"
+        "server"
+      ];
+      default = "desktop";
+      description = "Host role used to derive default user group memberships.";
+    };
+
     # CPU 厂商，用于选择正确的 KVM 模块（见 modules/boot.nix）
     cpuVendor = mkOption {
       type = types.enum [
@@ -38,6 +48,31 @@ in
       ];
       default = "intel";
       description = "CPU vendor for kernel module selection.";
+    };
+
+    nix = {
+      cacheProfile = mkOption {
+        type = types.enum [
+          "cn"
+          "global"
+          "official-only"
+          "custom"
+        ];
+        default = "cn";
+        description = "Binary cache profile: cn/global/official-only/custom.";
+      };
+
+      customSubstituters = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "Custom substituters used when mcb.nix.cacheProfile = \"custom\".";
+      };
+
+      customTrustedPublicKeys = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "Custom trusted-public-keys used when mcb.nix.cacheProfile = \"custom\".";
+      };
     };
 
     # TUN 设备名（单一代理模式）

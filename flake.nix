@@ -122,6 +122,7 @@
               coreutils
               findutils
               gnugrep
+              gnused
             ];
           }
           ''
@@ -133,12 +134,32 @@
               if [ ! -f "$file" ]; then
                 return 0
               fi
+              if LC_ALL=C grep -q $'\r' "$file"; then
+                echo "CRLF line endings are not allowed: $file" >&2
+                exit 1
+              fi
+              local first_line
+              first_line="$(head -n 1 "$file" || true)"
+              if [ "''${first_line#\#!}" != "$first_line" ]; then
+                case "$first_line" in
+                  *"/bash"*|*"env bash"*|*"/sh"*|*"env sh"*) ;;
+                  *)
+                    echo "Unsupported shebang in $file: $first_line" >&2
+                    exit 1
+                    ;;
+                esac
+                if [ ! -x "$file" ]; then
+                  echo "Script with shebang must be executable: $file" >&2
+                  exit 1
+                fi
+              fi
               if head -n 1 "$file" | grep -q '^#!'; then
                 bash -n "$file"
               fi
             }
 
             check_file run.sh
+            bash run.sh --help >/dev/null
 
             while IFS= read -r -d "" file; do
               check_file "$file"

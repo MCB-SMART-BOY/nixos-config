@@ -3,6 +3,8 @@
 { ... }:
 
 {
+  mcb.hostRole = "server";
+
   # 服务器 profile：基于 base，并关闭桌面相关包组
   imports = [
     ./base.nix

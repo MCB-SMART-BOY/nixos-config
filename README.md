@@ -14,8 +14,10 @@
 - Flake + Home Manager 分层
 - 多主机、多用户统一管理
 - Niri + Wayland 桌面体验
+- Zed 默认走 unstable 通道（追新，可回退 stable）
 - 输入法与中文环境开箱可用
 - 代理/TUN 与 per-user 路由方案
+- Nix 二进制缓存策略可切换（`mcb.nix.cacheProfile`）
 - GPU 特化（igpu / hybrid / dgpu）
 - Waybar 支持一键切换 GPU 特化
 
@@ -43,6 +45,7 @@ cd nixos-config
 - 可交互选择管理员用户（`mcb.adminUsers`）
 - server profile 支持开发预设与自定义软件/虚拟化开关
 - 新增未预置用户时自动生成 `home/users/<name>/default.nix` 模板
+- 默认仅生成最小模板；如需复制模板用户的 `config/assets/scripts`，可设置 `RUN_SH_COPY_USER_TEMPLATE=true`
 - 脚本为全交互模式：直接运行 `./run.sh` 即可
 
 ### 2) 日常更新
