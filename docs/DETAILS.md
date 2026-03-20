@@ -5,8 +5,8 @@
 ## 快速定位
 
 - 改默认用户/多用户：`hosts/<hostname>/default.nix` -> `mcb.user` / `mcb.users`
-- 改系统包组：`hosts/profiles/*.nix` + `modules/packages.nix`
-- 改用户个人应用：`home/users/<user>/packages.nix`（可配 `home/users/<user>/local.nix` 覆盖）
+- 改系统基础包组：`hosts/profiles/*.nix` + `modules/packages.nix`
+- 改用户包组/个人应用：`home/users/<user>/packages.nix`（可配 `home/users/<user>/local.nix` 覆盖）
 - 改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
 - 改应用主题：`home/users/<user>/config/`
 - 改输入法：`modules/i18n.nix` + `home/users/<user>/config/fcitx5/profile`
@@ -23,10 +23,14 @@
 常见模块：
 - `home/modules/base.nix`：环境变量与 PATH
 - `home/modules/programs.nix`：Alacritty/Helix
-- `home/modules/desktop.nix`：niri/fuzzel/mako/waybar/swaylock
+- `home/modules/desktop.nix`：Noctalia 桌面集成、GPU 自适应 launcher、桌面入口覆盖
 - `home/modules/shell.nix`：zsh/direnv/zoxide/starship/tmux
 - `home/modules/git.nix`：git 基础配置
-- `home/users/<user>/scripts.nix`：Waybar 脚本/壁纸脚本打包
+- `home/users/<user>/scripts.nix`：Noctalia 按钮脚本/壁纸脚本打包
+- `home/users/mcbnixos/noctalia.nix`：mcbnixos 用户专属 Noctalia 高级按钮布局
+
+Noctalia 顶栏可用用户选项：
+- `mcb.noctalia.barProfile = "default" | "none"`
 
 配置文件存放在 `home/users/<user>/config/`，由 `xdg.configFile` 统一链接到 `~/.config`。
 
@@ -55,21 +59,22 @@
 - `cpuVendor`：`intel` / `amd`
 - `hostRole`：`desktop` / `server`（影响默认用户组策略）
 - `nix.cacheProfile`：`cn` / `global` / `official-only` / `custom`
-- `home/users/<user>/packages.nix` -> `mcb.personalPackages.*`（按用户声明个人应用）
+- `home/users/<user>/packages.nix`：按用户逐个声明软件（`home.packages`）
 
 ### Zed 追新
 
 按用户设置（示例：`home/users/mcbnixos/packages.nix`）：
 ```nix
-mcb.personalPackages = {
-  enableZed = true;
-  zedChannel = "official-stable";
-};
+home.packages = with pkgs; [
+  (callPackage ../../../pkgs/zed { })
+];
 ```
 
-如需回退到 nixpkgs 稳定通道：
+如需改用 nixpkgs 版本：
 ```nix
-mcb.personalPackages.zedChannel = "stable";
+home.packages = with pkgs; [
+  zed-editor-fhs
+];
 ```
 
 如需手动追新官网稳定版（更新版本与 hash 固定值）：
@@ -88,6 +93,11 @@ YesPlayMusic 使用 `pkgs/yesplaymusic/source.nix` 固定官网 release 的 AppI
 一次更新两者：
 ```bash
 ./pkgs/scripts/update-upstream-apps.sh
+```
+
+仅检查是否已追平上游（不改文件）：
+```bash
+./pkgs/scripts/update-upstream-apps.sh --check
 ```
 
 ---
@@ -180,6 +190,8 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 
 - 修改主机配置：编辑 `hosts/<hostname>/default.nix`
 - 自定义应用配置：放入 `home/users/<user>/config/` 后在 `files.nix` 中接入
+- 用户软件声明：在 `home/users/<user>/packages.nix` 逐项维护 `home.packages`
 - 用户私有覆盖：新增 `home/users/<user>/local.nix`（已加入 `.gitignore`）
+- 可从 `home/users/<user>/local.nix.example` 起步
 - 关闭系统层游戏功能：`mcb.system.enableGaming = false;`
-- 音乐应用说明：`enableMusic` 负责系统层 `go-musicfox`/`musicfox` 启动包装器与 CLI 播放组件；YesPlayMusic 改为用户层 `mcb.personalPackages.enableYesPlayMusic`
+- 音乐应用说明：`enableMusic` 负责系统层 `go-musicfox`/`musicfox` 启动包装器与 CLI 播放组件；YesPlayMusic 建议在对应用户 `home.packages` 中显式声明

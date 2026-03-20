@@ -49,13 +49,14 @@
 
 - `home/`
   - `home/users/<user>/default.nix`：用户入口
-  - `home/users/<user>/packages.nix`：用户个人应用声明（`mcb.personalPackages.*`）
+  - `home/users/<user>/packages.nix`：用户软件声明（`home.packages` 逐项配置）
   - `home/users/<user>/local.nix`：用户私有覆盖（可选，不提交）
+  - `home/users/<user>/local.nix.example`：用户私有覆盖模板
   - `home/profiles/`：用户配置组合
   - `home/modules/`：用户模块拆分
   - `home/users/<user>/config/`：应用配置（链接到 ~/.config）
   - `home/users/<user>/assets/`：用户资源（如壁纸）
-  - `home/users/<user>/scripts/`：用户脚本（如 Waybar 模块脚本）
+  - `home/users/<user>/scripts/`：用户脚本（如 Noctalia 顶栏按钮脚本）
 
 - `run.sh`
   - 一键部署脚本（拉取 → 同步 → `nixos-rebuild`）

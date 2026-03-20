@@ -40,7 +40,7 @@ in
         ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
         ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
       shell = pkgs.zsh;
-      linger = true;
+      linger = cfg.userLinger;
     });
   };
 }

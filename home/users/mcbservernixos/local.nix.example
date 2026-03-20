@@ -1,0 +1,6 @@
+# 用户私有覆盖示例（复制为同目录 local.nix 后生效）
+{ ... }:
+
+{
+  # home.packages = with pkgs; [ tmux ];
+}

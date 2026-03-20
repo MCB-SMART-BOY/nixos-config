@@ -13,6 +13,7 @@
 
 - Flake + Home Manager 分层
 - 多主机、多用户统一管理
+- 每个用户在 `home/users/<user>/packages.nix` 逐个声明软件
 - Niri + Wayland 桌面体验
 - Zed 默认走官网 stable 包（可一键更新 pin）
 - YesPlayMusic 官网稳定版 AppImage 固定打包（可一键更新 pin）
@@ -20,7 +21,8 @@
 - 代理/TUN 与 per-user 路由方案
 - Nix 二进制缓存策略可切换（`mcb.nix.cacheProfile`）
 - GPU 特化（igpu / hybrid / dgpu）
-- Waybar 支持一键切换 GPU 特化
+- Noctalia 顶栏支持一键切换 GPU 特化
+- GitHub Actions CI（`flake check` + `run.sh` 语法 + 上游 pin 同步检查）
 
 ---
 
@@ -44,8 +46,9 @@ cd nixos-config
 - 覆盖策略、来源策略、是否升级依赖都通过向导菜单选择
 - 向导模式下除“新增用户名”外，其他配置均可通过菜单选择
 - 可交互选择管理员用户（`mcb.adminUsers`）
-- server profile 支持开发预设与自定义软件/虚拟化开关
+- server profile 支持运维预设与自定义软件/虚拟化开关
 - 新增未预置用户时自动生成 `home/users/<name>/default.nix` 模板
+- 新增未预置用户时优先复用模板用户的 `packages.nix`（若存在）
 - 默认仅生成最小模板；如需复制模板用户的 `config/assets/scripts`，可设置 `RUN_SH_COPY_USER_TEMPLATE=true`
 - 脚本为全交互模式：直接运行 `./run.sh` 即可
 
@@ -69,6 +72,11 @@ sudo nixos-rebuild switch --flake .#nixos
 ```bash
 ./pkgs/scripts/update-upstream-apps.sh
 sudo nixos-rebuild switch --flake .#nixos
+```
+
+仅检查是否已追平上游（不修改文件）：
+```bash
+./pkgs/scripts/update-upstream-apps.sh --check
 ```
 
 ---
@@ -107,6 +115,7 @@ nixos-config/
 用户层：
 - 用户入口：`home/users/<user>/default.nix`
 - 用户个人应用：`home/users/<user>/packages.nix`
+- 用户软件清单：`home/users/<user>/packages.nix`（`home.packages` 逐项声明）
 - 用户配置：`home/users/<user>/config/*`
 - 用户模块：`home/modules/*.nix`
 
@@ -165,7 +174,7 @@ per-user 路由：
 - 修改主机配置：`hosts/<hostname>/default.nix`
 - 修改用户名：更新主机文件与 `home/users/<user>/`
 - 修改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
-- 修改 Waybar：`home/users/<user>/config/waybar/`
+- 修改 Noctalia 顶栏：`home/users/<user>/default.nix` + `home/users/<user>/scripts/`
 - 新增主机：在 `hosts/` 新建目录并放 `default.nix`
 
 ---

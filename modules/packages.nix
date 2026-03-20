@@ -15,33 +15,6 @@ let
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
 
-  resolvePkg =
-    path:
-    let
-      eval =
-        if lib.hasAttrByPath path pkgs then
-          builtins.tryEval (lib.getAttrFromPath path pkgs)
-        else
-          {
-            success = false;
-            value = null;
-          };
-    in
-    if eval.success then eval.value else null;
-
-  pickFirst = list: lib.findFirst (x: x != null) null list;
-
-  obsV4l2sink = pickFirst [
-    (resolvePkg [
-      "obs-studio-plugins"
-      "obs-v4l2sink"
-    ])
-    (resolvePkg [
-      "obs-studio-plugins"
-      "v4l2sink"
-    ])
-  ];
-
   musicfoxWrapper = pkgs.writeShellScript "musicfox-wrapper" ''
         set -euo pipefail
 
@@ -248,103 +221,6 @@ let
     brightnessctl
   ];
 
-  browsersAndMedia = with pkgs; [
-    # 终端
-    foot
-    alacritty
-    # 浏览器
-    firefox
-    google-chrome
-    # 媒体与阅读
-    nautilus
-    mpv
-    vlc
-    imv
-    zathura
-  ];
-
-  dev = with pkgs; [
-    # 工具链
-    rustup
-    opam
-    elan
-    # Rust 工具链统一由 rustup 管理（rust-analyzer/rustfmt/clippy）
-    gnumake
-    cmake
-    pkg-config
-    openssl
-    gcc
-    binutils
-    clang-tools
-    # 编辑器与开发环境
-    neovim
-    helix
-    nodePackages.typescript-language-server
-    nodePackages.prettier
-    vscode-fhs
-    isabelle
-    # Python 环境
-    uv
-    conda
-    # 语言服务器与格式化
-    bash-language-server
-    pyright
-    vscode-langservers-extracted
-    nixd
-    marksman
-    taplo
-    yaml-language-server
-    lua-language-server
-    gopls
-    nixfmt
-    black
-    stylua
-    shfmt
-    # uml
-    drawio
-  ];
-
-  chat = with pkgs; [
-    # 社交聊天
-    qq
-    telegram-desktop
-    discord
-  ];
-
-  emulation = with pkgs; [
-    # Wine 兼容层
-    wineWowPackages.stable
-    winetricks
-  ];
-
-  entertainment = with pkgs; [
-    # 影音与阅读应用（保留占位，避免未来扩展破坏开关结构）
-  ];
-
-  office =
-    with pkgs;
-    [
-      # 办公软件
-      obsidian
-      obs-studio
-      libreoffice-still
-      xournalpp
-      # 论文写作/阅读工具链
-      sioyek
-      zotero
-      pandoc
-      typst
-      tinymist
-      texstudio
-      texlab
-      texlive.combined.scheme-medium
-      biber
-      qpdf
-      poppler-utils
-      goldendict-ng
-    ]
-    ++ lib.optionals (obsV4l2sink != null) [ obsV4l2sink ];
-
   gaming =
     with pkgs;
     [
@@ -439,28 +315,6 @@ let
     hexyl
   ];
 
-  life = with pkgs; [
-    # 生活类工具
-    gnome-calendar
-    gnome-clocks
-    gnome-calculator
-    gnome-weather
-    gnome-maps
-    gnome-contacts
-    baobab
-    keepassxc
-    simple-scan
-  ];
-
-  anime = with pkgs; [
-    # 动漫/漫画
-    kazumi
-    mangayomi
-    bilibili
-    ani-cli
-    mangal
-  ];
-
   music =
     with pkgs;
     [
@@ -479,20 +333,12 @@ let
     (lib.optionals networkGuiEnabled networkGui)
     (lib.optionals cfg.enableShellTools shellTools)
     (lib.optionals cfg.enableWaylandTools waylandTools)
-    (lib.optionals cfg.enableBrowsersAndMedia browsersAndMedia)
-    (lib.optionals cfg.enableDev dev)
-    (lib.optionals cfg.enableChat chat)
-    (lib.optionals cfg.enableEmulation emulation)
-    (lib.optionals cfg.enableEntertainment entertainment)
     (lib.optionals cfg.enableGaming gaming)
     (lib.optionals cfg.enableSystemTools systemTools)
     (lib.optionals cfg.enableInsecureTools insecureTools)
     (lib.optionals cfg.enableTheming theming)
     (lib.optionals cfg.enableXorgCompat xorgCompat)
     (lib.optionals cfg.enableGeekTools geekTools)
-    (lib.optionals cfg.enableOffice office)
-    (lib.optionals cfg.enableLife life)
-    (lib.optionals cfg.enableAnime anime)
     (lib.optionals cfg.enableMusic music)
   ];
 in
@@ -527,27 +373,27 @@ in
     enableBrowsersAndMedia = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install browsers and media apps.";
+      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
     };
     enableDev = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install development toolchain packages.";
+      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
     };
     enableChat = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install chat clients.";
+      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
     };
     enableEmulation = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install emulation/Wine tooling.";
+      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
     };
     enableEntertainment = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install entertainment apps.";
+      description = "Reserved toggle for future entertainment package group.";
     };
     enableGaming = lib.mkOption {
       type = lib.types.bool;
@@ -582,17 +428,17 @@ in
     enableOffice = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install office productivity tools.";
+      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
     };
     enableLife = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install life/utility desktop apps.";
+      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
     };
     enableAnime = lib.mkOption {
       type = lib.types.bool;
       default = false;
-      description = "Install anime/manga apps.";
+      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
     };
     enableMusic = lib.mkOption {
       type = lib.types.bool;

@@ -205,8 +205,8 @@ in
   # 允许远程 SSH 连接
   services.openssh.enable = true;
 
-  # 让非 Nix 动态链接程序可运行（需要时启用）
-  programs.nix-ld = {
+  # 仅在桌面主机默认启用 nix-ld，服务器按需在主机层显式开启。
+  programs.nix-ld = lib.mkIf (config.mcb.hostRole == "desktop") {
     enable = true;
     libraries = lib.mkAfter graphicsRuntimeLibs;
   };

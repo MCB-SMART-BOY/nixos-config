@@ -22,5 +22,8 @@ in
 
   xdg.enable = true;
 
+  # 默认使用标准 Noctalia 顶栏（无自定义脚本依赖）
+  mcb.noctalia.barProfile = "default";
+
   # Flatpak 版本由系统级 Flatpak 提供桌面入口
 }

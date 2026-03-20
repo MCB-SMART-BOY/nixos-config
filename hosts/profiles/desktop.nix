@@ -4,6 +4,8 @@
 
 {
   mcb.hostRole = "desktop";
+  # 桌面主机默认保留用户 linger（方便 user-level 服务在注销后继续运行）
+  mcb.userLinger = true;
 
   # 桌面主机引入完整的系统模块
   imports = [

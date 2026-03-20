@@ -43,10 +43,13 @@ declare -A USER_TUN
 declare -A USER_DNS
 # 服务器软件/虚拟化临时覆盖
 SERVER_OVERRIDES_ENABLED=false
-SERVER_ENABLE_DEV=""
+SERVER_ENABLE_NETWORK_CLI=""
 SERVER_ENABLE_NETWORK_GUI=""
-SERVER_ENABLE_BROWSERS_AND_MEDIA=""
+SERVER_ENABLE_SHELL_TOOLS=""
+SERVER_ENABLE_WAYLAND_TOOLS=""
+SERVER_ENABLE_SYSTEM_TOOLS=""
 SERVER_ENABLE_GEEK_TOOLS=""
+SERVER_ENABLE_GAMING=""
 SERVER_ENABLE_INSECURE_TOOLS=""
 SERVER_ENABLE_DOCKER=""
 SERVER_ENABLE_LIBVIRTD=""
@@ -265,10 +268,13 @@ reset_admin_users() {
 # 清空服务器软件覆盖配置。
 reset_server_overrides() {
   SERVER_OVERRIDES_ENABLED=false
-  SERVER_ENABLE_DEV=""
+  SERVER_ENABLE_NETWORK_CLI=""
   SERVER_ENABLE_NETWORK_GUI=""
-  SERVER_ENABLE_BROWSERS_AND_MEDIA=""
+  SERVER_ENABLE_SHELL_TOOLS=""
+  SERVER_ENABLE_WAYLAND_TOOLS=""
+  SERVER_ENABLE_SYSTEM_TOOLS=""
   SERVER_ENABLE_GEEK_TOOLS=""
+  SERVER_ENABLE_GAMING=""
   SERVER_ENABLE_INSECURE_TOOLS=""
   SERVER_ENABLE_DOCKER=""
   SERVER_ENABLE_LIBVIRTD=""
@@ -875,14 +881,26 @@ script_shebang_shell() {
 self_check_scripts() {
   # 遍历仓库脚本，确保第一行 shebang 合法
   local repo_dir="$1"
-  local search_dir="${repo_dir}/home/users"
+  local user_scripts_dir="${repo_dir}/home/users"
+  local pkg_scripts_dir="${repo_dir}/pkgs"
   local scripts=()
 
   # 收集 home/users/*/scripts 下的脚本
-  if [[ -d "${search_dir}" ]]; then
+  if [[ -d "${user_scripts_dir}" ]]; then
     mapfile -d '' -t scripts < <(
-      find "${search_dir}" -type f -path "*/scripts/*" -print0 2>/dev/null
+      find "${user_scripts_dir}" -type f -path "*/scripts/*" -print0 2>/dev/null
     )
+  fi
+
+  # 收集 pkgs/*/scripts/*.sh 下的脚本
+  if [[ -d "${pkg_scripts_dir}" ]]; then
+    local pkg_scripts=()
+    mapfile -d '' -t pkg_scripts < <(
+      find "${pkg_scripts_dir}" -type f -path "*/scripts/*.sh" -print0 2>/dev/null
+    )
+    if [[ ${#pkg_scripts[@]} -gt 0 ]]; then
+      scripts+=("${pkg_scripts[@]}")
+    fi
   fi
 
   # 也检查本脚本本身
@@ -891,7 +909,7 @@ self_check_scripts() {
   fi
 
   if [[ ${#scripts[@]} -eq 0 ]]; then
-    warn "未找到可自检脚本（home/users/*/scripts 或 run.sh）"
+    warn "未找到可自检脚本（home/users/*/scripts、pkgs/*/scripts/*.sh 或 run.sh）"
     return 0
   fi
 
@@ -1733,7 +1751,7 @@ configure_server_overrides() {
   fi
 
   local pick
-  pick="$(menu_prompt "服务器软件配置" 1 "沿用主机配置" "开发服务器预设（Dev + Geek + Docker）" "自定义开关" "返回")"
+  pick="$(menu_prompt "服务器软件配置" 1 "沿用主机配置" "运维服务器预设（CLI + Geek + Docker）" "自定义开关" "返回")"
   case "${pick}" in
     1)
       reset_server_overrides
@@ -1741,10 +1759,13 @@ configure_server_overrides() {
       ;;
     2)
       SERVER_OVERRIDES_ENABLED=true
-      SERVER_ENABLE_DEV="true"
+      SERVER_ENABLE_NETWORK_CLI="true"
       SERVER_ENABLE_NETWORK_GUI="false"
-      SERVER_ENABLE_BROWSERS_AND_MEDIA="false"
+      SERVER_ENABLE_SHELL_TOOLS="true"
+      SERVER_ENABLE_WAYLAND_TOOLS="false"
+      SERVER_ENABLE_SYSTEM_TOOLS="true"
       SERVER_ENABLE_GEEK_TOOLS="true"
+      SERVER_ENABLE_GAMING="false"
       SERVER_ENABLE_INSECURE_TOOLS="false"
       SERVER_ENABLE_DOCKER="true"
       SERVER_ENABLE_LIBVIRTD="false"
@@ -1752,10 +1773,13 @@ configure_server_overrides() {
       ;;
     3)
       SERVER_OVERRIDES_ENABLED=true
-      SERVER_ENABLE_DEV="$(ask_bool "启用开发工具（mcb.packages.enableDev）？" "false")"
+      SERVER_ENABLE_NETWORK_CLI="$(ask_bool "启用网络/代理 CLI（mcb.packages.enableNetworkCli）？" "true")"
       SERVER_ENABLE_NETWORK_GUI="$(ask_bool "启用网络图形工具（mcb.packages.enableNetworkGui）？" "false")"
-      SERVER_ENABLE_BROWSERS_AND_MEDIA="$(ask_bool "启用浏览器/媒体应用（mcb.packages.enableBrowsersAndMedia）？" "false")"
+      SERVER_ENABLE_SHELL_TOOLS="$(ask_bool "启用命令行工具组（mcb.packages.enableShellTools）？" "true")"
+      SERVER_ENABLE_WAYLAND_TOOLS="$(ask_bool "启用 Wayland 工具组（mcb.packages.enableWaylandTools）？" "false")"
+      SERVER_ENABLE_SYSTEM_TOOLS="$(ask_bool "启用系统工具组（mcb.packages.enableSystemTools）？" "true")"
       SERVER_ENABLE_GEEK_TOOLS="$(ask_bool "启用调试/诊断工具（mcb.packages.enableGeekTools）？" "false")"
+      SERVER_ENABLE_GAMING="$(ask_bool "启用游戏工具组（mcb.packages.enableGaming）？" "false")"
       SERVER_ENABLE_INSECURE_TOOLS="$(ask_bool "启用不安全软件组（mcb.packages.enableInsecureTools）？" "false")"
       SERVER_ENABLE_DOCKER="$(ask_bool "启用 Docker（mcb.virtualisation.docker.enable）？" "false")"
       SERVER_ENABLE_LIBVIRTD="$(ask_bool "启用 Libvirt/KVM（mcb.virtualisation.libvirtd.enable）？" "false")"
@@ -1807,12 +1831,13 @@ ensure_user_home_entries() {
   for user in "${TARGET_USERS[@]}"; do
     local user_dir="${repo_dir}/home/users/${user}"
     local user_file="${user_dir}/default.nix"
-    if [[ -f "${user_file}" ]]; then
-      continue
+    local create_default=false
+    if [[ ! -f "${user_file}" ]]; then
+      create_default=true
     fi
 
     mkdir -p "${user_dir}"
-    if [[ -n "${template_dir}" && "${user_dir}" != "${template_dir}" ]]; then
+    if [[ "${create_default}" == "true" && -n "${template_dir}" && "${user_dir}" != "${template_dir}" ]]; then
       if [[ "${include_user_files}" == "true" && "${copy_template_content}" == "true" ]]; then
         local item=""
         for item in config assets scripts; do
@@ -1842,21 +1867,59 @@ ensure_user_home_entries() {
 EOF_GIT
     fi
     if [[ ! -f "${user_dir}/packages.nix" ]]; then
-      cat > "${user_dir}/packages.nix" <<'EOF_PKGS'
-# 用户个人软件入口（按需启用，不影响其他用户可见性）
-{ lib, ... }:
+      if [[ -n "${template_dir}" && -f "${template_dir}/packages.nix" && "${user_dir}" != "${template_dir}" ]]; then
+        cp -a "${template_dir}/packages.nix" "${user_dir}/packages.nix"
+      elif [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
+        cat > "${user_dir}/packages.nix" <<'EOF_PKGS_SERVER'
+# 用户个人软件入口（服务器最小模板）
+{ pkgs, ... }:
 
 {
-  imports = [ ../../modules/personal-packages.nix ];
+  home.packages = with pkgs; [
+    # tmux
+    # htop
+    # rsync
+  ];
+}
+EOF_PKGS_SERVER
+      else
+        cat > "${user_dir}/packages.nix" <<'EOF_PKGS'
+# 用户个人软件入口（按需启用，不影响其他用户可见性）
+{ pkgs, ... }:
 
-  mcb.personalPackages = {
-    enableZed = lib.mkDefault false;
-    zedChannel = lib.mkDefault "official-stable";
-    enableYesPlayMusic = lib.mkDefault false;
+{
+  mcb.desktopEntries = {
+    enableZed = false;
+    enableYesPlayMusic = false;
   };
+
+  # 逐个声明该用户的软件（仅此用户可见）
+  home.packages = with pkgs; [
+    # firefox
+    # helix
+    # (callPackage ../../../pkgs/zed { })            # 同时把 enableZed 改为 true
+    # (callPackage ../../../pkgs/yesplaymusic { })   # 同时把 enableYesPlayMusic 改为 true
+  ];
 }
 EOF_PKGS
+      fi
     fi
+    if [[ ! -f "${user_dir}/local.nix.example" ]]; then
+      cat > "${user_dir}/local.nix.example" <<'EOF_LOCAL'
+# 用户私有覆盖示例（按需复制为 local.nix）
+{ ... }:
+
+{
+  # 仅当前用户生效的个性化开关示例：
+  # home.packages = with pkgs; [ localsend ];
+}
+EOF_LOCAL
+    fi
+
+    if [[ "${create_default}" != "true" ]]; then
+      continue
+    fi
+
     local import_lines="    ${profile_import}"
     local extra_import
     for extra_import in "${extra_imports[@]}"; do
@@ -2010,10 +2073,13 @@ write_local_override() {
     fi
 
     if [[ "${SERVER_OVERRIDES_ENABLED}" == "true" ]]; then
-      echo "  mcb.packages.enableDev = lib.mkForce ${SERVER_ENABLE_DEV};"
+      echo "  mcb.packages.enableNetworkCli = lib.mkForce ${SERVER_ENABLE_NETWORK_CLI};"
       echo "  mcb.packages.enableNetworkGui = lib.mkForce ${SERVER_ENABLE_NETWORK_GUI};"
-      echo "  mcb.packages.enableBrowsersAndMedia = lib.mkForce ${SERVER_ENABLE_BROWSERS_AND_MEDIA};"
+      echo "  mcb.packages.enableShellTools = lib.mkForce ${SERVER_ENABLE_SHELL_TOOLS};"
+      echo "  mcb.packages.enableWaylandTools = lib.mkForce ${SERVER_ENABLE_WAYLAND_TOOLS};"
+      echo "  mcb.packages.enableSystemTools = lib.mkForce ${SERVER_ENABLE_SYSTEM_TOOLS};"
       echo "  mcb.packages.enableGeekTools = lib.mkForce ${SERVER_ENABLE_GEEK_TOOLS};"
+      echo "  mcb.packages.enableGaming = lib.mkForce ${SERVER_ENABLE_GAMING};"
       echo "  mcb.packages.enableInsecureTools = lib.mkForce ${SERVER_ENABLE_INSECURE_TOOLS};"
       echo "  mcb.virtualisation.docker.enable = lib.mkForce ${SERVER_ENABLE_DOCKER};"
       echo "  mcb.virtualisation.libvirtd.enable = lib.mkForce ${SERVER_ENABLE_LIBVIRTD};"
@@ -2484,10 +2550,13 @@ print_summary() {
 
   if [[ "${SERVER_OVERRIDES_ENABLED}" == "true" ]]; then
     printf '%s服务器软件覆盖：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
-    printf '  - enableDev=%s\n' "${SERVER_ENABLE_DEV}"
+    printf '  - enableNetworkCli=%s\n' "${SERVER_ENABLE_NETWORK_CLI}"
     printf '  - enableNetworkGui=%s\n' "${SERVER_ENABLE_NETWORK_GUI}"
-    printf '  - enableBrowsersAndMedia=%s\n' "${SERVER_ENABLE_BROWSERS_AND_MEDIA}"
+    printf '  - enableShellTools=%s\n' "${SERVER_ENABLE_SHELL_TOOLS}"
+    printf '  - enableWaylandTools=%s\n' "${SERVER_ENABLE_WAYLAND_TOOLS}"
+    printf '  - enableSystemTools=%s\n' "${SERVER_ENABLE_SYSTEM_TOOLS}"
     printf '  - enableGeekTools=%s\n' "${SERVER_ENABLE_GEEK_TOOLS}"
+    printf '  - enableGaming=%s\n' "${SERVER_ENABLE_GAMING}"
     printf '  - enableInsecureTools=%s\n' "${SERVER_ENABLE_INSECURE_TOOLS}"
     printf '  - docker.enable=%s\n' "${SERVER_ENABLE_DOCKER}"
     printf '  - libvirtd.enable=%s\n' "${SERVER_ENABLE_LIBVIRTD}"

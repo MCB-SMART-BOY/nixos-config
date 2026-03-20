@@ -1,6 +1,7 @@
 # Home Manager 桌面应用与输入法环境变量。
 
 {
+  config,
   pkgs,
   lib,
   inputs,
@@ -8,6 +9,30 @@
 }:
 
 let
+  noctaliaCfg = config.mcb.noctalia;
+
+  defaultNoctaliaSettings = {
+    bar = {
+      widgets = {
+        left = [
+          { id = "Launcher"; }
+          { id = "Workspace"; }
+        ];
+        center = [
+          { id = "Clock"; }
+        ];
+        right = [
+          { id = "Tray"; }
+          { id = "Volume"; }
+          { id = "Brightness"; }
+          { id = "Battery"; }
+          { id = "NotificationHistory"; }
+          { id = "ControlCenter"; }
+        ];
+      };
+    };
+  };
+
   unstablePkgs = import inputs.nixpkgs-unstable {
     system = pkgs.stdenv.hostPlatform.system;
     config = pkgs.config;
@@ -214,12 +239,45 @@ let
   };
 in
 {
+  options.mcb = {
+    desktopEntries = {
+      enableZed = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable Zed desktop entry override for this user.";
+      };
+
+      enableYesPlayMusic = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Enable YesPlayMusic desktop entry override for this user.";
+      };
+    };
+
+    noctalia = {
+      barProfile = lib.mkOption {
+        type = lib.types.enum [
+          "default"
+          "none"
+        ];
+        default = "default";
+        description = "Noctalia bar profile: default (built-in widgets) or none (disable managed bar settings).";
+      };
+    };
+  };
+
   imports = [
     inputs.noctalia.homeModules.default
   ];
 
+  config = {
   # 使用 Noctalia 作为桌面 Shell
   programs.noctalia-shell.enable = true;
+  programs.noctalia-shell.settings =
+    if noctaliaCfg.barProfile == "default" then
+      defaultNoctaliaSettings
+    else
+      { };
 
   home.sessionVariables = {
     # 输入法环境变量（保证 Wayland 应用能读取）
@@ -309,7 +367,7 @@ in
   };
 
   # Override upstream desktop entry so GUI launcher also goes through adaptive wrapper.
-  xdg.desktopEntries."dev.zed.Zed" = {
+  xdg.desktopEntries."dev.zed.Zed" = lib.mkIf config.mcb.desktopEntries.enableZed {
     name = "Zed";
     genericName = "Text Editor";
     comment = "A high-performance, multiplayer code editor.";
@@ -390,7 +448,7 @@ in
     terminal = false;
   };
 
-  xdg.desktopEntries."yesplaymusic" = {
+  xdg.desktopEntries."yesplaymusic" = lib.mkIf config.mcb.desktopEntries.enableYesPlayMusic {
     name = "YesPlayMusic";
     comment = "A third-party music player for Netease Music";
     exec = "electron-auto-gpu yesplaymusic --no-sandbox %U";
@@ -428,5 +486,6 @@ in
     Install = {
       WantedBy = [ "graphical-session.target" ];
     };
+  };
   };
 }

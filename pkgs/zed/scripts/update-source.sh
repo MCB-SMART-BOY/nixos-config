@@ -4,6 +4,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../../.." && pwd -P)"
 SOURCE_FILE="${REPO_ROOT}/pkgs/zed/source.nix"
+CHECK_ONLY=false
+
+usage() {
+  cat <<'EOF'
+Usage:
+  update-source.sh          # update source.nix to latest upstream stable release
+  update-source.sh --check  # check whether source.nix is up-to-date
+EOF
+}
+
+if [[ "${1:-}" == "--check" ]]; then
+  CHECK_ONLY=true
+  shift
+fi
+
+if [[ $# -ne 0 ]]; then
+  usage >&2
+  exit 2
+fi
 
 require_cmd() {
   local cmd="$1"
@@ -57,7 +76,10 @@ fi
 x86_hash="$(to_sri_hash "${x86_url}" "${x86_digest}")"
 arm_hash="$(to_sri_hash "${arm_url}" "${arm_digest}")"
 
-cat > "${SOURCE_FILE}" <<EOF_ZED
+tmp_file="$(mktemp)"
+trap 'rm -f "${tmp_file}"' EXIT
+
+cat > "${tmp_file}" <<EOF_ZED
 {
   x86_64-linux = {
     version = "${version}";
@@ -73,5 +95,20 @@ cat > "${SOURCE_FILE}" <<EOF_ZED
 }
 EOF_ZED
 
+if [[ "${CHECK_ONLY}" == "true" ]]; then
+  if [[ -f "${SOURCE_FILE}" ]] && cmp -s "${tmp_file}" "${SOURCE_FILE}"; then
+    echo "up-to-date: ${SOURCE_FILE} (${tag})"
+    exit 0
+  fi
+
+  echo "outdated: ${SOURCE_FILE} (latest ${tag})" >&2
+  if command -v diff >/dev/null 2>&1 && [[ -f "${SOURCE_FILE}" ]]; then
+    diff -u "${SOURCE_FILE}" "${tmp_file}" || true
+  fi
+  exit 1
+fi
+
+mv "${tmp_file}" "${SOURCE_FILE}"
+trap - EXIT
 echo "updated ${SOURCE_FILE}"
 echo "zed official stable -> ${tag}"

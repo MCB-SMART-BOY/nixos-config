@@ -40,6 +40,13 @@ in
       description = "Host role used to derive default user group memberships.";
     };
 
+    # 是否为托管用户默认开启 linger（允许用户服务在注销后继续运行）
+    userLinger = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Enable user lingering for managed users.";
+    };
+
     # CPU 厂商，用于选择正确的 KVM 模块（见 modules/boot.nix）
     cpuVendor = mkOption {
       type = types.enum [
