@@ -27,7 +27,7 @@
 - `home/modules/shell.nix`：zsh/direnv/zoxide/starship/tmux
 - `home/modules/git.nix`：git 基础配置
 - `home/users/<user>/scripts.nix`：Noctalia 按钮脚本/壁纸脚本打包
-- `home/users/mcbnixos/noctalia.nix`：mcbnixos 用户专属 Noctalia 高级按钮布局
+- `home/users/mcbnixos/noctalia.nix`：mcbnixos 用户专属 Noctalia 入口（加载 `home/users/mcbnixos/config/noctalia/settings.nix`）
 
 Noctalia 顶栏可用用户选项：
 - `mcb.noctalia.barProfile = "default" | "none"`
