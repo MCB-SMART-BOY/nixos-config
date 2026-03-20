@@ -1774,6 +1774,7 @@ ensure_user_home_entries() {
   local profile_import="../../profiles/full.nix"
   local extra_imports=(
     "./git.nix"
+    "./packages.nix"
   )
   local include_user_files=true
   if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
@@ -1840,6 +1841,22 @@ ensure_user_home_entries() {
 }
 EOF_GIT
     fi
+    if [[ ! -f "${user_dir}/packages.nix" ]]; then
+      cat > "${user_dir}/packages.nix" <<'EOF_PKGS'
+# 用户个人软件入口（按需启用，不影响其他用户可见性）
+{ lib, ... }:
+
+{
+  imports = [ ../../modules/personal-packages.nix ];
+
+  mcb.personalPackages = {
+    enableZed = lib.mkDefault false;
+    zedChannel = lib.mkDefault "official-stable";
+    enableYesPlayMusic = lib.mkDefault false;
+  };
+}
+EOF_PKGS
+    fi
     local import_lines="    ${profile_import}"
     local extra_import
     for extra_import in "${extra_imports[@]}"; do
@@ -1856,7 +1873,7 @@ EOF_GIT
       fi
     fi
     cat > "${user_file}" <<EOF_USER
-{ ... }:
+{ lib, ... }:
 
 let
   user = "${user}";
@@ -1864,7 +1881,7 @@ in
 {
   imports = [
 ${import_lines}
-  ];
+  ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   home.username = user;
   home.homeDirectory = "/home/\${user}";

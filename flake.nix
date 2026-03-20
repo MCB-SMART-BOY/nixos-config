@@ -165,6 +165,12 @@
               check_file "$file"
             done < <(find home/users -type f -path "*/scripts/*" -print0)
 
+            if [ -d pkgs ]; then
+              while IFS= read -r -d "" file; do
+                check_file "$file"
+              done < <(find pkgs -type f -path "*/scripts/*.sh" -print0)
+            fi
+
             touch "$out"
           '';
 

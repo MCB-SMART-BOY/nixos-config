@@ -130,7 +130,7 @@ mcb.users = [ "mcbnixos" "mcblaptopnixos" ];
 - `run.sh` 不再需要命令行参数，直接执行 `./run.sh` 即可
 
 脚本会写入 `hosts/<hostname>/local.nix` 做临时覆盖，不会破坏你的主配置。
-若输入了仓库中不存在的新用户，脚本会自动创建 `home/users/<name>/default.nix` 最小模板。
+若输入了仓库中不存在的新用户，脚本会自动创建 `home/users/<name>/default.nix` 与 `home/users/<name>/packages.nix` 模板。
 默认不会复制模板用户的 `config/assets/scripts`；如需复制，可设置 `RUN_SH_COPY_USER_TEMPLATE=true` 后再运行。
 
 ---
@@ -237,10 +237,17 @@ mcb.perUserTun.dnsPorts = {
 5. 通过后再 `nixos-rebuild switch`
 6. 核心组件更新后重启系统
 
+官网稳定版应用（Zed / YesPlayMusic）追新：
+```bash
+./pkgs/scripts/update-upstream-apps.sh
+```
+然后执行 `nixos-rebuild switch` 应用更新。
+
 最佳实践：
 - 变更前先 `git status`，保持提交粒度小
 - 大改动前备份 `/etc/nixos` 或创建 Git 标签
 - 使用 `hosts/<hostname>/local.nix` 放主机私有覆盖
+- 使用 `home/users/<user>/local.nix` 放用户私有覆盖（不影响其他用户）
 - 网络环境变化时优先切换 `mcb.nix.cacheProfile`（`cn` / `global` / `official-only` / `custom`）
 - `hardware-configuration.nix` 不随意迁移到其他主机
 - per-user TUN 的接口名与 DNS 端口要唯一且对应

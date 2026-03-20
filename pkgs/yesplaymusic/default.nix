@@ -5,12 +5,12 @@
 }:
 
 let
+  sourceInfo = import ./source.nix;
   pname = "yesplaymusic";
-  version = "0.4.10";
+  inherit (sourceInfo) version;
 
   src = fetchurl {
-    url = "https://github.com/qier222/YesPlayMusic/releases/download/v${version}/YesPlayMusic-${version}.AppImage";
-    hash = "sha256-Qj9ZQbHqzKX2QBlXWtey/j/4PqrCJCObdvOans79KW4=";
+    inherit (sourceInfo) url hash;
   };
 
   appimageContents = appimageTools.extractType2 {

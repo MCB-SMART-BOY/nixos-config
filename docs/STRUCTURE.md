@@ -26,6 +26,7 @@
 ├── README.md
 ├── docs/
 ├── modules/
+├── pkgs/                      # 自定义包（按软件分组）与上游版本 pin 更新脚本
 └── home/
 ```
 
@@ -48,6 +49,8 @@
 
 - `home/`
   - `home/users/<user>/default.nix`：用户入口
+  - `home/users/<user>/packages.nix`：用户个人应用声明（`mcb.personalPackages.*`）
+  - `home/users/<user>/local.nix`：用户私有覆盖（可选，不提交）
   - `home/profiles/`：用户配置组合
   - `home/modules/`：用户模块拆分
   - `home/users/<user>/config/`：应用配置（链接到 ~/.config）
@@ -56,6 +59,11 @@
 
 - `run.sh`
   - 一键部署脚本（拉取 → 同步 → `nixos-rebuild`）
+
+- `pkgs/`
+  - `pkgs/zed/`：Zed 官方稳定版打包与版本源（`source.nix` + `scripts/update-source.sh`）
+  - `pkgs/yesplaymusic/`：YesPlayMusic 官方稳定版打包与版本源（`source.nix` + `scripts/update-source.sh`）
+  - `pkgs/scripts/update-upstream-apps.sh`：一次更新两者版本 pin
 
 ## 关键入口
 

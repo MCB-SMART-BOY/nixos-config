@@ -6,6 +6,7 @@
 
 - 改默认用户/多用户：`hosts/<hostname>/default.nix` -> `mcb.user` / `mcb.users`
 - 改系统包组：`hosts/profiles/*.nix` + `modules/packages.nix`
+- 改用户个人应用：`home/users/<user>/packages.nix`（可配 `home/users/<user>/local.nix` 覆盖）
 - 改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
 - 改应用主题：`home/users/<user>/config/`
 - 改输入法：`modules/i18n.nix` + `home/users/<user>/config/fcitx5/profile`
@@ -54,18 +55,39 @@
 - `cpuVendor`：`intel` / `amd`
 - `hostRole`：`desktop` / `server`（影响默认用户组策略）
 - `nix.cacheProfile`：`cn` / `global` / `official-only` / `custom`
-- `packages.zedChannel`：`unstable` / `stable`（Zed 追新通道）
+- `home/users/<user>/packages.nix` -> `mcb.personalPackages.*`（按用户声明个人应用）
 
 ### Zed 追新
 
-默认使用：
+按用户设置（示例：`home/users/mcbnixos/packages.nix`）：
 ```nix
-mcb.packages.zedChannel = "unstable";
+mcb.personalPackages = {
+  enableZed = true;
+  zedChannel = "official-stable";
+};
 ```
 
-如需回退稳定通道：
+如需回退到 nixpkgs 稳定通道：
 ```nix
-mcb.packages.zedChannel = "stable";
+mcb.personalPackages.zedChannel = "stable";
+```
+
+如需手动追新官网稳定版（更新版本与 hash 固定值）：
+```bash
+./pkgs/zed/scripts/update-source.sh
+```
+
+### YesPlayMusic 官网稳定版
+
+YesPlayMusic 使用 `pkgs/yesplaymusic/source.nix` 固定官网 release 的 AppImage。
+更新 pin：
+```bash
+./pkgs/yesplaymusic/scripts/update-source.sh
+```
+
+一次更新两者：
+```bash
+./pkgs/scripts/update-upstream-apps.sh
 ```
 
 ---
@@ -158,5 +180,6 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 
 - 修改主机配置：编辑 `hosts/<hostname>/default.nix`
 - 自定义应用配置：放入 `home/users/<user>/config/` 后在 `files.nix` 中接入
+- 用户私有覆盖：新增 `home/users/<user>/local.nix`（已加入 `.gitignore`）
 - 关闭系统层游戏功能：`mcb.system.enableGaming = false;`
-- 音乐应用说明：`enableMusic` 会安装 `yesplaymusic`（仓库内自定义包）与 `go-musicfox`/`musicfox` 启动包装器（启动前会自动修正 `go-musicfox.ini` 的 `player.engine=mpv`、`player.mpvBin`、`unm.sources`、`unm.skipInvalidTracks`、`unm.searchLimit`）
+- 音乐应用说明：`enableMusic` 负责系统层 `go-musicfox`/`musicfox` 启动包装器与 CLI 播放组件；YesPlayMusic 改为用户层 `mcb.personalPackages.enableYesPlayMusic`

@@ -2,3 +2,4 @@
 hardware-configuration.nix
 hosts/*/hardware-configuration.nix
 hosts/*/local.nix
+home/users/*/local.nix

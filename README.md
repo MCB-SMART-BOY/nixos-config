@@ -14,7 +14,8 @@
 - Flake + Home Manager 分层
 - 多主机、多用户统一管理
 - Niri + Wayland 桌面体验
-- Zed 默认走 unstable 通道（追新，可回退 stable）
+- Zed 默认走官网 stable 包（可一键更新 pin）
+- YesPlayMusic 官网稳定版 AppImage 固定打包（可一键更新 pin）
 - 输入法与中文环境开箱可用
 - 代理/TUN 与 per-user 路由方案
 - Nix 二进制缓存策略可切换（`mcb.nix.cacheProfile`）
@@ -63,6 +64,13 @@ nix flake update
 sudo nixos-rebuild switch --flake .#nixos
 ```
 
+### 4) 更新 Zed / YesPlayMusic 官网稳定版 pin
+
+```bash
+./pkgs/scripts/update-upstream-apps.sh
+sudo nixos-rebuild switch --flake .#nixos
+```
+
 ---
 
 ## 结构概览
@@ -98,6 +106,7 @@ nixos-config/
 
 用户层：
 - 用户入口：`home/users/<user>/default.nix`
+- 用户个人应用：`home/users/<user>/packages.nix`
 - 用户配置：`home/users/<user>/config/*`
 - 用户模块：`home/modules/*.nix`
 

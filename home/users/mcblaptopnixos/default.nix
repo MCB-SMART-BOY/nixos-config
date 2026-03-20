@@ -1,6 +1,6 @@
 # 用户入口（mcblaptopnixos）：选择 profile + 用户级文件。
 
-{ ... }:
+{ lib, ... }:
 
 let
   user = "mcblaptopnixos";
@@ -10,7 +10,8 @@ in
   imports = [
     ../../profiles/full.nix
     ./git.nix
-  ];
+    ./packages.nix
+  ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   # Home Manager 基本信息
   home.username = user;
