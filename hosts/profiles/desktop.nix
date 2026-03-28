@@ -19,24 +19,16 @@
   ];
 
   mcb.packages = {
-    # 桌面常用包组全部开启
+    # 系统级共享包组（用户个性化应用请写到 home/users/<user>/packages.nix）
     enableNetworkCli = true;
     enableNetworkGui = true;
     enableShellTools = true;
     enableWaylandTools = true;
-    enableBrowsersAndMedia = true;
-    enableDev = true;
-    enableChat = true;
-    enableEmulation = true;
-    enableEntertainment = true;
     enableGaming = true;
     enableSystemTools = true;
     enableTheming = true;
     enableXorgCompat = true;
     enableGeekTools = true;
-    enableOffice = true;
-    enableLife = true;
-    enableAnime = true;
     enableMusic = true;
   };
 

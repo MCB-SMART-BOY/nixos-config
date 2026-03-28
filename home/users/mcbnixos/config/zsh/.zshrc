@@ -3,10 +3,6 @@
 # 作者: mcbnixos（NixOS 25.11 优化版）
 # 主题: Catppuccin Mocha
 
-if [ -e /etc/zshrc ]; then
-    source /etc/zshrc
-fi
-
 # ══════════════════════════════════════════════════════════════════
 # 1. 🎨 终端环境与色彩
 # ══════════════════════════════════════════════════════════════════
@@ -97,11 +93,6 @@ setopt COMPLETE_IN_WORD          # 在单词中间补全
 setopt AUTO_MENU                 # 多结果时自动进入菜单
 setopt NO_FLOW_CONTROL           # 禁用 Ctrl-S/Ctrl-Q 卡住终端
 
-# 补全样式
-zstyle ':completion:*' menu select
-zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'
-zstyle ':completion:*' list-colors ${(s.:.)LS_COLORS}
-
 # ══════════════════════════════════════════════════════════════════
 # 5. 🚀 现代工具无感替换
 # ══════════════════════════════════════════════════════════════════
@@ -115,20 +106,18 @@ if command -v eza &> /dev/null; then
     alias tree='eza --tree --icons'
 fi
 
-# cat -> bat
+# cat -> bat（保留原生 cat，避免与脚本/文档语义冲突）
 if command -v bat &> /dev/null; then
-    alias cat='bat --paging=never --style=plain' # 像 cat 一样直接输出
-    alias catt='bat --paging=always'             # 带行号和分页
+    alias bcat='bat --paging=never --style=plain'
+    alias catt='bat --paging=always'
 fi
 
-# grep -> ripgrep
-if command -v rg &> /dev/null; then
-    alias grep='rg --color=auto'
-fi
+# grep 默认彩色输出（保留 grep 语义，不替换为 rg）
+alias grep='grep --color=auto'
 
-# find -> fd
+# fd 作为 find 的补充命令，不覆盖 find 语义
 if command -v fd &> /dev/null; then
-    alias find='fd'
+    alias fdf='fd'
 fi
 
 # df -> duf (更好看的磁盘空间)
@@ -151,22 +140,11 @@ if command -v btop &> /dev/null; then
     alias top='btop'
 fi
 
-# cd -> zoxide (智能跳转)
-# 输入 z <部分目录名> 即可跳转
+# zoxide 智能跳转（保留原生 cd，避免破坏脚本/别名兼容性）
 if command -v zoxide &> /dev/null; then
     eval "$(zoxide init zsh)"
-    alias cd='z'
-    alias cdi='zi'
-fi
-
-# direnv (load .envrc)
-if command -v direnv &> /dev/null; then
-    eval "$(direnv hook zsh)"
-fi
-
-# starship prompt
-if command -v starship &> /dev/null; then
-    eval "$(starship init zsh)"
+    alias j='z'
+    alias ji='zi'
 fi
 
 # 🛡️ 后悔药：保留原生命令的访问方式
@@ -179,16 +157,43 @@ alias oldgrep='command grep'
 # ══════════════════════════════════════════════════════════════════
 
 # --- NixOS 管理 ---
-alias nrs='sudo nixos-rebuild switch --flake "/etc/nixos#nixos" --show-trace --upgrade-all' # 一键更新并重建
-alias nrt='sudo nixos-rebuild test'        # 测试新配置但不设为默认
-alias nrb='sudo nixos-rebuild boot'        # 下次启动时应用
+_mcb_flake_host() {
+    if [[ -r /etc/hostname ]]; then
+        head -n 1 /etc/hostname
+    else
+        hostname
+    fi
+}
+
+# 一键更新并重建（默认当前主机，可传 host 覆盖）
+nrs() {
+    local host="${1:-$(_mcb_flake_host)}"
+    sudo nixos-rebuild switch --flake "/etc/nixos#${host}" --show-trace --upgrade-all
+}
+
+# 测试新配置但不设为默认（默认当前主机，可传 host 覆盖）
+nrt() {
+    local host="${1:-$(_mcb_flake_host)}"
+    sudo nixos-rebuild test --flake "/etc/nixos#${host}" --show-trace
+}
+
+# 下次启动时应用（默认当前主机，可传 host 覆盖）
+nrb() {
+    local host="${1:-$(_mcb_flake_host)}"
+    sudo nixos-rebuild boot --flake "/etc/nixos#${host}" --show-trace
+}
+
 alias nfu='nix flake update'               # 更新 flake.lock
 alias nsp='nix search nixpkgs'             # 搜索软件包
 alias nsh='nix-shell'                      # 进入临时 Shell
 alias ngc='sudo nix-collect-garbage -d'    # 清理旧系统版本 (慎用)
 # 快速查看将要构建/下载的 derivations（判断是否会源码编译）
 nrc() {
-    local flake="${1:-/etc/nixos#nixosConfigurations.nixos.config.system.build.toplevel}"
+    local flake="${1:-}"
+    if [[ -z "$flake" ]]; then
+        local host="$(_mcb_flake_host)"
+        flake="/etc/nixos#nixosConfigurations.${host}.config.system.build.toplevel"
+    fi
     nix build "$flake" --dry-run --accept-flake-config
 }
 
@@ -231,7 +236,7 @@ alias rm='rm -i'
 e() { "${EDITOR:-nvim}" "$@"; }
 v() { "${EDITOR:-nvim}" "$@"; }
 if command -v zed &> /dev/null; then
-    alias z='zed'
+    alias ze='zed'
 fi
 
 # --- 网络 ---
@@ -294,9 +299,6 @@ fcd() {
 # ══════════════════════════════════════════════════════════════════
 # 8. 🔧 补全系统
 # ══════════════════════════════════════════════════════════════════
-autoload -Uz compinit
-compinit
-
 # 补全菜单配置
 zstyle ':completion:*' menu select
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'  # 大小写不敏感

@@ -55,23 +55,23 @@ cd nixos-config
 ### 2) 日常更新
 
 ```bash
-sudo nixos-rebuild switch --flake .#nixos
-sudo nixos-rebuild test   --flake .#nixos
-sudo nixos-rebuild build  --flake .#nixos
+sudo nixos-rebuild switch --flake .#<hostname>
+sudo nixos-rebuild test   --flake .#<hostname>
+sudo nixos-rebuild build  --flake .#<hostname>
 ```
 
 ### 3) 更新依赖版本
 
 ```bash
 nix flake update
-sudo nixos-rebuild switch --flake .#nixos
+sudo nixos-rebuild switch --flake .#<hostname>
 ```
 
 ### 4) 更新 Zed / YesPlayMusic 官网稳定版 pin
 
 ```bash
 ./pkgs/scripts/update-upstream-apps.sh
-sudo nixos-rebuild switch --flake .#nixos
+sudo nixos-rebuild switch --flake .#<hostname>
 ```
 
 仅检查是否已追平上游（不修改文件）：
@@ -86,6 +86,9 @@ sudo nixos-rebuild switch --flake .#nixos
 ```
 nixos-config/
 ├── run.sh                    # 一键部署脚本
+├── scripts-rs/               # Rust 版本脚本（与 Shell 脚本并存）
+├── scripts/run/cmd/          # run.sh 命令入口（deploy/release）
+├── scripts/run/lib/          # run.sh 分层函数库（ui/env/targets/pipeline/wizard/state）
 ├── flake.nix                 # Flake 入口
 ├── flake.lock                # 版本锁定（可复现）
 ├── hosts/                    # 主机配置目录
@@ -116,6 +119,10 @@ nixos-config/
 - 用户入口：`home/users/<user>/default.nix`
 - 用户个人应用：`home/users/<user>/packages.nix`
 - 用户软件清单：`home/users/<user>/packages.nix`（`home.packages` 逐项声明）
+
+Rust 脚本层：
+- Rust 对应实现：`scripts-rs/src/bin/*.rs`
+- 本地检查：`cd scripts-rs && cargo check`
 - 用户配置：`home/users/<user>/config/*`
 - 用户模块：`home/modules/*.nix`
 

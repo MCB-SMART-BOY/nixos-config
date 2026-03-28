@@ -23,6 +23,11 @@
 │   ├── server/
 │   └── nixos/
 ├── run.sh
+├── scripts/
+│   └── run/
+│       ├── cmd/              # run.sh 命令入口（deploy/release）
+│       └── lib/              # run.sh 分层函数库（ui/env/targets/pipeline/wizard/state）
+├── scripts-rs/               # Rust 版本脚本（与 Shell 脚本并存）
 ├── README.md
 ├── docs/
 ├── modules/

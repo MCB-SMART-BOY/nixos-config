@@ -14,6 +14,17 @@ let
   cfg = config.mcb.packages;
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
+  legacyUserScopedToggles = [
+    "enableBrowsersAndMedia"
+    "enableDev"
+    "enableChat"
+    "enableEmulation"
+    "enableOffice"
+    "enableLife"
+    "enableAnime"
+    "enableEntertainment"
+  ];
+  enabledLegacyUserScopedToggles = lib.filter (name: lib.attrByPath [ name ] false cfg) legacyUserScopedToggles;
 
   musicfoxWrapper = pkgs.writeShellScript "musicfox-wrapper" ''
         set -euo pipefail
@@ -448,6 +459,10 @@ in
   };
 
   config = {
+    warnings = lib.optionals (enabledLegacyUserScopedToggles != [ ]) [
+      "mcb.packages.${lib.concatStringsSep ", mcb.packages." enabledLegacyUserScopedToggles} are compatibility toggles and do not install packages anymore. Declare user apps explicitly in home/users/<user>/packages.nix."
+    ];
+
     environment.systemPackages = groups;
   };
 }

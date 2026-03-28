@@ -60,6 +60,7 @@ Noctalia 顶栏可用用户选项：
 - `hostRole`：`desktop` / `server`（影响默认用户组策略）
 - `nix.cacheProfile`：`cn` / `global` / `official-only` / `custom`
 - `home/users/<user>/packages.nix`：按用户逐个声明软件（`home.packages`）
+- `mcb.packages.enableBrowsersAndMedia/enableDev/enableChat/enableEmulation/enableOffice/enableLife/enableAnime/enableEntertainment`：仅保留兼容选项，不再安装软件（启用时会有 warning）
 
 ### Zed 追新
 
@@ -180,9 +181,17 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 ## 部署脚本（run.sh）
 
 - 负责拉取、同步、构建
+- 命令入口在 `scripts/run/cmd/`（`deploy.sh` / `release.sh`）
+- 通用函数库在 `scripts/run/lib/`
+- `lib/ui.sh`：日志/菜单/确认/进度
+- `lib/env.sh`：环境检查与脚本自检
+- `lib/targets.sh`：目标配置聚合入口（实际拆分在 `lib/targets/` 与 `lib/targets/overrides/`）
+- `lib/pipeline.sh`：源码准备、同步、重建、DNS 回退
+- `lib/wizard.sh`：交互向导主流程与摘要
 - 可在向导中选择主机/用户/TUN/GPU
 - 会写入 `hosts/<hostname>/local.nix` 覆盖配置
 - 建议部署前先执行 `nix flake check`（现已包含脚本语法检查）
+- `scripts-rs/` 提供核心脚本的 Rust 对应实现（`*-rs`）
 
 ---
 

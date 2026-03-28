@@ -2,11 +2,21 @@
 # 说明：
 # 1) 每个分组都可以按需增删，不影响其他用户。
 # 2) 这些包进入当前用户的 Home Manager profile（home.packages）。
-# 3) 注释尽量写到包级别，方便后续快速维护。
+# 3) 对于已由 mcb.packages.* 提供的系统级共享包，会在这里自动去重（避免重复声明）。
+# 4) 注释尽量写到包级别，方便后续快速维护。
 
-{ lib, pkgs, ... }:
+{
+  lib,
+  pkgs,
+  osConfig ? { },
+  ...
+}:
 
 let
+  hostPkgCfg = lib.attrByPath [ "mcb" "packages" ] { } osConfig;
+  hostPkgEnabled = name: lib.attrByPath [ name ] false hostPkgCfg;
+  hostNetworkGuiEnabled = (hostPkgEnabled "enableNetwork") || (hostPkgEnabled "enableNetworkGui");
+
   # 本地自维护 Zed（来自仓库 pkgs/zed）。tryEval 失败时返回 null，避免评估报错。
   zedEval = builtins.tryEval (pkgs.callPackage ../../../pkgs/zed { });
   zedPkg = if zedEval.success then zedEval.value else null;
@@ -323,14 +333,14 @@ in
 
   # 组合最终用户软件清单。分组顺序即安装声明顺序，方便阅读与维护。
   home.packages = lib.concatLists [
-    proxyGui
-    bluetooth
-    cliCore
-    shellWorkflow
-    monitors
-    dataSecurity
-    hardwareAndFiles
-    waylandBase
+    (lib.optionals (!hostNetworkGuiEnabled) proxyGui)
+    (lib.optionals (!hostNetworkGuiEnabled) bluetooth)
+    (lib.optionals (!(hostPkgEnabled "enableShellTools")) cliCore)
+    (lib.optionals (!(hostPkgEnabled "enableShellTools")) shellWorkflow)
+    (lib.optionals (!(hostPkgEnabled "enableShellTools")) monitors)
+    (lib.optionals (!(hostPkgEnabled "enableShellTools")) dataSecurity)
+    (lib.optionals (!(hostPkgEnabled "enableShellTools")) hardwareAndFiles)
+    (lib.optionals (!(hostPkgEnabled "enableWaylandTools")) waylandBase)
     terminalsAndBrowsers
     mediaReaders
     devToolchains
@@ -344,12 +354,12 @@ in
     creation
     lifeTools
     animeManga
-    musicApps
-    gaming
-    downloadAndSystem
-    theming
-    xorgCompat
-    debugAndAnalysis
+    (lib.optionals (!(hostPkgEnabled "enableMusic")) musicApps)
+    (lib.optionals (!(hostPkgEnabled "enableGaming")) gaming)
+    (lib.optionals (!(hostPkgEnabled "enableSystemTools")) downloadAndSystem)
+    (lib.optionals (!(hostPkgEnabled "enableTheming")) theming)
+    (lib.optionals (!(hostPkgEnabled "enableXorgCompat")) xorgCompat)
+    (lib.optionals (!(hostPkgEnabled "enableGeekTools")) debugAndAnalysis)
     desktopOverrides
   ];
 }

@@ -15,11 +15,6 @@
     enableNetworkGui = false;
     enableShellTools = true;
     enableWaylandTools = false;
-    enableBrowsersAndMedia = false;
-    enableDev = false;
-    enableChat = false;
-    enableEmulation = false;
-    enableEntertainment = false;
     enableGaming = false;
     enableSystemTools = true;
     enableTheming = false;

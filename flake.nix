@@ -123,6 +123,9 @@
               findutils
               gnugrep
               gnused
+              cargo
+              rustc
+              shellcheck
             ];
           }
           ''
@@ -158,17 +161,43 @@
               fi
             }
 
+            shellcheck_file() {
+              local file="$1"
+              if [ ! -f "$file" ]; then
+                return 0
+              fi
+              shellcheck -x -s bash -e SC1090,SC1091,SC2034,SC2154,SC2329 "$file"
+            }
+
             check_file run.sh
+            shellcheck_file run.sh
             bash run.sh --help >/dev/null
 
             while IFS= read -r -d "" file; do
               check_file "$file"
+              shellcheck_file "$file"
             done < <(find home/users -type f -path "*/scripts/*" -print0)
 
             if [ -d pkgs ]; then
               while IFS= read -r -d "" file; do
                 check_file "$file"
+                shellcheck_file "$file"
               done < <(find pkgs -type f -path "*/scripts/*.sh" -print0)
+            fi
+
+            if [ -d scripts/run ]; then
+              while IFS= read -r -d "" file; do
+                if LC_ALL=C grep -q $'\r' "$file"; then
+                  echo "CRLF line endings are not allowed: $file" >&2
+                  exit 1
+                fi
+                bash -n "$file"
+                shellcheck_file "$file"
+              done < <(find scripts/run -type f -name "*.sh" -print0)
+            fi
+
+            if [ -f scripts-rs/Cargo.toml ]; then
+              (cd scripts-rs && cargo check --quiet)
             fi
 
             touch "$out"
