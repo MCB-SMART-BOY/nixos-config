@@ -1,0 +1,119 @@
+[[group]]
+id = "proxy-gui"
+label = "代理图形工具"
+description = "代理 GUI、面板和相关网络前端。"
+order = 10
+
+[[group]]
+id = "cli-core"
+label = "命令行基础"
+description = "日常 shell 工作里最常用的基础命令行工具。"
+order = 20
+
+[[group]]
+id = "shell-workflow"
+label = "Shell 工作流"
+description = "Shell 增强、提示、目录跳转与交互体验工具。"
+order = 30
+
+[[group]]
+id = "terminals-and-browsers"
+label = "终端与浏览器"
+description = "终端模拟器与网页浏览器。"
+order = 40
+
+[[group]]
+id = "media-readers"
+label = "媒体与阅读"
+description = "本地媒体播放、图像浏览与文档阅读工具。"
+order = 50
+
+[[group]]
+id = "dev-toolchains"
+label = "开发工具链"
+description = "编译器、构建工具和语言运行时。"
+order = 60
+
+[[group]]
+id = "editors-and-ide"
+label = "编辑器与 IDE"
+description = "编辑器、IDE 与较完整的开发前端。"
+order = 70
+
+[[group]]
+id = "language-tools"
+label = "语言工具"
+description = "LSP、格式化器、静态检查与语言辅助工具。"
+order = 80
+
+[[group]]
+id = "database-tools"
+label = "数据库工具"
+description = "数据库客户端与相关辅助工具。"
+order = 90
+
+[[group]]
+id = "diagrams"
+label = "图表与建模"
+description = "流程图、建模和可视化制图工具。"
+order = 100
+
+[[group]]
+id = "chat-apps"
+label = "通讯社交"
+description = "聊天、即时通讯和社交客户端。"
+order = 110
+
+[[group]]
+id = "office-notes"
+label = "办公与笔记"
+description = "办公软件、笔记与知识管理工具。"
+order = 120
+
+[[group]]
+id = "research-writing"
+label = "科研写作"
+description = "论文阅读、引用管理与写作排版工具链。"
+order = 130
+
+[[group]]
+id = "creation"
+label = "内容创作"
+description = "音视频创作、录制与制作相关工具。"
+order = 140
+
+[[group]]
+id = "life-tools"
+label = "日常工具"
+description = "日历、天气、密码库与生活类桌面工具。"
+order = 150
+
+[[group]]
+id = "anime-manga"
+label = "动漫漫画"
+description = "动漫、漫画与二次元内容相关应用。"
+order = 160
+
+[[group]]
+id = "music-apps"
+label = "音乐应用"
+description = "本地或在线音乐播放与控制工具。"
+order = 170
+
+[[group]]
+id = "gaming"
+label = "游戏工具"
+description = "游戏启动、兼容层和性能工具。"
+order = 180
+
+[[group]]
+id = "download-and-system"
+label = "下载与系统"
+description = "下载器、磁盘管理和常见系统控制工具。"
+order = 190
+
+[[group]]
+id = "misc"
+label = "未分类 / 临时"
+description = "搜索结果默认落点，适合后续再移动到更具体的软件组。"
+order = 900

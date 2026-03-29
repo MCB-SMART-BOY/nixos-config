@@ -3,3 +3,9 @@ hardware-configuration.nix
 hosts/*/hardware-configuration.nix
 hosts/*/local.nix
 home/users/*/local.nix
+
+## 本地构建与开发输出
+.direnv/
+mcbctl/target/
+result
+result-*

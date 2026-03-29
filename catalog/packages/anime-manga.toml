@@ -1,0 +1,53 @@
+# 软件目录分片：anime-manga
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "kazumi"
+name = "Kazumi"
+category = "anime"
+group = "anime-manga"
+expr = "pkgs.kazumi"
+description = "动漫聚合客户端。"
+keywords = ["anime", "streaming"]
+source = "nixpkgs"
+
+[[package]]
+id = "mangayomi"
+name = "Mangayomi"
+category = "anime"
+group = "anime-manga"
+expr = "pkgs.mangayomi"
+description = "漫画与视频聚合客户端。"
+keywords = ["manga", "anime", "reader"]
+source = "nixpkgs"
+
+[[package]]
+id = "bilibili"
+name = "Bilibili"
+category = "anime"
+group = "anime-manga"
+expr = "pkgs.bilibili"
+description = "哔哩哔哩客户端。"
+keywords = ["video", "anime", "community"]
+source = "nixpkgs"
+
+[[package]]
+id = "ani-cli"
+name = "ani-cli"
+category = "anime"
+group = "anime-manga"
+expr = "pkgs.ani-cli"
+description = "终端里的动漫搜索与播放工具。"
+keywords = ["anime", "cli", "streaming"]
+source = "nixpkgs"
+
+[[package]]
+id = "venera"
+name = "Venera"
+category = "anime"
+group = "anime-manga"
+expr = "pkgs.venera"
+description = "漫画下载与阅读 GUI。"
+keywords = ["manga", "reader", "gui"]
+source = "nixpkgs"
+

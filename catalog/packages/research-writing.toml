@@ -1,0 +1,73 @@
+# 软件目录分片：research-writing
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "sioyek"
+name = "Sioyek"
+category = "research"
+group = "research-writing"
+expr = "pkgs.sioyek"
+description = "学术阅读优化的 PDF 阅读器。"
+keywords = ["pdf", "research", "reader"]
+source = "nixpkgs"
+
+[[package]]
+id = "zotero"
+name = "Zotero"
+category = "research"
+group = "research-writing"
+expr = "pkgs.zotero"
+description = "文献管理工具。"
+keywords = ["citation", "library", "research"]
+source = "nixpkgs"
+
+[[package]]
+id = "pandoc"
+name = "Pandoc"
+category = "research"
+group = "research-writing"
+expr = "pkgs.pandoc"
+description = "文档格式转换工具。"
+keywords = ["document", "converter", "markdown"]
+source = "nixpkgs"
+
+[[package]]
+id = "typst"
+name = "Typst"
+category = "research"
+group = "research-writing"
+expr = "pkgs.typst"
+description = "现代排版引擎。"
+keywords = ["typesetting", "document", "latex-alternative"]
+source = "nixpkgs"
+
+[[package]]
+id = "texstudio"
+name = "TeXstudio"
+category = "research"
+group = "research-writing"
+expr = "pkgs.texstudio"
+description = "LaTeX 图形化编辑器。"
+keywords = ["latex", "editor", "tex"]
+source = "nixpkgs"
+
+[[package]]
+id = "texlab"
+name = "texlab"
+category = "research"
+group = "research-writing"
+expr = "pkgs.texlab"
+description = "LaTeX 语言服务器。"
+keywords = ["latex", "lsp", "tex"]
+source = "nixpkgs"
+
+[[package]]
+id = "tinymist"
+name = "Tinymist"
+category = "research"
+group = "research-writing"
+expr = "pkgs.tinymist"
+description = "Typst 语言服务器。"
+keywords = ["typst", "lsp"]
+source = "nixpkgs"
+

@@ -53,18 +53,35 @@
           hostSystemDefaults.${name}
         else
           throw "Missing hosts/${name}/system.nix. Please define an explicit target system (e.g. \"x86_64-linux\").";
-      # 自动读取 hosts/ 下的主机目录（排除 profiles）
+      # 自动读取 hosts/ 下的真实主机目录（排除 profiles / templates）
       hostEntries = builtins.readDir ./hosts;
-      hostNames = builtins.filter (name: hostEntries.${name} == "directory" && name != "profiles") (
-        builtins.attrNames hostEntries
-      );
-      pkgsForDefault = nixpkgs.legacyPackages.${defaultSystem};
-      scriptsRsPkg = pkgsForDefault.callPackage ./pkgs/scripts-rs { };
-      overlay = final: prev: {
-        valkey = prev.valkey.overrideAttrs (old: {
-          doCheck = false;
-        });
+      hostNames = builtins.filter (
+        name:
+        hostEntries.${name} == "directory"
+        && !(builtins.elem name [
+          "profiles"
+          "templates"
+        ])
+      ) (builtins.attrNames hostEntries);
+      overlay =
+        final: prev:
+        let
+          unstablePkgs = import inputs.nixpkgs-unstable {
+            system = final.stdenv.hostPlatform.system;
+          };
+        in
+        {
+          valkey = prev.valkey.overrideAttrs (old: {
+            doCheck = false;
+          });
+          gridix = final.callPackage ./pkgs/gridix { inherit unstablePkgs; };
+          mcbctl = final.callPackage ./pkgs/mcbctl { };
+        };
+      pkgsForDefault = import nixpkgs {
+        system = defaultSystem;
+        overlays = [ overlay ];
       };
+      mcbctlPkg = pkgsForDefault.mcbctl;
       # 为每个主机构造 nixosSystem，并注入 Home Manager
       mkHost =
         name:
@@ -116,8 +133,9 @@
       );
 
       packages.${defaultSystem} = {
-        default = scriptsRsPkg;
-        scripts-rs = scriptsRsPkg;
+        default = mcbctlPkg;
+        mcbctl = mcbctlPkg;
+        gridix = pkgsForDefault.gridix;
       };
 
       apps.${defaultSystem} =
@@ -129,11 +147,14 @@
           };
         in
         {
-          default = mkApp "${scriptsRsPkg}/bin/run-rs";
-          run-rs = mkApp "${scriptsRsPkg}/bin/run-rs";
-          update-zed-source = mkApp "${scriptsRsPkg}/bin/update-zed-source";
-          update-yesplaymusic-source = mkApp "${scriptsRsPkg}/bin/update-yesplaymusic-source";
-          update-upstream-apps = mkApp "${scriptsRsPkg}/bin/update-upstream-apps";
+          default = mkApp "${mcbctlPkg}/bin/mcbctl";
+          mcbctl = mkApp "${mcbctlPkg}/bin/mcbctl";
+          mcb-tui = mkApp "${mcbctlPkg}/bin/mcbctl";
+          mcb-deploy = mkApp "${mcbctlPkg}/bin/mcb-deploy";
+          deploy = mkApp "${mcbctlPkg}/bin/deploy";
+          update-zed-source = mkApp "${mcbctlPkg}/bin/update-zed-source";
+          update-yesplaymusic-source = mkApp "${mcbctlPkg}/bin/update-yesplaymusic-source";
+          update-upstream-apps = mkApp "${mcbctlPkg}/bin/update-upstream-apps";
         };
 
       checks.${defaultSystem} = {
@@ -160,11 +181,12 @@
                 exit 1
               fi
 
-              ${scriptsRsPkg}/bin/run-rs --help >/dev/null
+              ${mcbctlPkg}/bin/mcbctl --help >/dev/null
+              ${mcbctlPkg}/bin/mcb-deploy --help >/dev/null
               touch "$out"
             '';
 
-        scripts-rs-build = scriptsRsPkg;
+        mcbctl-build = mcbctlPkg;
       };
 
       formatter.${defaultSystem} = pkgsForDefault.nixfmt;

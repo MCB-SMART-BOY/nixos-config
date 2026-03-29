@@ -1,0 +1,13 @@
+# 软件目录分片：database-tools
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "gridix"
+name = "Gridix"
+category = "database"
+group = "database-tools"
+expr = "pkgs.gridix"
+description = "仓库内维护的 Gridix 数据库客户端。"
+keywords = ["database", "sql", "local-package"]
+source = "local/gridix"
+

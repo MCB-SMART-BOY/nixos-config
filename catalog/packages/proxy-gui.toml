@@ -1,0 +1,23 @@
+# 软件目录分片：proxy-gui
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "clash-nyanpasu"
+name = "Clash Nyanpasu"
+category = "proxy"
+group = "proxy-gui"
+expr = "pkgs.clash-nyanpasu"
+description = "MetaCubeX 生态下的代理 GUI。"
+keywords = ["clash", "proxy", "gui"]
+source = "nixpkgs"
+
+[[package]]
+id = "metacubexd"
+name = "MetaCubeXD"
+category = "proxy"
+group = "proxy-gui"
+expr = "pkgs.metacubexd"
+description = "MetaCubeX 的 Web 控制前端。"
+keywords = ["proxy", "dashboard", "metacubex"]
+source = "nixpkgs"
+

@@ -12,7 +12,7 @@
 
 let
   # === 读取 mcb.* 基础选项 ===
-  scriptsRs = pkgs.callPackage ../pkgs/scripts-rs { };
+  mcbctlPkg = pkgs.mcbctl;
   tunInterface = config.mcb.tunInterface;
   tunInterfaces = config.mcb.tunInterfaces;
   perUserTunEnabled = config.mcb.perUserTun.enable;
@@ -53,10 +53,10 @@ let
       dnsPort = perUserDnsPorts.${user} or 0;
       dnsPortStr = toString dnsPort;
       routeCommand =
-        "${scriptsRs}/bin/mcb-tun-route-rs start --user ${user} --iface ${iface} --table-id ${toString tableId} --priority ${toString priority} --dns-port ${dnsPortStr}"
+        "${mcbctlPkg}/bin/mcb-tun-route start --user ${user} --iface ${iface} --table-id ${toString tableId} --priority ${toString priority} --dns-port ${dnsPortStr}"
         + lib.optionalString perUserDnsRedirect " --redirect-dns";
       stopCommand =
-        "${scriptsRs}/bin/mcb-tun-route-rs stop --user ${user} --iface ${iface} --table-id ${toString tableId} --priority ${toString priority} --dns-port ${dnsPortStr}"
+        "${mcbctlPkg}/bin/mcb-tun-route stop --user ${user} --iface ${iface} --table-id ${toString tableId} --priority ${toString priority} --dns-port ${dnsPortStr}"
         + lib.optionalString perUserDnsRedirect " --redirect-dns";
     in
     {

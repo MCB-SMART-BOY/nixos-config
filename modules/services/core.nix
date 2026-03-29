@@ -23,9 +23,9 @@ let
   keepGlobalServiceSocket = config.mcb.perUserTun.compatGlobalServiceSocket;
   userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
   proxyEnabled = proxyMode == "http" && proxyUrl != "";
-  scriptsRs = pkgs.callPackage ../../pkgs/scripts-rs { };
+  mcbctlPkg = pkgs.mcbctl;
   clashPath = lib.makeBinPath [
-    scriptsRs
+    mcbctlPkg
     pkgs.clash-verge-rev
     pkgs.mihomo
     pkgs.iproute2
@@ -123,7 +123,7 @@ let
         else
           config.mcb.tunInterface;
       clashPrestartCommand =
-        "${scriptsRs}/bin/clash-verge-prestart-rs --user ${user} --group ${userGroup} --runtime-dir /run/${runtimeDirName} --config-home ${clashConfig} --data-home ${clashData} --cache-home ${clashCache} --state-home ${clashState}"
+        "${mcbctlPkg}/bin/clash-verge-prestart --user ${user} --group ${userGroup} --runtime-dir /run/${runtimeDirName} --config-home ${clashConfig} --data-home ${clashData} --cache-home ${clashCache} --state-home ${clashState}"
         + lib.optionalString (tunDevice != "") " --iface ${tunDevice}";
     in
     {

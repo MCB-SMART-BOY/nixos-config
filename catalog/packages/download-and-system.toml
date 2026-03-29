@@ -1,0 +1,53 @@
+# 软件目录分片：download-and-system
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "qbittorrent"
+name = "qBittorrent"
+category = "downloads"
+group = "download-and-system"
+expr = "pkgs.qbittorrent"
+description = "BT 下载客户端。"
+keywords = ["torrent", "download"]
+source = "nixpkgs"
+
+[[package]]
+id = "aria2"
+name = "aria2"
+category = "downloads"
+group = "download-and-system"
+expr = "pkgs.aria2"
+description = "多协议下载器。"
+keywords = ["download", "http", "bt"]
+source = "nixpkgs"
+
+[[package]]
+id = "yt-dlp"
+name = "yt-dlp"
+category = "downloads"
+group = "download-and-system"
+expr = "pkgs.yt-dlp"
+description = "在线视频下载工具。"
+keywords = ["video", "download", "youtube"]
+source = "nixpkgs"
+
+[[package]]
+id = "gparted"
+name = "GParted"
+category = "system"
+group = "download-and-system"
+expr = "pkgs.gparted"
+description = "图形分区管理器。"
+keywords = ["partition", "disk", "gui"]
+source = "nixpkgs"
+
+[[package]]
+id = "pavucontrol"
+name = "pavucontrol"
+category = "system"
+group = "download-and-system"
+expr = "pkgs.pavucontrol"
+description = "PulseAudio/PipeWire 音频控制面板。"
+keywords = ["audio", "volume", "pipewire"]
+source = "nixpkgs"
+

@@ -9,9 +9,12 @@
 
 如果你第一次打开这个仓库，先记住三件事：
 
-- 部署入口现在是 `nix run .#run-rs`
+- 控制台入口现在是 `nix run .#mcbctl`
+- 显式 TUI 别名仍然是 `nix run .#mcb-tui`
+- 如果你要直接进部署向导，使用 `nix run .#mcb-deploy`
 - 某个用户自己的软件，去写 `home/users/<user>/packages.nix`
-- 用户脚本入口不再是散落的 Shell 文件，而是 `scripts-rs/` + `home/users/<user>/scripts.nix`
+- 如果你想用 TUI 勾选软件并写入用户机器管理层，落点是 `home/users/<user>/managed/packages/*.nix`（由 `managed/packages.nix` 聚合）
+- 用户命令不再靠用户目录里的脚本桥接，而是由 `mcbctl/` 编译并通过 `pkgs/mcbctl/` 进入环境
 
 ## 这套仓库适合什么场景
 
@@ -27,10 +30,18 @@
 ```bash
 git clone https://github.com/MCB-SMART-BOY/nixos-config.git
 cd nixos-config
-nix run .#run-rs
+nix run .#mcbctl
 ```
 
-`run-rs` 现在就是完整的交互式部署向导。它会帮你处理：
+`mcbctl` 现在默认进入 TUI 控制台。你可以在里面继续走部署、用户、软件和后续设置管理。
+
+如果你就是想直接进入旧式的交互式部署向导，可以运行：
+
+```bash
+nix run .#mcb-deploy
+```
+
+`mcb-deploy` 会帮你处理：
 
 - 部署模式选择
 - 本地仓库 / 远端固定版本 / 远端最新版本
@@ -76,32 +87,55 @@ sudo nixos-rebuild switch --flake .#<hostname>
 - `hosts/<hostname>/default.nix`
 - `hosts/profiles/desktop.nix`
 - `hosts/profiles/server.nix`
+- `hosts/templates/`
 - `modules/`
 
 用户层：
 
 - `home/users/<user>/default.nix`
 - `home/users/<user>/packages.nix`
+- `home/users/<user>/packages/`（复杂用户可继续拆成“一个软件组一个文件”）
 - `home/users/<user>/config/`
-- `home/users/<user>/scripts.nix`
+- `home/users/<user>/managed/`
+- `home/templates/users/`
 
 脚本与打包：
 
-- `scripts-rs/`
-- `pkgs/scripts-rs/`
+- `mcbctl/`
+- `pkgs/mcbctl/`
 - `pkgs/zed/`
 - `pkgs/yesplaymusic/`
+
+机器管理区：
+
+- `hosts/<host>/managed/`
+- `home/users/<user>/managed/`
+- `catalog/packages/`（本地覆盖层 / 仓库内自维护包元数据，不再作为主软件源）
+- `catalog/groups.toml`
+- `catalog/home-options.toml`
+
+模板区：
+
+- `hosts/templates/`
+- `home/templates/users/`
 
 ## 这次仓库已经变了什么
 
 现在仓库里的脚本路线已经统一到 Rust：
 
-- 部署与 release：`run-rs`
-- Noctalia / 用户命令：`scripts-rs/src/bin/*.rs`
-- 官网应用追新：`update-zed-source-rs`、`update-yesplaymusic-source-rs`、`update-upstream-apps-rs`
+- 控制台入口：`mcbctl`
+- 直接部署 / release：`mcb-deploy`
+- Noctalia / 用户命令：`mcbctl/src/bin/*.rs`
+- 官网应用追新：`update-zed-source`、`update-yesplaymusic-source`、`update-upstream-apps`
 - 系统服务里的包装逻辑：也已经改成调用 Rust 二进制
 
 换句话说，仓库里不再保留 `run.sh` 和那套分层 Shell 脚本作为主实现。
+
+同时，模板也已经从真实配置命名空间里分离出来：
+
+- `hosts/` 只放真实主机
+- `home/users/` 只放真实启用用户
+- 模板统一放进 `hosts/templates/` 和 `home/templates/users/`
 
 ## 你大概率会改到哪里
 
@@ -109,10 +143,10 @@ sudo nixos-rebuild switch --flake .#<hostname>
 - 改系统共享包组：`hosts/profiles/*.nix` 和 `modules/packages.nix`
 - 改某个用户的软件：`home/users/<user>/packages.nix`
 - 改用户界面配置：`home/users/<user>/config/`
-- 改 Noctalia / 桌面行为：`home/modules/desktop.nix`、`home/users/<user>/scripts.nix`
+- 改 Noctalia / 桌面行为：`home/modules/desktop.nix`、`pkgs/mcbctl/default.nix`
 - 改代理 / TUN / 路由：`modules/networking.nix` 与 `modules/services/core.nix`
 - 改 GPU specialisation：`modules/hardware/gpu.nix`
-- 改脚本工具本身：`scripts-rs/src/bin/*.rs` 与 `scripts-rs/src/lib.rs`
+- 改脚本工具本身：`mcbctl/src/bin/*.rs` 与 `mcbctl/src/lib.rs`
 
 ## 文档索引
 
@@ -124,7 +158,7 @@ sudo nixos-rebuild switch --flake .#<hostname>
   多用户、GPU、Noctalia、脚本接线这些联动关系
 - [docs/NETWORK_CN.md](/home/mcbgaruda/projects/nixos-config/docs/NETWORK_CN.md)
   国内网络环境下的下载、DNS、代理与 TUN 排障
-- [scripts-rs/README.md](/home/mcbgaruda/projects/nixos-config/scripts-rs/README.md)
+- [mcbctl/README.md](/home/mcbgaruda/projects/nixos-config/mcbctl/README.md)
   Rust 脚本集合怎么构建、怎么接进整个仓库
 
 ## 最后一个建议

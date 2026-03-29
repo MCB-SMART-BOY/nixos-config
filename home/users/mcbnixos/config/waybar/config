@@ -90,7 +90,7 @@
 
     // Flake 更新提示（使用脚本返回 JSON）
     "custom/updates": {
-        // 依赖：~/.local/bin/noctalia-flake-updates（由 scripts-rs 提供）
+        // 依赖：~/.local/bin/noctalia-flake-updates（由 mcbctl 提供）
         "exec": "sh -c \"$HOME/.local/bin/noctalia-flake-updates\"",
         "interval": 900,
         "return-type": "json",
@@ -118,7 +118,7 @@
 
     // 实时网速（脚本输出 JSON）
     "custom/net-speed": {
-        // 依赖：~/.local/bin/noctalia-net-speed（由 scripts-rs 提供）
+        // 依赖：~/.local/bin/noctalia-net-speed（由 mcbctl 提供）
         "exec": "sh -c \"$HOME/.local/bin/noctalia-net-speed\"",
         "interval": 2,
         "return-type": "json",
@@ -239,7 +239,7 @@
 
     // 代理状态（脚本输出 JSON）
     "custom/proxy": {
-        // 依赖：~/.local/bin/noctalia-proxy-status（由 scripts-rs 提供）
+        // 依赖：~/.local/bin/noctalia-proxy-status（由 mcbctl 提供）
         "exec": "sh -c \"$HOME/.local/bin/noctalia-proxy-status\"",
         "interval": 5,
         "return-type": "json",

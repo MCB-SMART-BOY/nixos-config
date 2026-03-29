@@ -21,6 +21,7 @@ in
     ../profiles/desktop.nix
   ]
   ++ lib.optional (hardwareFile != null) hardwareFile
+  ++ lib.optional (builtins.pathExists ./managed/default.nix) ./managed/default.nix
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   # 允许在仓库/CI 环境中评估 flake（此时通常没有机器私有 hardware-configuration.nix）
@@ -38,10 +39,7 @@ in
   mcb = {
     # 主用户与用户列表（影响 Home Manager 与权限）
     user = "mcbnixos";
-    users = [
-      "mcbnixos"
-      "mcblaptopnixos"
-    ];
+    users = [ "mcbnixos" ];
     # 代理与 TUN 相关参数
     tunInterface = "Meta";
     tunInterfaces = [
@@ -62,11 +60,9 @@ in
       redirectDns = false;
       interfaces = {
         mcbnixos = "Meta";
-        mcblaptopnixos = "Mihomo";
       };
       dnsPorts = {
         mcbnixos = 1053;
-        mcblaptopnixos = 1054;
       };
     };
 

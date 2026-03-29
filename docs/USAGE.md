@@ -16,10 +16,18 @@
 ```bash
 git clone https://github.com/MCB-SMART-BOY/nixos-config.git
 cd nixos-config
-nix run .#run-rs
+nix run .#mcbctl
 ```
 
-这个入口会带你把第一次最容易出错的部分都走完：
+这个入口现在会直接进入 TUI 控制台。
+
+如果你只想直接进入部署向导，用：
+
+```bash
+nix run .#mcb-deploy
+```
+
+它会带你把第一次最容易出错的部分都走完：
 
 - 部署模式
 - 配置来源
@@ -30,11 +38,45 @@ nix run .#run-rs
 - GPU 覆盖
 - 服务器预设
 
+当前这一版 TUI 已经接入：
+
+- 部署任务模型
+- `managed/` 机器管理区落点
+- `Packages` 页面默认走 `nixpkgs` 搜索；`catalog/packages/*.toml` 现在只保留本地覆盖层 / 仓库内自维护包元数据（`catalog/packages.toml` 只保留兼容占位）
+- `Packages` 页面可以为指定用户勾选软件，并按组写入 `home/users/<user>/managed/packages/*.nix`
+  当前组标签、说明和排序来自 `catalog/groups.toml`
+  常用按键：`←/→` 切用户，`f` 在 `nixpkgs` 搜索 / 本地覆盖视图之间切换，`/` 输入关键词，`Enter` 或 `r` 刷新搜索，`j/k` 选软件，`[`/`]` 切分类，`u/i` 切来源过滤，`g/G` 改目标组，`m/M` 整组移动，`,`/`.` 切组过滤，`z` 聚焦当前条目所在组，`Z` 清空组过滤，`n` 新建组，`R` 重命名当前组，`Space` 勾选，`s` 保存
+  搜索范围：`id`、名称、分类、软件组、表达式、描述、来源、关键词、平台
+- `Home` 页面可以为指定用户写入 `home/users/<user>/managed/settings/desktop.nix`
+  当前字段标签、说明和顺序来自 `catalog/home-options.toml`
+  当前支持：`Noctalia` 顶栏 profile、`Zed` 桌面入口、`YesPlayMusic` 桌面入口
+  常用按键：`←/→` 切用户，`j/k` 选项，`h/l` 或 `Enter` 调整，`s` 保存
+- `Users` 页面会读取当前目标主机的 `mcb.user`、`mcb.users`、`mcb.adminUsers`、`mcb.hostRole`、`mcb.userLinger`，并写入 `hosts/<host>/managed/users.nix`
+  常用按键：`←/→` 切主机，`j/k` 选字段，`h/l` 调整枚举，`Enter` 编辑列表，`s` 保存
+- `Hosts` 页面会读取当前目标主机的代理、TUN、GPU、虚拟化相关 `mcb.*` 设置，并分别写入 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`
+  当前支持：`cacheProfile`、`proxyMode`、`proxyUrl`、`tunInterface`、`perUserTun.*`、`hardware.gpu.*`、`virtualisation.docker/libvirtd`
+  常用按键：`←/→` 切主机，`j/k` 选字段，`h/l` 调整枚举/布尔，`Enter` 编辑文本或映射，`s` 保存
+  `Deploy` 页面现在还会给出共享执行层生成的 `nixos-rebuild` 命令预览
+  如果来源是当前仓库且仓库不在 `/etc/nixos`，还会额外给出同步到 `/etc/nixos` 的预览
+
+下一阶段继续接的是：
+
+- `Packages` 页继续往 channel / 搜索缓存扩展，让搜索结果不只停在 `nixpkgs`
+- `Home` 页继续扩展更多结构化设置
+- `Home` 页继续把 session/mime 等设置接进分片
+
 如果你已经非常熟悉仓库结构，也可以直接：
 
 ```bash
 sudo nixos-rebuild switch --flake .#<hostname>
 ```
+
+如果你要新增一台主机，`mcb-deploy` 现在也支持直接从模板生成：
+
+- 新建桌面主机：来自 `hosts/templates/laptop/`
+- 新建服务器主机：来自 `hosts/templates/server/`
+
+生成时会先创建 `hosts/<hostname>/`，再继续写用户入口和 `local.nix` 覆盖。
 
 ## 2. 空机器起步时，先确认两件事
 
@@ -54,11 +96,11 @@ sudo nixos-generate-config
 
 ### 2.2 仓库要在当前目录可见
 
-`run-rs` 需要从你当前所在的仓库目录读取 `flake.nix`、`hosts/`、`home/` 这些内容。
+`mcbctl` / `mcb-deploy` 都需要从你当前所在的仓库目录读取 `flake.nix`、`hosts/`、`home/` 这些内容。
 所以正确用法不是“随便在哪都能跑”，而是：
 
 - 先 `cd` 到仓库根目录
-- 再执行 `nix run .#run-rs`
+- 再执行 `nix run .#mcbctl`
 
 ## 3. 日常维护，通常就这些动作
 
@@ -95,7 +137,7 @@ nix flake check
 
 它现在会检查：
 
-- `scripts-rs` 能否成功构建
+- `mcbctl` 能否成功构建
 - 仓库里是否还残留旧的 Shell 脚本入口
 - 是否还有 `writeShell*` 这类遗留定义
 
@@ -104,6 +146,7 @@ nix flake check
 答案很明确：
 
 - `home/users/<user>/packages.nix`
+- 或者用 `nix run .#mcbctl` 写入 `home/users/<user>/managed/packages/*.nix`
 
 这套仓库现在的思路是：
 
@@ -119,6 +162,11 @@ nix flake check
 - 其他用户不会平白多出一堆自己不用的软件
 - Nix store 仍然共享构建产物，不会重复浪费
 - 以后读配置时，你能看清“这是谁要的”
+
+如果你用 TUI 管理软件，建议这样理解边界：
+
+- 手写、长期维护的软件声明：`home/users/<user>/packages.nix`
+- TUI / 自动化工具写入的软件声明：`home/users/<user>/managed/packages/*.nix`
 
 ## 5. 新增用户，不是只新建一个目录就完事
 
@@ -136,8 +184,8 @@ nix flake check
 你可以参考：
 
 - `home/users/mcbnixos/`
-- `home/users/mcblaptopnixos/`
-- `home/users/mcbservernixos/`
+- `home/templates/users/laptop/`
+- `home/templates/users/server/`
 
 ## 6. GPU specialisation 的常用用法
 
@@ -159,7 +207,7 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 
 - BIOS 如果已经锁成 `dGPU-only`，切回 `igpu` 或 `hybrid` 可能会黑屏
 - `hybrid` 不是只写一个字符串，还需要正确的 busId
-- `run-rs` 在向导里会优先尝试自动探测，再回退到现有配置
+- `mcb-deploy` 在向导里会优先尝试自动探测，再回退到现有配置
 
 ## 7. 代理、TUN、per-user 路由
 
@@ -212,18 +260,25 @@ nix run .#update-yesplaymusic-source
 
 ## 9. Rust 脚本怎么单独调试
 
-如果你正在改 `scripts-rs`，直接在目录里跑：
+如果你正在改 `mcbctl`，直接在目录里跑：
 
 ```bash
-cd scripts-rs
+cd mcbctl
 cargo check
-cargo run --bin run-rs
+cargo run --bin mcbctl
+```
+
+如果你要调试直接部署向导：
+
+```bash
+cd mcbctl
+cargo run --bin mcb-deploy -- --help
 ```
 
 但对正常部署来说，更推荐的还是在仓库根目录用：
 
 ```bash
-nix run .#run-rs
+nix run .#mcbctl
 ```
 
 因为这样走的是和仓库实际接线一致的路径。

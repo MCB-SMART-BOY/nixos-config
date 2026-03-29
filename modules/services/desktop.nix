@@ -10,7 +10,7 @@
 
 let
   flatpakCfg = config.mcb.flatpak;
-  scriptsRs = pkgs.callPackage ../../pkgs/scripts-rs { };
+  mcbctlPkg = pkgs.mcbctl;
   flatpakSetupHash = builtins.substring 0 16 (
     builtins.hashString "sha256" (
       builtins.toJSON {
@@ -83,7 +83,7 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = "${scriptsRs}/bin/flatpak-setup-rs --config ${flatpakSetupConfig}";
+      ExecStart = "${mcbctlPkg}/bin/flatpak-setup --config ${flatpakSetupConfig}";
     };
   };
 

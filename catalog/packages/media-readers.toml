@@ -1,0 +1,53 @@
+# 软件目录分片：media-readers
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "nautilus"
+name = "Nautilus"
+category = "media"
+group = "media-readers"
+expr = "pkgs.nautilus"
+description = "图形文件管理器。"
+keywords = ["files", "gui", "gnome"]
+source = "nixpkgs"
+
+[[package]]
+id = "mpv"
+name = "mpv"
+category = "media"
+group = "media-readers"
+expr = "pkgs.mpv"
+description = "键盘友好的媒体播放器。"
+keywords = ["video", "player"]
+source = "nixpkgs"
+
+[[package]]
+id = "vlc"
+name = "VLC"
+category = "media"
+group = "media-readers"
+expr = "pkgs.vlc"
+description = "通用多媒体播放器。"
+keywords = ["video", "audio", "player"]
+source = "nixpkgs"
+
+[[package]]
+id = "imv"
+name = "imv"
+category = "media"
+group = "media-readers"
+expr = "pkgs.imv"
+description = "Wayland 友好的图片查看器。"
+keywords = ["image", "viewer", "wayland"]
+source = "nixpkgs"
+
+[[package]]
+id = "zathura"
+name = "Zathura"
+category = "media"
+group = "media-readers"
+expr = "pkgs.zathura"
+description = "键盘驱动的 PDF 阅读器。"
+keywords = ["pdf", "reader"]
+source = "nixpkgs"
+

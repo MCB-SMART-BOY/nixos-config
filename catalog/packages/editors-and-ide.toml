@@ -1,0 +1,54 @@
+# 软件目录分片：editors-and-ide
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "neovim"
+name = "Neovim"
+category = "editor"
+group = "editors-and-ide"
+expr = "pkgs.neovim"
+description = "模态编辑器。"
+keywords = ["editor", "vim"]
+source = "nixpkgs"
+
+[[package]]
+id = "helix"
+name = "Helix"
+category = "editor"
+group = "editors-and-ide"
+expr = "pkgs.helix"
+description = "现代模态编辑器。"
+keywords = ["editor", "modal"]
+source = "nixpkgs"
+
+[[package]]
+id = "vscode-fhs"
+name = "VS Code FHS"
+category = "editor"
+group = "editors-and-ide"
+expr = "pkgs.vscode-fhs"
+description = "FHS 兼容封装的 VS Code。"
+keywords = ["editor", "ide", "vscode"]
+source = "nixpkgs"
+
+[[package]]
+id = "isabelle"
+name = "Isabelle"
+category = "editor"
+group = "editors-and-ide"
+expr = "pkgs.isabelle"
+description = "定理证明环境。"
+keywords = ["proof", "theorem", "formal-methods"]
+source = "nixpkgs"
+
+[[package]]
+id = "zed-official"
+name = "Zed Official Stable"
+category = "editor"
+group = "editors-and-ide"
+expr = "pkgs.callPackage ../../../../../pkgs/zed { }"
+description = "仓库内维护的 Zed 官方稳定版。"
+keywords = ["editor", "zed", "local-package"]
+source = "local/zed"
+desktop_entry_flag = "enableZed"
+

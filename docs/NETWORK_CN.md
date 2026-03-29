@@ -171,7 +171,7 @@ Noctalia 里代理图标的状态来自脚本：
 
 - `~/.local/bin/noctalia-proxy-status`
 
-这个命令由 `scripts-rs` 打包，再通过 `home/users/<user>/scripts.nix` 链接进用户环境。
+这个命令由 `mcbctl` 打包；桌面用户会通过 `home/modules/desktop.nix` 把它放进自己的环境。
 
 它默认会检查这些服务名：
 
@@ -198,16 +198,16 @@ Noctalia 里代理图标的状态来自脚本：
 ```nix
 mcb.proxyMode = "tun";
 mcb.enableProxyDns = false;
-mcb.users = [ "mcbnixos" "mcblaptopnixos" ];
+mcb.users = [ "mcbnixos" "alice" ];
 mcb.perUserTun.enable = true;
 mcb.perUserTun.redirectDns = true;
 mcb.perUserTun.interfaces = {
   mcbnixos = "Meta";
-  mcblaptopnixos = "Mihomo";
+  alice = "Mihomo";
 };
 mcb.perUserTun.dnsPorts = {
   mcbnixos = 1053;
-  mcblaptopnixos = 1054;
+  alice = 1054;
 };
 ```
 

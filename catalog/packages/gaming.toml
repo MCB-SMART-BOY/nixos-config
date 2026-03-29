@@ -1,0 +1,33 @@
+# 软件目录分片：gaming
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "mangohud"
+name = "MangoHud"
+category = "gaming"
+group = "gaming"
+expr = "pkgs.mangohud"
+description = "游戏性能叠层。"
+keywords = ["gaming", "performance", "overlay"]
+source = "nixpkgs"
+
+[[package]]
+id = "protonup-qt"
+name = "ProtonUp-Qt"
+category = "gaming"
+group = "gaming"
+expr = "pkgs.protonup-qt"
+description = "Proton-GE 管理工具。"
+keywords = ["gaming", "steam", "proton"]
+source = "nixpkgs"
+
+[[package]]
+id = "lutris"
+name = "Lutris"
+category = "gaming"
+group = "gaming"
+expr = "pkgs.lutris"
+description = "多平台游戏启动与整合器。"
+keywords = ["gaming", "launcher"]
+source = "nixpkgs"
+

@@ -10,7 +10,7 @@
 
 let
   noctaliaCfg = config.mcb.noctalia;
-  scriptsRs = pkgs.callPackage ../../pkgs/scripts-rs { };
+  mcbctlPkg = pkgs.mcbctl;
 
   defaultNoctaliaSettings = {
     bar = {
@@ -132,7 +132,7 @@ in
   };
 
   home.packages = lib.optionals (xwaylandBridgePkg != null) [ xwaylandBridgePkg ] ++ [
-    scriptsRs
+    mcbctlPkg
   ];
 
   # 论文相关文件默认使用 LibreOffice / Sioyek，避免 WPS 抢占默认关联。

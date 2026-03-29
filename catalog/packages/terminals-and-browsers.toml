@@ -1,0 +1,43 @@
+# 软件目录分片：terminals-and-browsers
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "foot"
+name = "Foot"
+category = "terminal"
+group = "terminals-and-browsers"
+expr = "pkgs.foot"
+description = "轻量 Wayland 终端。"
+keywords = ["terminal", "wayland"]
+source = "nixpkgs"
+
+[[package]]
+id = "alacritty"
+name = "Alacritty"
+category = "terminal"
+group = "terminals-and-browsers"
+expr = "pkgs.alacritty"
+description = "GPU 加速终端模拟器。"
+keywords = ["terminal", "gpu"]
+source = "nixpkgs"
+
+[[package]]
+id = "firefox"
+name = "Firefox"
+category = "browser"
+group = "terminals-and-browsers"
+expr = "pkgs.firefox"
+description = "开源浏览器。"
+keywords = ["browser", "web"]
+source = "nixpkgs"
+
+[[package]]
+id = "google-chrome"
+name = "Google Chrome"
+category = "browser"
+group = "terminals-and-browsers"
+expr = "pkgs.google-chrome"
+description = "Chromium 系浏览器。"
+keywords = ["browser", "web", "chromium"]
+source = "nixpkgs"
+

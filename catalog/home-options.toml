@@ -1,0 +1,20 @@
+[[option]]
+id = "noctalia.barProfile"
+label = "Noctalia 顶栏"
+description = "控制 Noctalia 顶栏使用的默认 profile。"
+area = "desktop"
+order = 10
+
+[[option]]
+id = "desktop.enableZed"
+label = "Zed 桌面入口"
+description = "控制 Zed 的桌面入口是否强制启用、禁用或继承现有设置。"
+area = "desktop"
+order = 20
+
+[[option]]
+id = "desktop.enableYesPlayMusic"
+label = "YesPlayMusic 桌面入口"
+description = "控制 YesPlayMusic 的桌面入口是否强制启用、禁用或继承现有设置。"
+area = "desktop"
+order = 30

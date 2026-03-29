@@ -1,0 +1,13 @@
+# 软件目录分片：diagrams
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "drawio"
+name = "draw.io"
+category = "diagrams"
+group = "diagrams"
+expr = "pkgs.drawio"
+description = "流程图与结构图工具。"
+keywords = ["diagram", "drawing", "flowchart"]
+source = "nixpkgs"
+

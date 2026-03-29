@@ -1,0 +1,73 @@
+# 软件目录分片：cli-core
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "git"
+name = "Git"
+category = "cli"
+group = "cli-core"
+expr = "pkgs.git"
+description = "分布式版本控制工具。"
+keywords = ["vcs", "source-control"]
+source = "nixpkgs"
+
+[[package]]
+id = "lazygit"
+name = "Lazygit"
+category = "cli"
+group = "cli-core"
+expr = "pkgs.lazygit"
+description = "Git 终端界面。"
+keywords = ["git", "tui"]
+source = "nixpkgs"
+
+[[package]]
+id = "ripgrep"
+name = "ripgrep"
+category = "cli"
+group = "cli-core"
+expr = "pkgs.ripgrep"
+description = "高速全文搜索工具。"
+keywords = ["grep", "search", "rg"]
+source = "nixpkgs"
+
+[[package]]
+id = "fd"
+name = "fd"
+category = "cli"
+group = "cli-core"
+expr = "pkgs.fd"
+description = "更快更友好的 find 替代。"
+keywords = ["find", "filesystem", "search"]
+source = "nixpkgs"
+
+[[package]]
+id = "fzf"
+name = "fzf"
+category = "cli"
+group = "cli-core"
+expr = "pkgs.fzf"
+description = "模糊搜索选择器。"
+keywords = ["fuzzy", "picker", "tui"]
+source = "nixpkgs"
+
+[[package]]
+id = "bat"
+name = "bat"
+category = "cli"
+group = "cli-core"
+expr = "pkgs.bat"
+description = "带语法高亮的 cat 替代。"
+keywords = ["cat", "highlight", "pager"]
+source = "nixpkgs"
+
+[[package]]
+id = "delta"
+name = "delta"
+category = "cli"
+group = "cli-core"
+expr = "pkgs.delta"
+description = "面向 Git 的差异高亮查看器。"
+keywords = ["diff", "git", "pager"]
+source = "nixpkgs"
+

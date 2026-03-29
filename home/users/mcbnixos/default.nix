@@ -13,8 +13,9 @@ in
     ./packages.nix
     ./noctalia.nix
     ./files.nix
-    ./scripts.nix
-  ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
+  ]
+  ++ lib.optional (builtins.pathExists ./managed/default.nix) ./managed/default.nix
+  ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   # Home Manager 基本信息
   home.username = user;

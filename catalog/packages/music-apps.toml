@@ -1,0 +1,55 @@
+# 软件目录分片：music-apps
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "ncspot"
+name = "ncspot"
+category = "music"
+group = "music-apps"
+expr = "pkgs.ncspot"
+description = "Spotify TUI 客户端。"
+keywords = ["spotify", "music", "tui"]
+source = "nixpkgs"
+
+[[package]]
+id = "mpd"
+name = "MPD"
+category = "music"
+group = "music-apps"
+expr = "pkgs.mpd"
+description = "音乐守护进程。"
+keywords = ["music", "daemon"]
+source = "nixpkgs"
+
+[[package]]
+id = "ncmpcpp"
+name = "ncmpcpp"
+category = "music"
+group = "music-apps"
+expr = "pkgs.ncmpcpp"
+description = "MPD 的 TUI 客户端。"
+keywords = ["music", "mpd", "tui"]
+source = "nixpkgs"
+
+[[package]]
+id = "playerctl"
+name = "playerctl"
+category = "music"
+group = "music-apps"
+expr = "pkgs.playerctl"
+description = "MPRIS 媒体控制工具。"
+keywords = ["music", "media-key", "mpris"]
+source = "nixpkgs"
+
+[[package]]
+id = "yesplaymusic"
+name = "YesPlayMusic"
+category = "music"
+group = "music-apps"
+expr = "pkgs.callPackage ../../../../../pkgs/yesplaymusic { }"
+description = "仓库内维护的 YesPlayMusic。"
+keywords = ["music", "netease", "local-package"]
+source = "local/yesplaymusic"
+platforms = ["x86_64-linux"]
+desktop_entry_flag = "enableYesPlayMusic"
+

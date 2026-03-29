@@ -1,0 +1,16 @@
+[package]
+name = "mcbctl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0"
+crossterm = "0.28"
+fs2 = "0.4"
+rand = "0.9"
+ratatui = "0.29"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+walkdir = "2.5"

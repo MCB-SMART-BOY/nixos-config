@@ -12,7 +12,7 @@
 let
   # 读取 mcb.packages.* 开关
   cfg = config.mcb.packages;
-  scriptsRs = pkgs.callPackage ../pkgs/scripts-rs { };
+  mcbctlPkg = pkgs.mcbctl;
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
   legacyUserScopedToggles = [
@@ -32,8 +32,8 @@ let
     mkdir -p "$out/bin"
     ln -s ${pkgs.go-musicfox}/bin/musicfox "$out/bin/musicfox-real"
     ln -s ${pkgs.go-musicfox}/bin/musicfox "$out/bin/go-musicfox-real"
-    ln -s ${scriptsRs}/bin/musicfox-wrapper-rs "$out/bin/musicfox"
-    ln -s ${scriptsRs}/bin/musicfox-wrapper-rs "$out/bin/go-musicfox"
+    ln -s ${mcbctlPkg}/bin/musicfox-wrapper "$out/bin/musicfox"
+    ln -s ${mcbctlPkg}/bin/musicfox-wrapper "$out/bin/go-musicfox"
   '';
 
   baseRuntime = with pkgs; [

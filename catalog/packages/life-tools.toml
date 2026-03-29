@@ -1,0 +1,33 @@
+# 软件目录分片：life-tools
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "keepassxc"
+name = "KeePassXC"
+category = "life"
+group = "life-tools"
+expr = "pkgs.keepassxc"
+description = "密码管理器。"
+keywords = ["password", "vault", "security"]
+source = "nixpkgs"
+
+[[package]]
+id = "gnome-calculator"
+name = "GNOME Calculator"
+category = "life"
+group = "life-tools"
+expr = "pkgs.gnome-calculator"
+description = "桌面计算器。"
+keywords = ["calculator", "utility"]
+source = "nixpkgs"
+
+[[package]]
+id = "baobab"
+name = "Baobab"
+category = "life"
+group = "life-tools"
+expr = "pkgs.baobab"
+description = "磁盘占用可视化工具。"
+keywords = ["disk", "usage", "gui"]
+source = "nixpkgs"
+

@@ -16,9 +16,13 @@
 - 改系统共享包组：`hosts/profiles/*.nix` 与 `modules/packages.nix`
 - 改某个用户的软件：`home/users/<user>/packages.nix`
 - 改用户界面配置：`home/users/<user>/config/`
-- 改用户命令接线：`home/users/<user>/scripts.nix`
-- 改部署流程：`scripts-rs/src/bin/run-rs.rs`
-- 改 Rust 公共逻辑：`scripts-rs/src/lib.rs`
+- 改用户命令接线：`pkgs/mcbctl/default.nix` 与 `home/modules/desktop.nix`
+- 改 TUI 机器管理区：`home/users/<user>/managed/` 与 `hosts/<host>/managed/`
+- 改新用户模板：`home/templates/users/`
+- 改主机模板：`hosts/templates/`
+- 改控制台入口：`mcbctl/src/bin/mcbctl.rs`
+- 改部署流程：`mcbctl/src/bin/mcb-deploy.rs`
+- 改 Rust 公共逻辑：`mcbctl/src/lib.rs`
 
 ## 1. Home Manager 这一层，负责“人”
 
@@ -32,6 +36,13 @@
 - `home/profiles/full.nix`
 - `home/profiles/minimal.nix`
 - `home/modules/*.nix`
+
+如果某个用户的软件已经多到单个 `packages.nix` 很难维护，推荐继续在该用户目录里拆成：
+
+- `home/users/<user>/packages.nix`
+- `home/users/<user>/packages/*.nix`
+
+也就是说，拆分发生在“这个用户自己的目录内部”，而不是再回到全局共享包模块。对于像 `mcbnixos` 这样的大用户目录，推荐直接做到“一个软件组一个文件”。
 
 它最关键的设计点是：
 
@@ -130,15 +141,31 @@ GPU 配置集中在：
 - 需要 BIOS / MUX 支持
 - 需要理解当前机器是不是已经被锁成 `dGPU-only`
 
-`run-rs` 在向导里会优先尝试自动探测 busId，探测不到才回退到主机现有配置。
+`mcb-deploy` 在向导里会优先尝试自动探测 busId，探测不到才回退到主机现有配置。
 
 ## 6. Noctalia 与用户命令，现在是怎么接起来的
 
 这一块以前最容易被误解成“几个零碎脚本”，现在其实已经很清楚了：
 
-- Rust 命令实现放在 `scripts-rs/src/bin/*.rs`
-- Nix 打包入口在 `pkgs/scripts-rs/default.nix`
-- 用户侧链接入口在 `home/users/<user>/scripts.nix`
+- Rust 命令实现放在 `mcbctl/src/bin/*.rs`
+- Nix 打包入口在 `pkgs/mcbctl/default.nix`
+- 桌面用户通过 `home/modules/desktop.nix` 把 `mcbctl` 包放进自己的环境
+
+同时，仓库现在新增了机器管理区：
+
+- `home/users/<user>/managed/`
+- `hosts/<host>/managed/`
+
+原则是：
+
+- 手写配置继续留在你自己的文件里
+- TUI / 自动化工具只写 `managed/`
+
+当前已经接入的第一块就是：
+
+- `mcbctl` 的 `Packages` 页面现在以 `nix search` 结果为主，`catalog/packages/*.toml` 只保留本地覆盖层和仓库内自维护包元数据
+- 然后把勾选结果按组写入 `home/users/<user>/managed/packages/*.nix`
+- 文件里会带 `managed-id` 标记，方便 TUI 下次直接读回
 
 也就是说，当前状态已经不是：
 
@@ -155,7 +182,7 @@ GPU 配置集中在：
 
 部署流程的主入口现在是：
 
-- `scripts-rs/src/bin/run-rs.rs`
+- `mcbctl/src/bin/mcb-deploy.rs`
 
 它负责的事情包括：
 
@@ -186,9 +213,9 @@ GPU 配置集中在：
 
 相关更新入口现在也已经统一成 Rust 工具：
 
-- `update-zed-source-rs`
-- `update-yesplaymusic-source-rs`
-- `update-upstream-apps-rs`
+- `update-zed-source`
+- `update-yesplaymusic-source`
+- `update-upstream-apps`
 
 在仓库根目录里，推荐直接这样跑：
 
@@ -218,7 +245,7 @@ nix run .#update-upstream-apps
 
 - 改系统层之前，先确认这是不是用户层问题
 - 改用户软件之前，先确认这是不是系统共享能力
-- 改脚本逻辑时，先看 `scripts-rs/src/lib.rs` 里有没有现成复用函数
+- 改脚本逻辑时，先看 `mcbctl/src/lib.rs` 里有没有现成复用函数
 - 改 Noctalia / 桌面按钮时，不要只看配置文件，也要看命令入口是不是已经接好
 
 这几个习惯会直接决定仓库是越来越清楚，还是越改越粘。

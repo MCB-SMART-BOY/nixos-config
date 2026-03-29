@@ -1,0 +1,43 @@
+# 软件目录分片：shell-workflow
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "zoxide"
+name = "zoxide"
+category = "shell"
+group = "shell-workflow"
+expr = "pkgs.zoxide"
+description = "智能目录跳转工具。"
+keywords = ["cd", "shell", "jump"]
+source = "nixpkgs"
+
+[[package]]
+id = "starship"
+name = "Starship"
+category = "shell"
+group = "shell-workflow"
+expr = "pkgs.starship"
+description = "跨 shell 的提示符。"
+keywords = ["prompt", "shell"]
+source = "nixpkgs"
+
+[[package]]
+id = "direnv"
+name = "direnv"
+category = "shell"
+group = "shell-workflow"
+expr = "pkgs.direnv"
+description = "目录级环境变量管理器。"
+keywords = ["env", "shell", "project"]
+source = "nixpkgs"
+
+[[package]]
+id = "fish"
+name = "Fish"
+category = "shell"
+group = "shell-workflow"
+expr = "pkgs.fish"
+description = "交互式 shell。"
+keywords = ["shell", "interactive"]
+source = "nixpkgs"
+

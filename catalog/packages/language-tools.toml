@@ -1,0 +1,43 @@
+# 软件目录分片：language-tools
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "nixd"
+name = "nixd"
+category = "language-tools"
+group = "language-tools"
+expr = "pkgs.nixd"
+description = "Nix 语言服务器。"
+keywords = ["lsp", "nix"]
+source = "nixpkgs"
+
+[[package]]
+id = "gopls"
+name = "gopls"
+category = "language-tools"
+group = "language-tools"
+expr = "pkgs.gopls"
+description = "Go 语言服务器。"
+keywords = ["lsp", "go"]
+source = "nixpkgs"
+
+[[package]]
+id = "pyright"
+name = "Pyright"
+category = "language-tools"
+group = "language-tools"
+expr = "pkgs.pyright"
+description = "Python 类型检查与语言服务。"
+keywords = ["lsp", "python", "typing"]
+source = "nixpkgs"
+
+[[package]]
+id = "prettier"
+name = "Prettier"
+category = "language-tools"
+group = "language-tools"
+expr = "pkgs.nodePackages.prettier"
+description = "通用代码格式化器。"
+keywords = ["formatter", "web", "javascript"]
+source = "nixpkgs"
+

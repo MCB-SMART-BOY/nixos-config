@@ -1,0 +1,33 @@
+{ lib, rustPlatform }:
+
+rustPlatform.buildRustPackage {
+  pname = "mcbctl";
+  version = "0.1.0";
+
+  src = lib.cleanSourceWith {
+    src = ../../mcbctl;
+    filter =
+      path: type:
+      let
+        base = baseNameOf path;
+      in
+      !(base == "target" || base == ".gitignore");
+  };
+
+  cargoLock.lockFile = ../../mcbctl/Cargo.lock;
+
+  CARGO_TARGET_DIR = "target";
+
+  doCheck = false;
+
+  postInstall = ''
+    ln -s "$out/bin/mcbctl" "$out/bin/mcb-tui"
+    ln -s "$out/bin/mcb-deploy" "$out/bin/deploy"
+  '';
+
+  meta = {
+    description = "Rust-based control suite for this NixOS configuration";
+    mainProgram = "mcbctl";
+    platforms = lib.platforms.linux;
+  };
+}

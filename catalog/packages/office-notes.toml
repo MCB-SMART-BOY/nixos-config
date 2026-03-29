@@ -1,0 +1,43 @@
+# 软件目录分片：office-notes
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "obsidian"
+name = "Obsidian"
+category = "notes"
+group = "office-notes"
+expr = "pkgs.obsidian"
+description = "Markdown 知识库工具。"
+keywords = ["notes", "markdown", "knowledge-base"]
+source = "nixpkgs"
+
+[[package]]
+id = "libreoffice-still"
+name = "LibreOffice Still"
+category = "office"
+group = "office-notes"
+expr = "pkgs.libreoffice-still"
+description = "稳定分支办公套件。"
+keywords = ["office", "document", "spreadsheet"]
+source = "nixpkgs"
+
+[[package]]
+id = "xournalpp"
+name = "Xournal++"
+category = "office"
+group = "office-notes"
+expr = "pkgs.xournalpp"
+description = "手写笔记与 PDF 标注工具。"
+keywords = ["notes", "pdf", "annotation"]
+source = "nixpkgs"
+
+[[package]]
+id = "goldendict-ng"
+name = "GoldenDict NG"
+category = "office"
+group = "office-notes"
+expr = "pkgs.goldendict-ng"
+description = "词典与查词工具。"
+keywords = ["dictionary", "lookup", "language"]
+source = "nixpkgs"
+

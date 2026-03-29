@@ -1,0 +1,33 @@
+# 软件目录分片：chat-apps
+# 由原 catalog/packages.toml 按 group 拆分而来。
+
+[[package]]
+id = "qq"
+name = "QQ"
+category = "chat"
+group = "chat-apps"
+expr = "pkgs.qq"
+description = "QQ 客户端。"
+keywords = ["chat", "im", "tencent"]
+source = "nixpkgs"
+
+[[package]]
+id = "telegram-desktop"
+name = "Telegram Desktop"
+category = "chat"
+group = "chat-apps"
+expr = "pkgs.telegram-desktop"
+description = "Telegram 桌面客户端。"
+keywords = ["chat", "im", "telegram"]
+source = "nixpkgs"
+
+[[package]]
+id = "discord"
+name = "Discord"
+category = "chat"
+group = "chat-apps"
+expr = "pkgs.discord"
+description = "Discord 桌面客户端。"
+keywords = ["chat", "voice", "community"]
+source = "nixpkgs"
+
