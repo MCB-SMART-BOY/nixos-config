@@ -9,9 +9,7 @@
 
 let
   hardwareFile =
-    if builtins.pathExists ./hardware-configuration.nix then
-      ./hardware-configuration.nix
-    else if builtins.pathExists ../../hardware-configuration.nix then
+    if builtins.pathExists ../../hardware-configuration.nix then
       ../../hardware-configuration.nix
     else
       null;
@@ -24,7 +22,7 @@ in
   ++ lib.optional (builtins.pathExists ./managed/default.nix) ./managed/default.nix
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
-  # 允许在仓库/CI 环境中评估 flake（此时通常没有机器私有 hardware-configuration.nix）
+  # 允许在仓库/CI 环境中评估 flake（此时通常没有根目录 hardware-configuration.nix）
   fileSystems = lib.mkIf (hardwareFile == null) {
     "/" = {
       # 评估占位值：若用于真实部署会快速失败，避免误挂载错误磁盘。
@@ -33,7 +31,7 @@ in
     };
   };
   warnings = lib.optional (hardwareFile == null) ''
-    hosts/nixos/hardware-configuration.nix 缺失；当前根文件系统为评估占位值，不可用于实际部署。
+    /etc/nixos/hardware-configuration.nix 缺失；当前根文件系统为评估占位值，不可用于实际部署。
   '';
 
   mcb = {

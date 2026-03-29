@@ -59,8 +59,6 @@ impl RepoSyncPlan {
             ".git/".to_string(),
             "--exclude".to_string(),
             "hardware-configuration.nix".to_string(),
-            "--exclude".to_string(),
-            "hosts/*/hardware-configuration.nix".to_string(),
             format!("{}/", self.source_dir.display()),
             format!("{}/", self.destination_dir.display()),
         ]);
@@ -73,7 +71,6 @@ impl RepoSyncPlan {
             self.source_dir.display().to_string(),
             "--exclude=.git".to_string(),
             "--exclude=hardware-configuration.nix".to_string(),
-            "--exclude=hosts/*/hardware-configuration.nix".to_string(),
             "-cf".to_string(),
             tar_file.display().to_string(),
             ".".to_string(),

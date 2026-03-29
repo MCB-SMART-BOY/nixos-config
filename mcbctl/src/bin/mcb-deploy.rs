@@ -469,13 +469,7 @@ impl App {
         }
 
         if self.should_require_hardware_config() {
-            if !self.has_any_hardware_config() {
-                bail!(
-                    "缺少硬件配置：{}/hardware-configuration.nix 或 {}/hosts/<hostname>/hardware-configuration.nix；请先运行 nixos-generate-config。",
-                    self.etc_dir.display(),
-                    self.etc_dir.display()
-                );
-            }
+            self.ensure_root_hardware_config()?;
         } else {
             self.note("rootless + build 模式：跳过硬件配置强制检查（仅构建/评估）。");
         }
@@ -486,59 +480,51 @@ impl App {
         !(self.rootless && self.mode == "build")
     }
 
-    fn has_any_hardware_config(&self) -> bool {
-        if self.etc_dir.join("hardware-configuration.nix").is_file() {
-            return true;
-        }
-        if !self.target_name.is_empty()
-            && self
-                .etc_dir
-                .join("hosts")
-                .join(&self.target_name)
-                .join("hardware-configuration.nix")
-                .is_file()
-        {
-            return true;
-        }
-        let hosts = self.etc_dir.join("hosts");
-        if hosts.is_dir() {
-            for entry in WalkDir::new(&hosts)
-                .max_depth(3)
-                .into_iter()
-                .flatten()
-                .filter(|e| e.file_type().is_file())
-            {
-                if entry.file_name() == "hardware-configuration.nix" {
-                    return true;
-                }
-            }
-        }
-        false
+    fn root_hardware_config_path(&self) -> PathBuf {
+        self.etc_dir.join("hardware-configuration.nix")
     }
 
-    fn ensure_host_hardware_config(&self) -> Result<()> {
+    fn has_root_hardware_config(&self) -> bool {
+        self.root_hardware_config_path().is_file()
+    }
+
+    fn ensure_root_hardware_config(&self) -> Result<()> {
         if !self.should_require_hardware_config() {
             return Ok(());
         }
-        if self.etc_dir.join("hardware-configuration.nix").is_file() {
+        if self.has_root_hardware_config() {
             return Ok(());
         }
-        if !self.target_name.is_empty()
-            && self
-                .etc_dir
-                .join("hosts")
-                .join(&self.target_name)
-                .join("hardware-configuration.nix")
-                .is_file()
-        {
-            return Ok(());
+        self.generate_root_hardware_config()
+    }
+
+    fn generate_root_hardware_config(&self) -> Result<()> {
+        if !command_exists("nixos-generate-config") {
+            bail!(
+                "缺少 {}，无法自动生成 {}。",
+                "nixos-generate-config",
+                self.root_hardware_config_path().display()
+            );
         }
-        bail!(
-            "缺少硬件配置：{}/hardware-configuration.nix 或 {}/hosts/{}/hardware-configuration.nix；请先运行 nixos-generate-config。",
-            self.etc_dir.display(),
-            self.etc_dir.display(),
-            self.target_name
-        );
+
+        let target = self.root_hardware_config_path();
+        self.warn(&format!("未发现 {}，将自动生成。", target.display()));
+        self.run_as_root_ok(
+            "mkdir",
+            &["-p".to_string(), self.etc_dir.display().to_string()],
+        )?;
+        self.run_as_root_ok(
+            "env",
+            &[
+                format!("HW_FILE={}", target.display()),
+                "sh".to_string(),
+                "-c".to_string(),
+                "umask 022 && nixos-generate-config --show-hardware-config > \"$HW_FILE\""
+                    .to_string(),
+            ],
+        )?;
+        self.log(&format!("已生成 {}", target.display()));
+        Ok(())
     }
 
     fn is_legacy_shell_path(rel: &str) -> bool {
@@ -3216,33 +3202,6 @@ in
                 ],
             )?;
         }
-        let etc_hosts = self.etc_dir.join("hosts");
-        if etc_hosts.is_dir() {
-            for entry in WalkDir::new(&etc_hosts)
-                .max_depth(3)
-                .into_iter()
-                .flatten()
-                .filter(|e| {
-                    e.file_type().is_file() && e.file_name() == "hardware-configuration.nix"
-                })
-            {
-                let file = entry.path();
-                let rel = file.strip_prefix(&self.etc_dir).unwrap_or(file);
-                let dst = preserve.join(rel);
-                if let Some(parent) = dst.parent() {
-                    fs::create_dir_all(parent).ok();
-                }
-                self.run_as_root_ok(
-                    "cp",
-                    &[
-                        "-a".to_string(),
-                        file.display().to_string(),
-                        dst.display().to_string(),
-                    ],
-                )?;
-            }
-        }
-
         self.run_as_root_ok(
             "find",
             &[
@@ -3267,25 +3226,6 @@ in
                     "-a".to_string(),
                     preserved_root.display().to_string(),
                     self.etc_dir.display().to_string(),
-                ],
-            )?;
-        }
-
-        let preserved_hosts = preserve.join("hosts");
-        if preserved_hosts.is_dir() {
-            self.run_as_root_ok(
-                "mkdir",
-                &[
-                    "-p".to_string(),
-                    self.etc_dir.join("hosts").display().to_string(),
-                ],
-            )?;
-            self.run_as_root_ok(
-                "cp",
-                &[
-                    "-a".to_string(),
-                    format!("{}/.", preserved_hosts.display()),
-                    self.etc_dir.join("hosts").display().to_string(),
                 ],
             )?;
         }
@@ -3405,7 +3345,7 @@ in
                 }
                 self.write_local_override(&tmp_dir)?;
             }
-            self.ensure_host_hardware_config()?;
+            self.ensure_root_hardware_config()?;
             self.progress_step("收集配置");
             self.confirm_continue("确认以上配置并继续同步？")?;
 

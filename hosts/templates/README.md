@@ -13,7 +13,7 @@
 
 1. 复制一个模板目录到 `hosts/<hostname>/`
 2. 修改 `default.nix` 里的 `networking.hostName`、`mcb.user`、`mcb.users`
-3. 生成并放入 `hosts/<hostname>/hardware-configuration.nix`
+3. 生成并放入仓库根目录的 `hardware-configuration.nix`
 4. 再让 `flake.nix` 自动把它当成真实主机扫描
 
 这些模板目录本身不会被 flake 扫描，也不应该直接作为部署目标。

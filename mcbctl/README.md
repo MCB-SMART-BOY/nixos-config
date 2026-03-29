@@ -83,6 +83,7 @@ nix run .#mcb-deploy
 - 选择已有主机
 - 从 `hosts/templates/laptop/` 新建桌面主机
 - 从 `hosts/templates/server/` 新建服务器主机
+- 如果 `/etc/nixos/hardware-configuration.nix` 缺失，会尝试自动生成这一份根目录硬件配置
 
 当前 `Packages` 页已经可以：
 

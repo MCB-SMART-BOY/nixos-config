@@ -90,9 +90,9 @@ sudo nixos-generate-config
 
 - `/etc/nixos/hardware-configuration.nix`
 
-这套仓库也接受放在：
+也就是和 `/etc/nixos/configuration.nix` 同级。
 
-- `/etc/nixos/hosts/<hostname>/hardware-configuration.nix`
+现在 `mcb-deploy` 在真正部署时，如果发现这份文件缺失，也会尝试自动生成到这里。
 
 ### 2.2 仓库要在当前目录可见
 

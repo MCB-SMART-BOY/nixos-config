@@ -56,10 +56,11 @@
   给 `mcbctl` / 自动化工具写入的主机管理区；现在按 `users.nix`、`network.nix`、`gpu.nix`、`virtualization.nix` 分片
 - `hosts/<hostname>/system.nix`
   机器架构，例如 `"x86_64-linux"`
-- `hosts/<hostname>/hardware-configuration.nix`
-  这台机器自己的硬件配置
 - `hosts/<hostname>/local.nix`
   主机私有覆盖
+
+硬件配置文件不再放在 `hosts/<hostname>/` 里，而是统一使用仓库根目录的 `hardware-configuration.nix`。
+实际部署到机器上时，它对应 `/etc/nixos/hardware-configuration.nix`，和 `/etc/nixos/configuration.nix` 同级。
 
 ### `hosts/profiles/`
 
