@@ -10,6 +10,7 @@
 
 let
   flatpakCfg = config.mcb.flatpak;
+  scriptsRs = pkgs.callPackage ../../pkgs/scripts-rs { };
   flatpakSetupHash = builtins.substring 0 16 (
     builtins.hashString "sha256" (
       builtins.toJSON {
@@ -21,46 +22,19 @@ let
   );
   flatpakSetupStamp = "/var/lib/nixos-config/flatpak-setup-${flatpakSetupHash}.done";
   flatpakManagedApps = "/var/lib/nixos-config/flatpak-managed-apps";
-  flatpakDesiredApps = lib.concatStringsSep " " (map lib.escapeShellArg flatpakCfg.apps);
-  flatpakInstallScript = ''
-    desired_apps=(${flatpakDesiredApps})
-    managed_apps_file=${lib.escapeShellArg flatpakManagedApps}
-
-    if [ -f "$managed_apps_file" ]; then
-      while IFS= read -r app || [ -n "$app" ]; do
-        [ -n "$app" ] || continue
-        keep=false
-        for desired in "''${desired_apps[@]}"; do
-          if [ "$app" = "$desired" ]; then
-            keep=true
-            break
-          fi
-        done
-        if [ "$keep" != true ]; then
-          ${pkgs.flatpak}/bin/flatpak uninstall --system -y --noninteractive "$app" || true
-        fi
-      done < "$managed_apps_file"
-    fi
-
-    : > "$managed_apps_file"
-    for app in "''${desired_apps[@]}"; do
-      [ -n "$app" ] || continue
-      ${pkgs.flatpak}/bin/flatpak install --system -y --noninteractive flathub "$app"
-      ${pkgs.coreutils}/bin/printf '%s\n' "$app" >> "$managed_apps_file"
-    done
-  '';
-  flatpakOverrideArgs =
-    let
-      fsArgs = map (path: "--filesystem=${lib.escapeShellArg path}") flatpakCfg.overrides.filesystem;
-      envArgs = lib.mapAttrsToList (
-        key: value: "--env=${lib.escapeShellArg "${key}=${value}"}"
-      ) flatpakCfg.overrides.env;
-      extraArgs = map lib.escapeShellArg flatpakCfg.overrides.extraArgs;
-    in
-    lib.concatStringsSep " " (fsArgs ++ envArgs ++ extraArgs);
-  flatpakOverrideScript = lib.optionalString (flatpakOverrideArgs != "") ''
-    ${pkgs.flatpak}/bin/flatpak override --system ${flatpakOverrideArgs}
-  '';
+  flatpakSetupConfig = pkgs.writeText "flatpak-setup.json" (
+    builtins.toJSON {
+      stamp = flatpakSetupStamp;
+      managed_apps_file = flatpakManagedApps;
+      enable_flathub = flatpakCfg.enableFlathub;
+      apps = flatpakCfg.apps;
+      filesystem = flatpakCfg.overrides.filesystem;
+      envs = map (key: "${key}=${flatpakCfg.overrides.env.${key}}") (
+        builtins.attrNames flatpakCfg.overrides.env
+      );
+      extra_args = flatpakCfg.overrides.extraArgs;
+    }
+  );
 in
 {
   services.pipewire = {
@@ -97,6 +71,10 @@ in
   systemd.services.flatpak-setup = lib.mkIf flatpakCfg.enable {
     description = "Flatpak baseline setup (Flathub + default apps)";
     unitConfig.ConditionPathExists = "!${flatpakSetupStamp}";
+    path = [
+      pkgs.coreutils
+      pkgs.flatpak
+    ];
     after = [
       "network-online.target"
       "dbus.service"
@@ -105,18 +83,7 @@ in
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       Type = "oneshot";
-      ExecStart = pkgs.writeShellScript "flatpak-setup" ''
-        set -euo pipefail
-        stamp=${lib.escapeShellArg flatpakSetupStamp}
-        ${pkgs.coreutils}/bin/mkdir -p "$(${pkgs.coreutils}/bin/dirname "$stamp")"
-        ${lib.optionalString flatpakCfg.enableFlathub ''
-          ${pkgs.flatpak}/bin/flatpak remote-add --system --if-not-exists \
-            flathub https://flathub.org/repo/flathub.flatpakrepo
-        ''}
-        ${flatpakInstallScript}
-        ${flatpakOverrideScript}
-        ${pkgs.coreutils}/bin/touch "$stamp"
-      '';
+      ExecStart = "${scriptsRs}/bin/flatpak-setup-rs --config ${flatpakSetupConfig}";
     };
   };
 

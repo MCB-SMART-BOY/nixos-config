@@ -90,8 +90,8 @@
 
     // Flake 更新提示（使用脚本返回 JSON）
     "custom/updates": {
-        // 依赖：home/users/*/scripts/waybar-flake-updates
-        "exec": "sh -c \"$HOME/.local/bin/waybar-flake-updates\"",
+        // 依赖：~/.local/bin/noctalia-flake-updates（由 scripts-rs 提供）
+        "exec": "sh -c \"$HOME/.local/bin/noctalia-flake-updates\"",
         "interval": 900,
         "return-type": "json",
         "format": "󰏗 {}",
@@ -118,8 +118,8 @@
 
     // 实时网速（脚本输出 JSON）
     "custom/net-speed": {
-        // 依赖：home/users/*/scripts/waybar-net-speed
-        "exec": "sh -c \"$HOME/.local/bin/waybar-net-speed\"",
+        // 依赖：~/.local/bin/noctalia-net-speed（由 scripts-rs 提供）
+        "exec": "sh -c \"$HOME/.local/bin/noctalia-net-speed\"",
         "interval": 2,
         "return-type": "json",
         "format": "󰛿 {}",
@@ -189,10 +189,10 @@
 
     // GPU 特化切换（点击打开菜单）
     "custom/gpu-mode": {
-        "exec": "sh -c \"$HOME/.local/bin/waybar-gpu-mode\"",
+        "exec": "sh -c \"$HOME/.local/bin/noctalia-gpu-mode\"",
         "interval": 5,
         "return-type": "json",
-        "on-click": "sh -c \"$HOME/.local/bin/waybar-gpu-mode --menu\"",
+        "on-click": "sh -c \"$HOME/.local/bin/noctalia-gpu-mode --menu\"",
         "tooltip": true
     },
 
@@ -239,8 +239,8 @@
 
     // 代理状态（脚本输出 JSON）
     "custom/proxy": {
-        // 依赖：home/users/*/scripts/waybar-proxy-status
-        "exec": "sh -c \"$HOME/.local/bin/waybar-proxy-status\"",
+        // 依赖：~/.local/bin/noctalia-proxy-status（由 scripts-rs 提供）
+        "exec": "sh -c \"$HOME/.local/bin/noctalia-proxy-status\"",
         "interval": 5,
         "return-type": "json",
         "format": "󰛳 {}",

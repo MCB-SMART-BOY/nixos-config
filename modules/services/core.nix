@@ -23,7 +23,9 @@ let
   keepGlobalServiceSocket = config.mcb.perUserTun.compatGlobalServiceSocket;
   userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
   proxyEnabled = proxyMode == "http" && proxyUrl != "";
+  scriptsRs = pkgs.callPackage ../../pkgs/scripts-rs { };
   clashPath = lib.makeBinPath [
+    scriptsRs
     pkgs.clash-verge-rev
     pkgs.mihomo
     pkgs.iproute2
@@ -120,6 +122,9 @@ let
           (config.mcb.perUserTun.interfaces.${user} or "")
         else
           config.mcb.tunInterface;
+      clashPrestartCommand =
+        "${scriptsRs}/bin/clash-verge-prestart-rs --user ${user} --group ${userGroup} --runtime-dir /run/${runtimeDirName} --config-home ${clashConfig} --data-home ${clashData} --cache-home ${clashCache} --state-home ${clashState}"
+        + lib.optionalString (tunDevice != "") " --iface ${tunDevice}";
     in
     {
       description = "Clash Verge Service Mode Daemon (${user})";
@@ -147,40 +152,7 @@ let
         BindPaths = [
           "/run/${runtimeDirName}:/run/clash-verge-rev"
         ];
-        ExecStartPre = [
-          (pkgs.writeShellScript "clash-verge-prestart-${user}" ''
-            set -euo pipefail
-            uid="$(${pkgs.coreutils}/bin/id -u ${user})"
-            runtime_dir="/run/${runtimeDirName}"
-            iface="${tunDevice}"
-            ip="${pkgs.iproute2}/bin/ip"
-            # 确保配置/数据目录存在并归属正确
-            for dir in \
-              "${clashConfig}/clash-verge" \
-              "${clashConfig}/clash-verge-rev" \
-              "${clashData}/clash-verge" \
-              "${clashData}/clash-verge-rev" \
-              "${clashCache}/clash-verge-rev" \
-              "${clashState}/clash-verge-rev"; do
-              ${pkgs.coreutils}/bin/install -d -m 0700 -o ${user} -g ${userGroup} "$dir"
-            done
-            ${pkgs.coreutils}/bin/chown -R ${user}:${userGroup} \
-              "${clashConfig}/clash-verge" \
-              "${clashConfig}/clash-verge-rev" \
-              "${clashData}/clash-verge" \
-              "${clashData}/clash-verge-rev" \
-              "${clashCache}/clash-verge-rev" \
-              "${clashState}/clash-verge-rev" \
-              2>/dev/null || true
-            rm -f "$runtime_dir"/*.sock 2>/dev/null || true
-            if [[ -n "$iface" ]]; then
-              if ! "$ip" link show dev "$iface" >/dev/null 2>&1; then
-                "$ip" tuntap add dev "$iface" mode tun user "$uid"
-              fi
-              "$ip" link set dev "$iface" up || true
-            fi
-          '')
-        ];
+        ExecStartPre = [ clashPrestartCommand ];
         Environment = [
           # 统一 XDG 目录，避免应用乱写文件
           "HOME=${clashHome}"

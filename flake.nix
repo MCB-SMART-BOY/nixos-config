@@ -59,6 +59,7 @@
         builtins.attrNames hostEntries
       );
       pkgsForDefault = nixpkgs.legacyPackages.${defaultSystem};
+      scriptsRsPkg = pkgsForDefault.callPackage ./pkgs/scripts-rs { };
       overlay = final: prev: {
         valkey = prev.valkey.overrideAttrs (old: {
           doCheck = false;
@@ -114,94 +115,57 @@
         }) hostNames
       );
 
-      checks.${defaultSystem}.shell-syntax =
-        pkgsForDefault.runCommand "shell-syntax-check"
-          {
-            nativeBuildInputs = with pkgsForDefault; [
-              bash
-              coreutils
-              findutils
-              gnugrep
-              gnused
-              cargo
-              rustc
-              shellcheck
-            ];
-          }
-          ''
-            set -euo pipefail
-            cd ${self}
+      packages.${defaultSystem} = {
+        default = scriptsRsPkg;
+        scripts-rs = scriptsRsPkg;
+      };
 
-            check_file() {
-              local file="$1"
-              if [ ! -f "$file" ]; then
-                return 0
-              fi
-              if LC_ALL=C grep -q $'\r' "$file"; then
-                echo "CRLF line endings are not allowed: $file" >&2
+      apps.${defaultSystem} =
+        let
+          mkApp = program: {
+            type = "app";
+            inherit program;
+            meta.description = "Rust script entry for this NixOS configuration";
+          };
+        in
+        {
+          default = mkApp "${scriptsRsPkg}/bin/run-rs";
+          run-rs = mkApp "${scriptsRsPkg}/bin/run-rs";
+          update-zed-source = mkApp "${scriptsRsPkg}/bin/update-zed-source";
+          update-yesplaymusic-source = mkApp "${scriptsRsPkg}/bin/update-yesplaymusic-source";
+          update-upstream-apps = mkApp "${scriptsRsPkg}/bin/update-upstream-apps";
+        };
+
+      checks.${defaultSystem} = {
+        rust-repo-integrity =
+          pkgsForDefault.runCommand "rust-repo-integrity"
+            {
+              nativeBuildInputs = with pkgsForDefault; [
+                coreutils
+                findutils
+                gnugrep
+              ];
+            }
+            ''
+              set -euo pipefail
+              cd ${self}
+              if find . -type f \( -name '*.sh' -o -path './home/users/*/scripts/*' \) | grep -q .; then
+                echo "Legacy shell files remain in repository:" >&2
+                find . -type f \( -name '*.sh' -o -path './home/users/*/scripts/*' \) | sort >&2
                 exit 1
               fi
-              local first_line
-              first_line="$(head -n 1 "$file" || true)"
-              if [ "''${first_line#\#!}" != "$first_line" ]; then
-                case "$first_line" in
-                  *"/bash"*|*"env bash"*|*"/sh"*|*"env sh"*) ;;
-                  *)
-                    echo "Unsupported shebang in $file: $first_line" >&2
-                    exit 1
-                    ;;
-                esac
-                if [ ! -x "$file" ]; then
-                  echo "Script with shebang must be executable: $file" >&2
-                  exit 1
-                fi
+
+              if grep -R -n --exclude-dir=.git -E 'writeShell(Application|Script|ScriptBin)' .; then
+                echo "Legacy writeShell* definitions remain in repository." >&2
+                exit 1
               fi
-              if head -n 1 "$file" | grep -q '^#!'; then
-                bash -n "$file"
-              fi
-            }
 
-            shellcheck_file() {
-              local file="$1"
-              if [ ! -f "$file" ]; then
-                return 0
-              fi
-              shellcheck -x -s bash -e SC1090,SC1091,SC2034,SC2154,SC2329 "$file"
-            }
+              ${scriptsRsPkg}/bin/run-rs --help >/dev/null
+              touch "$out"
+            '';
 
-            check_file run.sh
-            shellcheck_file run.sh
-            bash run.sh --help >/dev/null
-
-            while IFS= read -r -d "" file; do
-              check_file "$file"
-              shellcheck_file "$file"
-            done < <(find home/users -type f -path "*/scripts/*" -print0)
-
-            if [ -d pkgs ]; then
-              while IFS= read -r -d "" file; do
-                check_file "$file"
-                shellcheck_file "$file"
-              done < <(find pkgs -type f -path "*/scripts/*.sh" -print0)
-            fi
-
-            if [ -d scripts/run ]; then
-              while IFS= read -r -d "" file; do
-                if LC_ALL=C grep -q $'\r' "$file"; then
-                  echo "CRLF line endings are not allowed: $file" >&2
-                  exit 1
-                fi
-                bash -n "$file"
-                shellcheck_file "$file"
-              done < <(find scripts/run -type f -name "*.sh" -print0)
-            fi
-
-            if [ -f scripts-rs/Cargo.toml ]; then
-              (cd scripts-rs && cargo check --quiet)
-            fi
-
-            touch "$out"
-          '';
+        scripts-rs-build = scriptsRsPkg;
+      };
 
       formatter.${defaultSystem} = pkgsForDefault.nixfmt;
     };

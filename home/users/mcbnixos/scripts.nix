@@ -1,171 +1,18 @@
-# 用户脚本打包与 systemd 用户服务设置。
-# 主要用于 Noctalia 自定义按钮脚本。
-# 新手提示：scripts/ 下是原始脚本，这里负责“打包 + 安装 + 启动”。
+# 用户脚本入口（Rust 版本）。
+# 这里不再从 ./scripts 读取 Shell 脚本，而是直接安装 scripts-rs 包里的二进制。
 
 { pkgs, lib, ... }:
 
 let
-  # 将脚本包装为可执行程序（并注入依赖）
-  mkScript =
-    {
-      name,
-      runtimeInputs ? [ ],
-    }:
-    pkgs.writeShellApplication {
-      inherit name runtimeInputs;
-      text = builtins.readFile ./scripts/${name};
-    };
+  scriptsRs = pkgs.callPackage ../../../pkgs/scripts-rs { };
 
-  # 统一定义所有用户脚本（可在这里增删）
-  scripts = {
-    lock-screen = mkScript {
-      name = "lock-screen";
-    };
-
-    wallpaper-random = mkScript {
-      name = "wallpaper-random";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.findutils
-      ];
-    };
-
-    niri-run = mkScript {
-      name = "niri-run";
-    };
-
-    noctalia-flake-updates = mkScript {
-      name = "noctalia-flake-updates";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.gawk
-        pkgs.git
-        pkgs.jq
-        pkgs.util-linux
-      ];
-    };
-
-    noctalia-gpu-mode = mkScript {
-      name = "noctalia-gpu-mode";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.findutils
-      ];
-    };
-
-    noctalia-net-speed = mkScript {
-      name = "noctalia-net-speed";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.gawk
-        pkgs.gnugrep
-        pkgs.iproute2
-      ];
-    };
-
-    noctalia-net-status = mkScript {
-      name = "noctalia-net-status";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.gawk
-        pkgs.iproute2
-        pkgs.networkmanager
-      ];
-    };
-
-    noctalia-bluetooth = mkScript {
-      name = "noctalia-bluetooth";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.gawk
-        pkgs.bluez
-      ];
-    };
-
-    noctalia-cpu = mkScript {
-      name = "noctalia-cpu";
-      runtimeInputs = [
-        pkgs.coreutils
-      ];
-    };
-
-    noctalia-memory = mkScript {
-      name = "noctalia-memory";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.gawk
-      ];
-    };
-
-    noctalia-temperature = mkScript {
-      name = "noctalia-temperature";
-      runtimeInputs = [
-        pkgs.coreutils
-      ];
-    };
-
-    noctalia-disk = mkScript {
-      name = "noctalia-disk";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.gawk
-      ];
-    };
-
-    noctalia-power = mkScript {
-      name = "noctalia-power";
-    };
-
-    noctalia-proxy-status = mkScript {
-      name = "noctalia-proxy-status";
-      runtimeInputs = [ pkgs.systemd ];
-    };
-
-    steam-gamescope = pkgs.writeShellApplication {
-      name = "steam-gamescope";
-      runtimeInputs = [
-        pkgs.coreutils
-        pkgs.gamescope
-      ];
-      text = ''
-        set -euo pipefail
-
-        # Keep this wrapper self-contained when launched from desktop entries.
-        export PATH="/run/current-system/sw/bin:/run/wrappers/bin:''${HOME:-}/.nix-profile/bin:''${HOME:-}/.local/bin:''${PATH:-}"
-
-        if ! command -v gamescope >/dev/null 2>&1; then
-          echo "steam-gamescope: gamescope not found in PATH" >&2
-          exit 1
-        fi
-
-        if ! command -v steam >/dev/null 2>&1; then
-          echo "steam-gamescope: steam not found in PATH" >&2
-          exit 1
-        fi
-
-        # Steam runtime may mis-handle directory-style Vulkan vars inherited from session.
-        unset VK_DRIVER_FILES
-        unset VK_ICD_FILENAMES
-
-        if [[ $# -eq 0 ]]; then
-          exec gamescope -f -- steam -vgui
-        fi
-
-        exec gamescope -f -- steam "$@"
-      '';
-    };
-  };
-
-  # 软链到 ~/.local/bin，方便手动执行
   mkBinLink = name: {
-    source = "${scripts.${name}}/bin/${name}";
+    source = "${scriptsRs}/bin/${name}";
   };
 in
 {
-  # 把脚本作为包安装到用户环境
-  home.packages = lib.mkAfter (builtins.attrValues scripts);
+  home.packages = lib.mkAfter [ scriptsRs ];
 
-  # 将脚本暴露为常用命令
   home.file.".local/bin/lock-screen" = mkBinLink "lock-screen";
   home.file.".local/bin/niri-run" = mkBinLink "niri-run";
   home.file.".local/bin/noctalia-flake-updates" = mkBinLink "noctalia-flake-updates";

@@ -1,107 +1,83 @@
 # scripts-rs
 
-这个目录的存在，不是为了“把 Shell 换个语言重写一遍”这么简单。
+这个目录不是“顺手把 Shell 翻译成 Rust”那么简单。
 
-它更像是给这套仓库补一条新的脚本路线：
+它现在已经是仓库正式在用的脚本实现层：
 
-- 保留原本能工作的 Shell 方案
-- 同时把核心脚本逐步迁到 Rust
-- 让脚本逻辑更容易测试、编译检查和长期维护
+- 部署向导走 `run-rs`
+- release 流程走 `run-rs release`
+- 用户命令由这里编译出的二进制提供
+- 官网应用追新也走这里的工具
 
-如果你本来就更偏爱 Rust，不喜欢把越来越复杂的流程继续堆在 Bash 里，这个目录就是为你准备的。
+换句话说，`scripts-rs` 现在不是未来计划，而是当前事实。
 
----
+## 这个目录在整个仓库里的位置
 
-## 当前定位
+你可以这样理解：
 
-这里的 `*-rs` 命令，是项目现有脚本的 Rust 对应实现。
+- `scripts-rs/src/bin/*.rs`
+  具体命令实现
+- `scripts-rs/src/lib.rs`
+  公共复用逻辑
+- `pkgs/scripts-rs/default.nix`
+  把这些 Rust 二进制打成 Nix 包
+- `home/users/<user>/scripts.nix`
+  把其中一部分命令链接到用户环境里
 
-需要特别说明两点：
+所以如果你改的是命令行为，重点看这里。
+如果你改的是“这个命令怎么进入系统或用户环境”，就要连同 `pkgs/scripts-rs/` 和 `home/users/<user>/scripts.nix` 一起看。
 
-- `run-rs` 现在已经具备完整部署 / release 流程实现
-- `noctalia-gpu-mode-rs` 现在也已经是纯 Rust 实现
+## 当前比较关键的命令
 
-但仓库当前默认文档和部署入口，仍然优先写：
+- `run-rs`
+  完整部署 / release 流程
+- `noctalia-gpu-mode-rs`
+  GPU specialisation 菜单与切换
+- `lock-screen-rs`
+  锁屏入口
+- `niri-run-rs`
+  Niri 会话辅助启动
+- `noctalia-*-rs`
+  一组给状态栏和桌面交互用的命令
+- `update-zed-source-rs`
+  更新 Zed 官网稳定版 pin
+- `update-yesplaymusic-source-rs`
+  更新 YesPlayMusic 官网稳定版 pin
+- `update-upstream-apps-rs`
+  一次更新上述两个 pin
+
+## 在仓库里怎么用
+
+如果你在仓库根目录，最推荐的方式是：
 
 ```bash
-./run.sh
+nix run .#run-rs
 ```
 
-原因不是 Rust 版不能用，而是主仓库的默认工作流仍然以 `run.sh` 为中心。
-换句话说，Rust 路线已经能走，只是还没有把 Shell 路线从仓库主入口里彻底撤掉。
-
----
-
-## 构建
+只想检查追新：
 
 ```bash
-cd scripts-rs
-cargo build --release
+nix run .#update-upstream-apps -- --check
 ```
 
-只想做本地检查：
+想实际更新：
+
+```bash
+nix run .#update-upstream-apps
+```
+
+这条路径的好处是，你走的就是仓库现在真正暴露给外部的入口，而不是只在本地 `cargo run` 一次。
+
+## 本地开发怎么做
+
+### 只做编译检查
 
 ```bash
 cd scripts-rs
 cargo check
 ```
 
-仓库级的 `nix flake check` 也会顺手跑这里的 `cargo check`。
-
----
-
-## 对应关系
-
-- `run.sh` -> `run-rs`
-- `home/users/mcbnixos/scripts/lock-screen` -> `lock-screen-rs`
-- `home/users/mcbnixos/scripts/niri-run` -> `niri-run-rs`
-- `home/users/mcbnixos/scripts/noctalia-bluetooth` -> `noctalia-bluetooth-rs`
-- `home/users/mcbnixos/scripts/noctalia-cpu` -> `noctalia-cpu-rs`
-- `home/users/mcbnixos/scripts/noctalia-disk` -> `noctalia-disk-rs`
-- `home/users/mcbnixos/scripts/noctalia-flake-updates` -> `noctalia-flake-updates-rs`
-- `home/users/mcbnixos/scripts/noctalia-gpu-mode` -> `noctalia-gpu-mode-rs`
-- `home/users/mcbnixos/scripts/noctalia-memory` -> `noctalia-memory-rs`
-- `home/users/mcbnixos/scripts/noctalia-net-speed` -> `noctalia-net-speed-rs`
-- `home/users/mcbnixos/scripts/noctalia-net-status` -> `noctalia-net-status-rs`
-- `home/users/mcbnixos/scripts/noctalia-power` -> `noctalia-power-rs`
-- `home/users/mcbnixos/scripts/noctalia-proxy-status` -> `noctalia-proxy-status-rs`
-- `home/users/mcbnixos/scripts/noctalia-temperature` -> `noctalia-temperature-rs`
-- `home/users/mcbnixos/scripts/wallpaper-random` -> `wallpaper-random-rs`
-- `pkgs/zed/scripts/update-source.sh` -> `update-zed-source-rs`
-- `pkgs/yesplaymusic/scripts/update-source.sh` -> `update-yesplaymusic-source-rs`
-- `pkgs/scripts/update-upstream-apps.sh` -> `update-upstream-apps-rs`
-
----
-
-## 怎么理解这套目录
-
-### `src/bin/*.rs`
-
-每个文件对应一个可执行命令。
-如果你想改某个具体脚本行为，通常就是进这里找对应名字。
-
-### `src/lib.rs`
-
-放公共函数和复用逻辑。
-如果你发现多个二进制都在复制同一套命令执行、路径探测、JSON 输出逻辑，那它就应该被提到这里。
-
----
-
-## 推荐使用方式
-
-### 我只想部署系统
-
-继续优先用：
-
-```bash
-./run.sh
-```
-
-这是当前仓库对外最稳定、最直接的入口。
-
-### 我在维护脚本体系，想优先走 Rust
-
-你可以直接运行：
+### 运行某个命令
 
 ```bash
 cd scripts-rs
@@ -115,24 +91,32 @@ cd scripts-rs
 cargo run --bin noctalia-gpu-mode-rs
 ```
 
-### 我在改用户脚本
+### 格式化
 
-要注意一个现实情况：
+```bash
+cd scripts-rs
+cargo fmt
+```
 
-- `home/users/<user>/scripts.nix` 当前默认仍然打包 Shell 版用户脚本
-- `scripts-rs/` 里的 Rust 版更适合独立运行、调试和后续替换
+## 什么时候该改 `src/lib.rs`
 
-所以如果你改的是“仓库默认用户脚本打包链”，就不能只改这里而不看 `scripts.nix`。
+如果你发现多个命令都在重复做这些事情，就应该考虑提到 `src/lib.rs`：
 
----
+- 查找仓库根目录
+- 调外部命令
+- 输出状态栏 JSON
+- 解析 GPU 模式
+- 处理 XDG 路径
 
-## 这条路线真正的价值
+这一步做得越早，后面维护就越轻。
 
-把脚本迁到 Rust，不是为了写得更长，而是为了几件很实际的事：
+## 这条路线真正带来的好处
 
-- 让复杂逻辑不再依赖 Bash 的隐式行为
-- 能做编译期检查
-- 更容易拆复用逻辑
-- 更容易把脚本做成长期可维护的工具，而不是一次性流程
+把脚本迁到 Rust，价值不在“换一种语言”，而在这些更实际的东西：
 
-如果这套仓库后面继续往“Rust 成为主脚本路线”走，这个目录就是基础。
+- 复杂流程不再依赖 Bash 的隐式行为
+- 可以做编译期检查
+- 复用逻辑更容易抽出来
+- 更适合长期维护，而不是把一次性脚本越堆越大
+
+如果你后面要继续扩展部署流程、Noctalia 命令或者追新工具，优先继续沿着这条路线写就对了。

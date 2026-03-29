@@ -174,3 +174,65 @@ pub fn write_file_atomic(path: &Path, content: &str) -> Result<()> {
 pub fn exit_from_status(status: ExitStatus) -> ! {
     std::process::exit(status.code().unwrap_or(1))
 }
+
+pub fn normalize_gpu_mode_label(mode: &str) -> String {
+    match mode {
+        "gpu-dgpu" | "dgpu" => "dgpu".to_string(),
+        "gpu-hybrid" | "hybrid" => "hybrid".to_string(),
+        "gpu-igpu" | "igpu" => "igpu".to_string(),
+        _ => "base".to_string(),
+    }
+}
+
+fn gpu_mode_from_path(path: &str) -> Option<String> {
+    if let Some(idx) = path.find("/specialisation/gpu-") {
+        let tail = &path[idx + "/specialisation/".len()..];
+        return tail.split('/').next().map(ToOwned::to_owned);
+    }
+    if let Some(idx) = path.find("specialisation-gpu-") {
+        let tail = &path[idx + "specialisation-".len()..];
+        return tail.split('/').next().map(ToOwned::to_owned);
+    }
+    None
+}
+
+pub fn current_gpu_specialisation() -> String {
+    if let Ok(mode) = env::var("MCB_GPU_MODE")
+        && !mode.trim().is_empty()
+    {
+        return match mode.as_str() {
+            "igpu" | "hybrid" | "dgpu" => format!("gpu-{mode}"),
+            _ => mode,
+        };
+    }
+
+    for path in ["/run/current-system", "/run/booted-system"] {
+        if let Ok(canonical) = fs::canonicalize(path) {
+            let p = canonical.to_string_lossy();
+            if let Some(mode) = gpu_mode_from_path(&p) {
+                return mode;
+            }
+        }
+    }
+
+    if let Ok(cmdline) = fs::read_to_string("/proc/cmdline") {
+        for token in cmdline.split_whitespace() {
+            let maybe_path = if let Some(v) = token.strip_prefix("init=") {
+                Some(v)
+            } else {
+                token.strip_prefix("systemConfig=")
+            };
+            if let Some(path) = maybe_path
+                && let Some(mode) = gpu_mode_from_path(path)
+            {
+                return mode;
+            }
+        }
+    }
+
+    "base".to_string()
+}
+
+pub fn current_gpu_mode_label() -> String {
+    normalize_gpu_mode_label(&current_gpu_specialisation())
+}

@@ -10,6 +10,7 @@
 
 let
   noctaliaCfg = config.mcb.noctalia;
+  scriptsRs = pkgs.callPackage ../../pkgs/scripts-rs { };
 
   defaultNoctaliaSettings = {
     bar = {
@@ -78,165 +79,6 @@ let
     else
       null;
 
-  # Normalize current GPU mode for wrapper scripts (igpu/hybrid/dgpu/base).
-  gpuModeCurrent = pkgs.writeShellApplication {
-    name = "noctalia-gpu-current";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.gnused
-    ];
-    text = ''
-      set -euo pipefail
-
-      normalize_mode() {
-        case "$1" in
-          gpu-dgpu|dgpu)
-            printf '%s\n' "dgpu"
-            ;;
-          gpu-hybrid|hybrid)
-            printf '%s\n' "hybrid"
-            ;;
-          gpu-igpu|igpu)
-            printf '%s\n' "igpu"
-            ;;
-          *)
-            printf '%s\n' "base"
-            ;;
-        esac
-      }
-
-      mode_from_path() {
-        local path="$1"
-        local mode=""
-
-        if [[ "$path" == */specialisation/gpu-* ]]; then
-          mode="''${path##*/specialisation/}"
-          mode="''${mode%%/*}"
-        elif [[ "$path" == *specialisation-gpu-* ]]; then
-          mode="''${path##*specialisation-}"
-          mode="''${mode%%/*}"
-        fi
-
-        if [[ -n "$mode" ]]; then
-          normalize_mode "$mode"
-          return 0
-        fi
-        return 1
-      }
-
-      if [[ -n "''${MCB_GPU_MODE-}" ]]; then
-        normalize_mode "''${MCB_GPU_MODE}"
-        exit 0
-      fi
-
-      path="$(readlink -f /run/current-system 2>/dev/null || true)"
-      mode="$(mode_from_path "$path" 2>/dev/null || true)"
-      if [[ -n "$mode" ]]; then
-        printf '%s\n' "$mode"
-        exit 0
-      fi
-
-      path="$(readlink -f /run/booted-system 2>/dev/null || true)"
-      mode="$(mode_from_path "$path" 2>/dev/null || true)"
-      if [[ -n "$mode" ]]; then
-        printf '%s\n' "$mode"
-        exit 0
-      fi
-
-      if [[ -r /proc/cmdline ]]; then
-        for token in $(</proc/cmdline); do
-          case "$token" in
-            init=*|systemConfig=*)
-              cmd_path="''${token#*=}"
-              ;;
-            *)
-              cmd_path=""
-              ;;
-          esac
-
-          if [[ -n "$cmd_path" ]]; then
-            mode="$(mode_from_path "$cmd_path" 2>/dev/null || true)"
-            if [[ -n "$mode" ]]; then
-              printf '%s\n' "$mode"
-              exit 0
-            fi
-          fi
-        done
-      fi
-
-      if command -v noctalia-gpu-mode >/dev/null 2>&1; then
-        mode="$(noctalia-gpu-mode 2>/dev/null | sed -n 's/.*specialisation: \([^"]*\).*/\1/p' | head -n 1 || true)"
-        if [[ -n "$mode" ]]; then
-          normalize_mode "$mode"
-          exit 0
-        fi
-      fi
-
-      printf '%s\n' "base"
-    '';
-  };
-
-  # Zed launcher that adapts backend/GPU selection by current specialisation mode.
-  # dgpu mode uses OpenGL backend to avoid known niri+NVIDIA Wayland stale-frame issues.
-  zedAutoGpu = pkgs.writeShellApplication {
-    name = "zed-auto-gpu";
-    runtimeInputs = [ gpuModeCurrent ];
-    text = ''
-      set -euo pipefail
-
-      mode="$(noctalia-gpu-current 2>/dev/null || printf '%s' base)"
-      case "$mode" in
-        dgpu)
-          # Keep hardware acceleration on dGPU while avoiding stale-frame bug on Wayland.
-          export WGPU_BACKEND="''${WGPU_BACKEND:-gl}"
-          export __GLX_VENDOR_LIBRARY_NAME="nvidia"
-          export __VK_LAYER_NV_optimus="NVIDIA_only"
-          ;;
-        *)
-          # iGPU/hybrid/base: avoid carrying stale offload env into Zed.
-          unset __NV_PRIME_RENDER_OFFLOAD
-          unset __NV_PRIME_RENDER_OFFLOAD_PROVIDER
-          unset __GLX_VENDOR_LIBRARY_NAME
-          unset __VK_LAYER_NV_optimus
-          unset DRI_PRIME
-          unset WGPU_BACKEND
-          ;;
-      esac
-
-      exec zeditor "$@"
-    '';
-  };
-
-  # Generic Electron wrapper: force stable X11 rendering path on dGPU mode.
-  electronAutoGpu = pkgs.writeShellApplication {
-    name = "electron-auto-gpu";
-    runtimeInputs = [ gpuModeCurrent ];
-    text = ''
-      set -euo pipefail
-
-      if [[ $# -lt 1 ]]; then
-        echo "Usage: electron-auto-gpu <command> [args...]" >&2
-        exit 2
-      fi
-
-      app="$1"
-      shift
-
-      if ! command -v "$app" >/dev/null 2>&1; then
-        echo "electron-auto-gpu: command not found: $app" >&2
-        exit 127
-      fi
-
-      mode="$(noctalia-gpu-current 2>/dev/null || printf '%s' base)"
-      if [[ "$mode" == "dgpu" ]]; then
-        export NIXOS_OZONE_WL="0"
-        export ELECTRON_OZONE_PLATFORM_HINT="x11"
-        export OZONE_PLATFORM="x11"
-      fi
-
-      exec "$app" "$@"
-    '';
-  };
 in
 {
   options.mcb = {
@@ -290,9 +132,7 @@ in
   };
 
   home.packages = lib.optionals (xwaylandBridgePkg != null) [ xwaylandBridgePkg ] ++ [
-    gpuModeCurrent
-    zedAutoGpu
-    electronAutoGpu
+    scriptsRs
   ];
 
   # 论文相关文件默认使用 LibreOffice / Sioyek，避免 WPS 抢占默认关联。

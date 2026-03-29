@@ -3,7 +3,6 @@ use scripts_rs::{command_exists, find_repo_root, run_capture_allow_fail};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, IsTerminal, Write};
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Output, Stdio};
 use walkdir::WalkDir;
@@ -539,166 +538,73 @@ impl App {
         );
     }
 
-    fn script_shebang_shell(line: &str) -> bool {
-        line.contains("/bash")
-            || line.contains("env bash")
-            || line.contains("/sh")
-            || line.contains("env sh")
+    fn is_legacy_shell_path(rel: &str) -> bool {
+        rel == "run.sh"
+            || rel.starts_with("scripts/run/")
+            || (rel.starts_with("pkgs/") && rel.contains("/scripts/") && rel.ends_with(".sh"))
+            || (rel.starts_with("home/users/") && rel.contains("/scripts/"))
     }
 
-    fn self_check_scripts(&self, repo_dir: &Path) -> Result<()> {
-        self.log("脚本自检...");
-        let mut scripts = Vec::<PathBuf>::new();
+    fn self_check_repo(&self, repo_dir: &Path) -> Result<()> {
+        self.log("仓库自检...");
 
-        let user_scripts_dir = repo_dir.join("home/users");
-        if user_scripts_dir.is_dir() {
-            for entry in WalkDir::new(&user_scripts_dir).into_iter().flatten() {
-                if !entry.file_type().is_file() {
-                    continue;
-                }
-                let p = entry.path();
-                if p.to_string_lossy().contains("/scripts/") {
-                    scripts.push(p.to_path_buf());
-                }
+        let mut legacy_shell_files = Vec::<String>::new();
+        for entry in WalkDir::new(repo_dir).into_iter().flatten() {
+            if !entry.file_type().is_file() {
+                continue;
             }
-        }
-
-        let pkg_scripts_dir = repo_dir.join("pkgs");
-        if pkg_scripts_dir.is_dir() {
-            for entry in WalkDir::new(&pkg_scripts_dir).into_iter().flatten() {
-                if !entry.file_type().is_file() {
-                    continue;
-                }
-                let p = entry.path();
-                let s = p.to_string_lossy();
-                if s.contains("/scripts/") && s.ends_with(".sh") {
-                    scripts.push(p.to_path_buf());
-                }
-            }
-        }
-
-        let run_scripts_dir = repo_dir.join("scripts/run");
-        if run_scripts_dir.is_dir() {
-            for entry in WalkDir::new(&run_scripts_dir).into_iter().flatten() {
-                if entry.file_type().is_file()
-                    && entry
-                        .path()
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .is_some_and(|e| e == "sh")
-                {
-                    scripts.push(entry.path().to_path_buf());
-                }
-            }
-        }
-
-        let run_sh = repo_dir.join("run.sh");
-        if run_sh.is_file() {
-            scripts.push(run_sh);
-        }
-
-        if scripts.is_empty() {
-            self.warn("未找到可自检脚本（home/users/*/scripts、pkgs/*/scripts/*.sh、scripts/run/*.sh 或 run.sh）");
-            return Ok(());
-        }
-
-        scripts.sort();
-        scripts.dedup();
-        let shellcheck_available = command_exists("shellcheck");
-        if !shellcheck_available {
-            self.warn("未检测到 shellcheck，跳过 Lint 检查");
-        }
-
-        let mut errors = 0usize;
-        let mut warnings = 0usize;
-
-        for file in scripts {
-            let rel = file
+            let rel = entry
+                .path()
                 .strip_prefix(repo_dir)
-                .map(|p| p.to_string_lossy().to_string())
-                .unwrap_or_else(|_| file.to_string_lossy().to_string());
-            let require_exec =
-                !(rel.starts_with("scripts/run/lib/") || rel.starts_with("scripts/run/cmd/"));
-            let require_shebang = require_exec;
-
-            let Ok(meta) = fs::metadata(&file) else {
-                self.warn(&format!("无法读取脚本：{rel}"));
-                errors += 1;
-                continue;
-            };
-            if meta.len() == 0 {
-                self.warn(&format!("脚本为空：{rel}"));
-                warnings += 1;
-                continue;
-            }
-
-            if require_exec && (meta.permissions().mode() & 0o111 == 0) {
-                self.warn(&format!("脚本缺少可执行权限：{rel}"));
-                errors += 1;
-            }
-
-            if let Ok(bytes) = fs::read(&file)
-                && bytes.contains(&b'\r')
-            {
-                self.warn(&format!("检测到 CRLF：{rel}"));
-                errors += 1;
-            }
-
-            if require_shebang {
-                let first = fs::read_to_string(&file)
-                    .ok()
-                    .and_then(|s| s.lines().next().map(ToOwned::to_owned))
-                    .unwrap_or_default();
-                if !first.starts_with("#!") {
-                    self.warn(&format!("缺少 shebang：{rel}"));
-                    errors += 1;
-                    continue;
-                }
-                if !Self::script_shebang_shell(&first) {
-                    self.warn(&format!("非 bash/sh 脚本，跳过语法检查：{rel}"));
-                    warnings += 1;
-                    continue;
-                }
-            }
-
-            let syntax = Command::new("bash")
-                .arg("-n")
-                .arg(&file)
-                .output()
-                .with_context(|| format!("failed to run bash -n for {rel}"))?;
-            if !syntax.status.success() {
-                self.warn(&format!("语法检查失败：{rel}"));
-                let stderr = String::from_utf8_lossy(&syntax.stderr);
-                eprint!("{stderr}");
-                errors += 1;
-                continue;
-            }
-
-            if shellcheck_available {
-                let out = Command::new("shellcheck")
-                    .args([
-                        "-x",
-                        "-s",
-                        "bash",
-                        "-e",
-                        "SC1090,SC1091,SC2034,SC2154,SC2329",
-                    ])
-                    .arg(&file)
-                    .output()?;
-                if !out.status.success() {
-                    self.warn(&format!("shellcheck 警告：{rel}"));
-                    let stderr = String::from_utf8_lossy(&out.stderr);
-                    let stdout = String::from_utf8_lossy(&out.stdout);
-                    eprint!("{stdout}{stderr}");
-                    warnings += 1;
-                }
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+                .unwrap_or_else(|_| entry.path().to_string_lossy().replace('\\', "/"));
+            if Self::is_legacy_shell_path(&rel) {
+                legacy_shell_files.push(rel);
             }
         }
 
-        if errors > 0 {
-            bail!("脚本自检失败：{errors} 个错误（请修复后再继续）");
+        legacy_shell_files.sort();
+        legacy_shell_files.dedup();
+        if !legacy_shell_files.is_empty() {
+            let sample = legacy_shell_files
+                .iter()
+                .take(12)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
+            bail!(
+                "检测到遗留 Shell 脚本入口（需要完全迁移到 Rust）：{}{}",
+                sample,
+                if legacy_shell_files.len() > 12 {
+                    " ..."
+                } else {
+                    ""
+                }
+            );
         }
-        self.success(&format!("脚本自检完成（{warnings} 个警告）"));
+
+        let cargo_toml = repo_dir.join("scripts-rs/Cargo.toml");
+        if cargo_toml.is_file() {
+            if command_exists("cargo") {
+                let status = Command::new("cargo")
+                    .args(["check", "--quiet"])
+                    .current_dir(repo_dir.join("scripts-rs"))
+                    .stdin(Stdio::null())
+                    .stdout(Stdio::inherit())
+                    .stderr(Stdio::inherit())
+                    .status()
+                    .context("failed to run cargo check for scripts-rs")?;
+                if !status.success() {
+                    bail!("scripts-rs cargo check 失败");
+                }
+            } else {
+                self.warn("未检测到 cargo，跳过 scripts-rs 编译自检。");
+            }
+        } else {
+            self.warn("未找到 scripts-rs/Cargo.toml，跳过 Rust 脚本编译自检。");
+        }
+
+        self.success("仓库自检完成");
         Ok(())
     }
 
@@ -3139,9 +3045,9 @@ in
             }
             self.progress_step("准备源代码");
 
-            self.section("脚本自检");
-            self.self_check_scripts(&tmp_dir)?;
-            self.progress_step("脚本自检");
+            self.section("仓库自检");
+            self.self_check_repo(&tmp_dir)?;
+            self.progress_step("仓库自检");
 
             self.wizard_flow(&tmp_dir)?;
             if self.deploy_mode == DeployMode::UpdateExisting {
@@ -3272,20 +3178,6 @@ in
 
     fn update_version_files(&self, version: &str) -> Result<()> {
         fs::write(self.script_dir.join("VERSION"), format!("{version}\n"))?;
-        let run_sh = self.script_dir.join("run.sh");
-        if !run_sh.is_file() {
-            return Ok(());
-        }
-        let text = fs::read_to_string(&run_sh)?;
-        let mut out = Vec::new();
-        for line in text.lines() {
-            if line.starts_with("RUN_SH_VERSION=") {
-                out.push(format!("RUN_SH_VERSION=\"{version}\""));
-            } else {
-                out.push(line.to_string());
-            }
-        }
-        fs::write(run_sh, out.join("\n") + "\n")?;
         Ok(())
     }
 
@@ -3338,9 +3230,7 @@ in
         }
 
         self.update_version_files(&version)?;
-        let add = Command::new("git")
-            .args(["add", "VERSION", "run.sh"])
-            .status()?;
+        let add = Command::new("git").args(["add", "VERSION"]).status()?;
         if !add.success() {
             bail!("git add 失败");
         }

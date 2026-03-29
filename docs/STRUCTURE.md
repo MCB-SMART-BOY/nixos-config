@@ -1,37 +1,33 @@
 # 项目结构说明
 
-如果你经常打开一个 NixOS 仓库，然后第一反应是“我到底该改哪一层”，这页就是给这种时候准备的。
+如果你打开仓库后的第一反应是“我到底该改哪一层”，这页就是给这个时刻准备的。
 
-这套仓库的结构不是为了显得模块很多，而是为了回答三个很实际的问题：
+这套仓库现在的组织原则很简单：
 
-- 这是哪台机器的配置
-- 这是系统共享的能力，还是某个用户自己的东西
-- 这次改动会影响全部用户，还是只影响一个人
+- `hosts/` 和 `modules/` 管机器
+- `home/users/` 管人
+- `scripts-rs/` 管脚本逻辑
+- `pkgs/` 管仓库自己维护的包
 
----
-
-## 一眼先记住的入口
+## 一眼先记住这些入口
 
 - 主机入口：`hosts/<hostname>/default.nix`
 - 系统模块：`modules/`
 - 用户入口：`home/users/<user>/default.nix`
 - 用户软件：`home/users/<user>/packages.nix`
-- 部署入口：`run.sh`
+- 用户脚本接线：`home/users/<user>/scripts.nix`
 - Rust 脚本集合：`scripts-rs/`
+- Rust 脚本打包：`pkgs/scripts-rs/`
 
-如果你只记得这六个位置，已经足够处理绝大多数维护工作。
+如果你只记住这些位置，已经足够处理大部分维护工作。
 
----
-
-## 顶层目录，不用死背，先按职责理解
+## 顶层目录怎么理解
 
 ```text
 .
 ├── flake.nix
 ├── flake.lock
 ├── configuration.nix
-├── run.sh
-├── scripts/
 ├── scripts-rs/
 ├── hosts/
 ├── modules/
@@ -41,149 +37,109 @@
 └── README.md
 ```
 
-你可以把它们理解成下面这几类：
-
 ### `hosts/`
 
-这里决定“这台机器是谁”。
+这里回答的是：“这台机器是谁？”
 
-每个子目录是一台主机，例如：
-
-- `hosts/nixos/`
-- `hosts/laptop/`
-- `hosts/server/`
-
-常见文件：
+常见内容：
 
 - `hosts/<hostname>/default.nix`
-  - 主机入口，决定这台机器导入哪个 profile、默认用户是谁、有哪些主机级覆盖
+  主机入口，决定这台机器导入哪个 profile、默认用户是谁、有哪些主机级覆盖
 - `hosts/<hostname>/system.nix`
-  - 机器架构，例如 `"x86_64-linux"`
+  机器架构，例如 `"x86_64-linux"`
 - `hosts/<hostname>/hardware-configuration.nix`
-  - 这台机器自己的硬件配置
+  这台机器自己的硬件配置
 - `hosts/<hostname>/local.nix`
-  - 主机私有覆盖，适合放“只属于这台机器”的补丁或临时调整
+  主机私有覆盖
 
 ### `hosts/profiles/`
 
-这里决定“这台机器大体是什么类型”。
+这里回答的是：“这台机器大体属于哪类角色？”
 
-目前最重要的是：
+例如：
 
 - `hosts/profiles/desktop.nix`
 - `hosts/profiles/server.nix`
 
-它们不是具体主机，而是组合好的主机模板。
-你可以把它理解为“桌面机器默认该带哪些系统能力”，“服务器默认该关掉哪些图形部分”。
+它们是组合好的主机模板，不是某一台具体机器。
 
 ### `modules/`
 
-这里放系统层模块，也就是所有主机共享的系统级能力。
+这里放系统层公共能力。
 
 例如：
 
-- 网络
-- 服务
-- 字体
-- 安全
 - 用户与权限
+- 网络与代理
 - GPU
-- 包组
+- 服务
+- 系统共享包组
 
-如果一个改动应该影响一整类主机，而不是某个单独用户，通常就是去 `modules/` 或 `hosts/profiles/`。
+如果一个改动应该影响一整类主机，而不是某个具体用户，通常就在这里。
 
 ### `home/`
 
-这里放 Home Manager，也就是“用户怎么使用这台机器”。
+这里放 Home Manager，也就是“某个用户登录后会看到什么”。
 
-常见结构：
+常见子目录：
 
 - `home/profiles/`
-  - 用户配置组合，例如完整桌面用户、最小服务器用户
+  用户配置组合，例如完整桌面用户、最小服务器用户
 - `home/modules/`
-  - 用户层公共模块
+  用户层公共模块
 - `home/users/<user>/`
-  - 某个具体用户的入口与私有配置
-
-这部分是本仓库很重要的边界线：
-
-- 机器共享能力放系统层
-- 个人软件与个性化设置放用户层
+  某个具体用户自己的入口目录
 
 ### `home/users/<user>/`
 
-这是你最常改的目录之一。
-
-你可以把它理解成“某个人自己的家目录蓝图”。
+这是你最常改的地方之一。
 
 常见文件：
 
 - `default.nix`
-  - 用户入口
+  用户入口
 - `packages.nix`
-  - 这个用户的软件声明
+  这个用户的软件声明
+- `scripts.nix`
+  用户命令如何从 `scripts-rs` 包接到 `~/.local/bin`
 - `local.nix`
-  - 这个用户本地私有覆盖，不想进仓库的东西可以放这里
+  不想进仓库的私有覆盖
 - `local.nix.example`
-  - 给你起步用的示例
+  起步示例
 - `config/`
-  - 会被链接到 `~/.config`
+  会被链接到 `~/.config`
 - `assets/`
-  - 该用户用到的资源文件
-- `scripts/`
-  - 用户脚本，例如 Noctalia 顶栏按钮脚本
+  这个用户自己的资源文件
 
-如果你只是想“给某个用户加个软件”，不要去找系统层，直接改：
+这里最重要的变化是：
 
-- `home/users/<user>/packages.nix`
-
-### `pkgs/`
-
-这里放仓库自己维护的包，以及这些包的上游版本 pin。
-
-当前比较关键的是：
-
-- `pkgs/zed/`
-- `pkgs/yesplaymusic/`
-- `pkgs/scripts/update-upstream-apps.sh`
-
-当你想追官网稳定版，而不是单纯等 nixpkgs 更新时，这里就是核心位置。
-
-### `scripts/`
-
-这里放 Shell 路线的脚本。
-
-当前最重要的是：
-
-- `run.sh`
-- `scripts/run/cmd/`
-- `scripts/run/lib/`
-
-也就是部署脚本的拆分版本。现在 `run.sh` 本身更像总入口，具体逻辑被拆到这些目录里了。
+- 用户命令现在不再从 `home/users/<user>/scripts/` 读取原始 Shell 脚本
+- 而是通过 `scripts-rs` 编译出来的二进制来提供
 
 ### `scripts-rs/`
 
-这里放 Rust 路线的脚本实现。
+这里放 Rust 写的脚本实现。
 
-它不是装饰性的“未来规划”，而是已经能工作的另一套实现，尤其是：
+常见内容：
 
-- `run-rs`
-- `noctalia-gpu-mode-rs`
+- `scripts-rs/src/bin/*.rs`
+  一个文件对应一个命令
+- `scripts-rs/src/lib.rs`
+  公共函数和复用逻辑
 
-不过仓库当前默认部署文档仍然优先写 `./run.sh`，因为这仍是你最直接、最稳的入口。
+这里现在不只是“备用路线”，而是仓库的正式脚本实现。
 
-### `docs/`
+### `pkgs/`
 
-这里只有一个目的：减少你下一次重新理解项目的成本。
+这里放仓库自己维护的包和包装逻辑。
 
-建议读法：
+现在比较关键的是：
 
-- 想上手：`docs/USAGE.md`
-- 想看目录：`docs/STRUCTURE.md`
-- 想看联动关系：`docs/DETAILS.md`
-- 想排网络问题：`docs/NETWORK_CN.md`
+- `pkgs/scripts-rs/`
+- `pkgs/zed/`
+- `pkgs/yesplaymusic/`
 
----
+如果你想追官网稳定版，或者把仓库内部工具做成 Nix 包，这里就是核心位置。
 
 ## 按“我要改什么”来定位
 
@@ -199,7 +155,8 @@
 
 - `hosts/profiles/*.nix`
 - `modules/packages.nix`
-- `modules/services*.nix`
+- `modules/services/*.nix`
+- `modules/networking.nix`
 
 ### 我要给某个用户加软件
 
@@ -213,42 +170,27 @@
 
 - `home/users/<user>/config/`
 
-### 我要改用户脚本或顶栏行为
+### 我要改某个用户的命令入口
 
 看：
 
-- `home/users/<user>/scripts/`
 - `home/users/<user>/scripts.nix`
 
-### 我要改部署流程
+### 我要改部署或追新工具
 
 看：
 
-- `run.sh`
-- `scripts/run/cmd/`
-- `scripts/run/lib/`
+- `scripts-rs/src/bin/run-rs.rs`
+- `scripts-rs/src/bin/update-zed-source-rs.rs`
+- `scripts-rs/src/bin/update-yesplaymusic-source-rs.rs`
+- `scripts-rs/src/bin/update-upstream-apps-rs.rs`
 
-### 我要改 Rust 版脚本
-
-看：
-
-- `scripts-rs/src/bin/*.rs`
-- `scripts-rs/src/lib.rs`
-
----
-
-## 这个仓库最重要的边界
+## 最值得坚持的边界
 
 一句话总结：
 
-- `hosts/` 和 `modules/` 管机器
-- `home/users/` 管人
+- 机器共享能力放系统层
+- 用户个性化声明放用户层
 
-只要这个边界不乱，仓库再大也还能维护。
-一旦这个边界开始混，后面每次改东西都会越来越痛苦。
-
-所以如果你拿不准某个配置该写在哪里，可以先问自己一句：
-
-“这是这台机器都需要，还是某个用户自己需要？”
-
-大多数时候，答案会直接把你带到正确目录。
+只要这个边界不乱，仓库再大也还能读。
+一旦这个边界开始混，后面每次改东西都会越来越累。

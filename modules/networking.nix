@@ -12,6 +12,7 @@
 
 let
   # === 读取 mcb.* 基础选项 ===
+  scriptsRs = pkgs.callPackage ../pkgs/scripts-rs { };
   tunInterface = config.mcb.tunInterface;
   tunInterfaces = config.mcb.tunInterfaces;
   perUserTunEnabled = config.mcb.perUserTun.enable;
@@ -51,94 +52,12 @@ let
       priority = config.mcb.perUserTun.priorityBase + idx;
       dnsPort = perUserDnsPorts.${user} or 0;
       dnsPortStr = toString dnsPort;
-      dnsRedirectFlag = if perUserDnsRedirect then "1" else "0";
-      ip = "${pkgs.iproute2}/bin/ip";
-      ss = "${pkgs.iproute2}/bin/ss";
-      iptables = "${pkgs.iptables}/bin/iptables";
-      grep = "${pkgs.gnugrep}/bin/grep";
-      cat = "${pkgs.coreutils}/bin/cat";
-      sleep = "${pkgs.coreutils}/bin/sleep";
-      seq = "${pkgs.coreutils}/bin/seq";
-      id = "${pkgs.coreutils}/bin/id";
-      routeScript = pkgs.writeShellScript "mcb-tun-route-${user}" ''
-        set -euo pipefail
-
-        uid="$(${id} -u ${user})"
-        if [[ -z "$uid" ]]; then
-          echo "User ${user} not found" >&2
-          exit 1
-        fi
-
-        # 等待 TUN 接口就绪（存在 + 非 down；不强制要求 IPv4）
-        ready=0
-        for _ in $(${seq} 1 150); do
-          if ${ip} link show dev "${iface}" >/dev/null 2>&1; then
-            operstate="$(${cat} "/sys/class/net/${iface}/operstate" 2>/dev/null || true)"
-            if [[ -n "$operstate" && "$operstate" != "down" ]]; then
-              ready=1
-              break
-            fi
-          fi
-          ${sleep} 0.2
-        done
-
-        if [[ "$ready" != "1" ]]; then
-          echo "Interface ${iface} not ready (missing or down); retry later" >&2
-          exit 1
-        fi
-
-        # 为该用户添加专用路由表
-        if ! ${ip} rule show | ${grep} -q "uidrange $uid-$uid.*lookup ${toString tableId}"; then
-          ${ip} rule add priority ${toString priority} uidrange $uid-$uid lookup ${toString tableId}
-        fi
-
-        # 设置该用户的默认路由走指定 TUN
-        ${ip} route replace default dev "${iface}" table ${toString tableId}
-
-        # 可选：把该用户的 DNS 请求重定向到本地端口
-        if [[ "${dnsRedirectFlag}" == "1" ]]; then
-          if [[ "${dnsPortStr}" == "0" ]]; then
-            echo "DNS redirect enabled but no port configured for ${user}" >&2
-            exit 1
-          fi
-          # 清理旧规则，避免 DNS 端口不可用时黑洞
-          ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
-          ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
-          dns_ready=0
-          for _ in $(${seq} 1 60); do
-            if ${ss} -lun | ${grep} -qE ":${dnsPortStr}\\b" \
-              || ${ss} -ltn | ${grep} -qE ":${dnsPortStr}\\b"; then
-              dns_ready=1
-              break
-            fi
-            ${sleep} 0.5
-          done
-          if [[ "$dns_ready" != "1" ]]; then
-            echo "DNS port ${dnsPortStr} not listening; retry later for ${user}" >&2
-            exit 1
-          fi
-          if ! ${iptables} -t nat -C OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
-            ${iptables} -t nat -A OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr}
-          fi
-          if ! ${iptables} -t nat -C OUTPUT -p tcp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1; then
-            ${iptables} -t nat -A OUTPUT -p tcp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr}
-          fi
-        fi
-      '';
-      stopScript = pkgs.writeShellScript "mcb-tun-route-${user}-stop" ''
-        set -euo pipefail
-        uid="$(${id} -u ${user} 2>/dev/null || true)"
-        # 清理默认路由与 ip rule
-        ${ip} route del default dev "${iface}" table ${toString tableId} >/dev/null 2>&1 || true
-        if [[ -n "$uid" ]]; then
-          ${ip} rule del uidrange $uid-$uid lookup ${toString tableId} >/dev/null 2>&1 || true
-          # 清理 DNS 重定向规则
-          if [[ "${dnsRedirectFlag}" == "1" ]]; then
-            ${iptables} -t nat -D OUTPUT -p udp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
-            ${iptables} -t nat -D OUTPUT -p tcp --dport 53 -m owner --uid-owner "$uid" -j REDIRECT --to-ports ${dnsPortStr} >/dev/null 2>&1 || true
-          fi
-        fi
-      '';
+      routeCommand =
+        "${scriptsRs}/bin/mcb-tun-route-rs start --user ${user} --iface ${iface} --table-id ${toString tableId} --priority ${toString priority} --dns-port ${dnsPortStr}"
+        + lib.optionalString perUserDnsRedirect " --redirect-dns";
+      stopCommand =
+        "${scriptsRs}/bin/mcb-tun-route-rs stop --user ${user} --iface ${iface} --table-id ${toString tableId} --priority ${toString priority} --dns-port ${dnsPortStr}"
+        + lib.optionalString perUserDnsRedirect " --redirect-dns";
     in
     {
       description = "Per-user TUN routing (${user})";
@@ -153,11 +72,16 @@ let
         "clash-verge-service@${user}.service"
       ];
       wantedBy = [ "clash-verge-service@${user}.service" ];
+      path = [
+        pkgs.coreutils
+        pkgs.iproute2
+        pkgs.iptables
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = routeScript;
-        ExecStop = stopScript;
+        ExecStart = routeCommand;
+        ExecStop = stopCommand;
         Restart = "on-failure";
         RestartSec = "2s";
       };

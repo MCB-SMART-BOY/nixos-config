@@ -169,7 +169,9 @@ mcb.proxyDnsPort = 1053;
 
 Noctalia 里代理图标的状态来自脚本：
 
-- `home/users/<user>/scripts/noctalia-proxy-status`
+- `~/.local/bin/noctalia-proxy-status`
+
+这个命令由 `scripts-rs` 打包，再通过 `home/users/<user>/scripts.nix` 链接进用户环境。
 
 它默认会检查这些服务名：
 

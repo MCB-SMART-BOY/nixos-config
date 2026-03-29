@@ -1,33 +1,25 @@
 # 使用说明
 
-这份文档不是“把所有命令抄一遍”的清单，而是按真实使用场景写的维护手册。
+这页不是命令速查表，而是按真实维护场景写的。
 
-如果你现在处于下面这些情况，这页最适合你：
+如果你现在是下面这些情况，这页最有用：
 
-- 刚装完 NixOS，想把这套配置落上去
-- 已经在用这套仓库，想知道日常更新怎么做
+- 第一次把这套配置落到机器上
+- 已经在用这套仓库，想知道平时怎么更新
 - 想给某个用户加软件，但不想影响其他用户
-- 想改 GPU、代理、TUN，又不想在仓库里盲翻文件
+- 想追 Zed / YesPlayMusic 官网稳定版
 
----
+## 1. 第一次部署，先用最稳的入口
 
-## 1. 第一次部署，不要把事情搞复杂
-
-先确认三件事：
-
-- `hardware-configuration.nix` 已经生成
-- 系统里能运行 `nixos-rebuild`
-- 你已经把仓库拉到本地
-
-推荐流程：
+在仓库根目录执行：
 
 ```bash
 git clone https://github.com/MCB-SMART-BOY/nixos-config.git
 cd nixos-config
-./run.sh
+nix run .#run-rs
 ```
 
-`run.sh` 会把第一次部署里最容易出错的部分都收起来，换成向导让你选：
+这个入口会带你把第一次最容易出错的部分都走完：
 
 - 部署模式
 - 配置来源
@@ -38,11 +30,13 @@ cd nixos-config
 - GPU 覆盖
 - 服务器预设
 
-如果你以前习惯自己手写 `/etc/nixos`，这里也可以继续那样做；只是对这套仓库来说，第一次上手直接走向导通常更稳。
+如果你已经非常熟悉仓库结构，也可以直接：
 
----
+```bash
+sudo nixos-rebuild switch --flake .#<hostname>
+```
 
-## 2. 如果你是从一台“空机器”开始
+## 2. 空机器起步时，先确认两件事
 
 ### 2.1 先生成硬件配置
 
@@ -50,31 +44,25 @@ cd nixos-config
 sudo nixos-generate-config
 ```
 
-最常见的位置是：
+常见位置是：
 
 - `/etc/nixos/hardware-configuration.nix`
 
-这套仓库也接受把它放在：
+这套仓库也接受放在：
 
 - `/etc/nixos/hosts/<hostname>/hardware-configuration.nix`
 
-你不用一开始就纠结“哪种更优雅”。只要当前主机能被正确评估和重建，先跑起来最重要。
+### 2.2 仓库要在当前目录可见
 
-### 2.2 应用配置
+`run-rs` 需要从你当前所在的仓库目录读取 `flake.nix`、`hosts/`、`home/` 这些内容。
+所以正确用法不是“随便在哪都能跑”，而是：
 
-如果你不通过 `run.sh`，那就手动执行：
+- 先 `cd` 到仓库根目录
+- 再执行 `nix run .#run-rs`
 
-```bash
-sudo nixos-rebuild switch --flake .#<hostname>
-```
+## 3. 日常维护，通常就这些动作
 
-第一次切完以后，建议重启一次。尤其是你动了图形栈、驱动、代理或 specialisation 时，这一步能省掉很多“看起来怪怪的”问题。
-
----
-
-## 3. 日常维护，其实就这几件事
-
-### 3.1 修改配置后直接切换
+### 3.1 改完配置后直接切换
 
 ```bash
 sudo nixos-rebuild switch --flake .#<hostname>
@@ -99,104 +87,59 @@ nix flake update
 sudo nixos-rebuild switch --flake .#<hostname>
 ```
 
-如果你习惯在改完配置前先做一次健康检查，这套仓库也支持：
+### 3.5 做一次仓库健康检查
 
 ```bash
 nix flake check
 ```
 
-它现在不只看 Nix 求值，还会顺手检查：
+它现在会检查：
 
-- `run.sh` 和分层 shell 脚本
-- ShellCheck
-- `scripts-rs` 的 `cargo check`
+- `scripts-rs` 能否成功构建
+- 仓库里是否还残留旧的 Shell 脚本入口
+- 是否还有 `writeShell*` 这类遗留定义
 
----
+## 4. 给某个用户加软件，正确位置在哪里
 
-## 4. 给某个用户加软件，正确姿势是什么
-
-答案很明确：去写这个用户自己的文件。
+答案很明确：
 
 - `home/users/<user>/packages.nix`
 
-现在这套仓库的思路不是“把所有桌面软件都扔进系统层”，而是：
+这套仓库现在的思路是：
 
-- 系统共享的东西放系统层
-- 只属于某个用户的东西放用户层
+- 系统共享能力放系统层
+- 某个用户自己的软件放用户层
 
-例如你要给 `mcbnixos` 加 Zed、YesPlayMusic、浏览器、聊天软件，就写在：
+例如你要给 `mcbnixos` 加软件，就改：
 
 - `home/users/mcbnixos/packages.nix`
 
-这样做的结果是：
+这样做的结果很直接：
 
-- 其他用户不会平白看到一堆自己根本不用的软件
-- 构建产物仍然由 Nix store 共享，不会浪费
-- 以后读配置时，不会搞不清这东西到底是谁要的
+- 其他用户不会平白多出一堆自己不用的软件
+- Nix store 仍然共享构建产物，不会重复浪费
+- 以后读配置时，你能看清“这是谁要的”
 
----
+## 5. 新增用户，不是只新建一个目录就完事
 
-## 5. 新增用户，不需要一上来就复制整套配置
+如果你想让某个用户真正被系统接管，需要两层都考虑：
 
-如果你通过 `./run.sh` 新增了一个仓库里还不存在的用户，脚本会帮你生成最小模板：
+- 系统层：把用户加入主机配置里的 `mcb.users` / `mcb.adminUsers`
+- 用户层：新增 `home/users/<user>/`
+
+最小用户入口一般至少有：
 
 - `home/users/<user>/default.nix`
 - `home/users/<user>/packages.nix`
 - `home/users/<user>/local.nix.example`
 
-默认行为是保守的：
+你可以参考：
 
-- 先给你一个能工作的骨架
-- 不主动复制别人的整套 `config/`、`assets/`、`scripts/`
+- `home/users/mcbnixos/`
+- `home/users/mcblaptopnixos/`
+- `home/users/mcbservernixos/`
 
-如果你明确想复用模板用户的这些目录，可以在运行前加：
-
-```bash
-RUN_SH_COPY_USER_TEMPLATE=true ./run.sh
-```
-
-这更适合“批量生成一组风格接近的新用户”的场景。
-
----
-
-## 6. 主机层和用户层，别混
-
-你可以这样记：
-
-### 主机层回答的是“这台机器应该是什么样”
-
-看这里：
-
-- `hosts/<hostname>/default.nix`
-- `hosts/profiles/desktop.nix`
-- `hosts/profiles/server.nix`
-
-主机层负责的是：
-
-- 主机名
-- 默认用户 / 用户列表 / 管理员用户
-- 系统服务
-- 系统共享包组
-- GPU、网络、缓存、虚拟化这些机器级能力
-
-### 用户层回答的是“这个人想怎么用这台机器”
-
-看这里：
-
-- `home/users/<user>/default.nix`
-- `home/users/<user>/packages.nix`
-- `home/users/<user>/config/`
-
-用户层负责的是：
-
-- 个人软件清单
-- Niri / Noctalia / 终端 / 编辑器配置
-- 主题、快捷键、界面细节
-- 只对这个用户生效的个性化设置
-
----
-
-## 7. GPU specialisation，先理解再切
+## 6. GPU specialisation 的常用用法
 
 这套仓库支持：
 
@@ -204,7 +147,7 @@ RUN_SH_COPY_USER_TEMPLATE=true ./run.sh
 - `hybrid`
 - `dgpu`
 
-你可以通过 Noctalia 顶栏里的 GPU 项切换，也可以手动切：
+你可以从桌面按钮切，也可以手动：
 
 ```bash
 sudo nixos-rebuild switch --specialisation gpu-igpu
@@ -212,103 +155,75 @@ sudo nixos-rebuild switch --specialisation gpu-hybrid
 sudo nixos-rebuild switch --specialisation gpu-dgpu
 ```
 
-几个关键提醒：
+几个现实提醒：
 
-- 如果 BIOS 已经锁成 `dGPU-only`，切回 `igpu` 或 `hybrid` 可能直接黑屏
-- `hybrid` 不是只写一个字符串就完事，通常还需要正确的 busId
-- 向导在配置 `hybrid` 时会优先尝试自动探测 busId，探测不到才回退到主机配置
+- BIOS 如果已经锁成 `dGPU-only`，切回 `igpu` 或 `hybrid` 可能会黑屏
+- `hybrid` 不是只写一个字符串，还需要正确的 busId
+- `run-rs` 在向导里会优先尝试自动探测，再回退到现有配置
 
-如果你在这里出问题，不要先猜。先去看：
+## 7. 代理、TUN、per-user 路由
 
-- [docs/DETAILS.md](/home/mcbgaruda/projects/nixos-config/docs/DETAILS.md)
-
----
-
-## 8. 代理、TUN、per-user 路由
-
-常见模式是这三个：
+最常见的主机级开关是：
 
 ```nix
 mcb.proxyMode = "tun";   # 或 "http" / "off"
 ```
 
-如果你要做“不同用户走不同节点 / 不同 TUN 接口”，看的是：
+如果你要做“不同用户走不同接口 / 不同节点”，重点看：
 
-- `mcb.perUserTun.*`
+- `mcb.perUserTun.enable`
+- `mcb.perUserTun.interfaces`
+- `mcb.perUserTun.dnsPorts`
+- `mcb.perUserTun.redirectDns`
 
-这部分的经验结论只有一句：
+更稳的排障顺序通常是：
 
-不要一边改 Clash 配置，一边改 Nix 配置，还同时改 DNS 端口，然后指望第一次就对。
+1. 先确认单实例 TUN 正常。
+2. 再确认接口名和服务名一致。
+3. 再上 per-user TUN。
+4. 最后再碰 DNS 重定向。
 
-更稳的做法是：
-
-1. 先确认单实例 TUN 正常
-2. 再确认接口名一致
-3. 再上 per-user TUN
-4. 最后再折腾 DNS 重定向
-
-详细排障页在这里：
+细节排障在：
 
 - [docs/NETWORK_CN.md](/home/mcbgaruda/projects/nixos-config/docs/NETWORK_CN.md)
 
----
+## 8. 追新官网应用
 
-## 9. 追新官网应用
-
-Zed 和 YesPlayMusic 在这套仓库里不是简单依赖 nixpkgs，而是做了固定 pin。
+Zed 和 YesPlayMusic 现在都走仓库自己的固定 pin，不是单纯等 nixpkgs。
 
 更新它们时，用：
 
 ```bash
-./pkgs/scripts/update-upstream-apps.sh
+nix run .#update-upstream-apps
 ```
 
-如果你只是想知道“上游有没有更新”，但不想立刻改文件：
+只检查是否落后，不改文件：
 
 ```bash
-./pkgs/scripts/update-upstream-apps.sh --check
+nix run .#update-upstream-apps -- --check
 ```
 
-更新完别忘了：
+如果你只想更新其中一个：
 
 ```bash
-sudo nixos-rebuild switch --flake .#<hostname>
+nix run .#update-zed-source
+nix run .#update-yesplaymusic-source
 ```
 
----
+## 9. Rust 脚本怎么单独调试
 
-## 10. 回滚，别等出事了再想起来
-
-系统级回滚有两种常见方式：
-
-- 重启后在 boot 菜单里选旧 generation
-- 直接执行：
+如果你正在改 `scripts-rs`，直接在目录里跑：
 
 ```bash
-sudo nixos-rebuild switch --rollback
+cd scripts-rs
+cargo check
+cargo run --bin run-rs
 ```
 
-如果你准备做较大的结构调整，建议额外做两件事：
+但对正常部署来说，更推荐的还是在仓库根目录用：
 
 ```bash
-git status
-git tag before-big-change
+nix run .#run-rs
 ```
 
-你以后会感谢今天这个多出来的 10 秒钟。
-
----
-
-## 11. 推荐维护节奏
-
-这套仓库比较舒服的维护方式通常是：
-
-1. 先改一个小目标，不要一口气改五层
-2. 先 `nix flake check`
-3. 再 `nixos-rebuild test`
-4. 没问题再 `switch`
-5. 大改后重启一次
-
-如果你发现自己越来越依赖“试一下看会不会炸”，那通常不是你手速不够快，而是这次改动边界没收干净。
-
-先回到目录分工，把问题缩回一层，再继续做，会轻松很多。
+因为这样走的是和仓库实际接线一致的路径。
