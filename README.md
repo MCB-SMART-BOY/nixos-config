@@ -1,189 +1,216 @@
-# NixOS 配置（Flake + Home Manager）
+# NixOS 配置，不只是把系统“堆起来”
 
-这是一套面向日常使用与开发的 NixOS 配置，采用 Flake + Home Manager 分层结构，结构清晰、可复用、易扩展。默认桌面路线为 Niri + Wayland，同时保留 legacy 入口用于非 Flake 场景。
+这套仓库的目标很直接：把一台会长期使用的 NixOS 主机，整理成一份能复用、能扩展、也能让人读得下去的配置。
 
-适合人群：
-- 需要多主机、多用户管理的人
-- 希望把系统层与用户层分离、模块化维护的人
-- 需要代理/TUN、GPU 模式切换的人
+它不是“只适合作者自己”的私人快照，也不是那种看起来模块很多、真正要改时却无从下手的样板工程。这里把系统层、主机层、用户层、脚本层都拆开了，你可以清楚知道自己正在改哪一层，以及这次改动会影响谁。
 
----
+如果你第一次来到这个仓库，最重要的结论先说在前面：
 
-## 特性概览
-
-- Flake + Home Manager 分层
-- 多主机、多用户统一管理
-- 每个用户在 `home/users/<user>/packages.nix` 逐个声明软件
-- Niri + Wayland 桌面体验
-- Zed 默认走官网 stable 包（可一键更新 pin）
-- YesPlayMusic 官网稳定版 AppImage 固定打包（可一键更新 pin）
-- 输入法与中文环境开箱可用
-- 代理/TUN 与 per-user 路由方案
-- Nix 二进制缓存策略可切换（`mcb.nix.cacheProfile`）
-- GPU 特化（igpu / hybrid / dgpu）
-- Noctalia 顶栏支持一键切换 GPU 特化
-- GitHub Actions CI（`flake check` + `run.sh` 语法 + 上游 pin 同步检查）
+- 想把系统先跑起来，直接用 `./run.sh`
+- 想按用户区分软件，不要把东西都塞进系统层，去写 `home/users/<user>/packages.nix`
+- 想搞清楚目录怎么分工，先看 `docs/STRUCTURE.md`
+- 想知道平时怎么维护，先看 `docs/USAGE.md`
 
 ---
 
-## 快速开始
+## 这套配置适合谁
 
-### 1) 一键部署（推荐）
+- 你有不止一台 NixOS 主机，想统一管理
+- 你在同一台机器上有多用户需求，不想所有人吃同一份桌面软件清单
+- 你希望系统层和用户层边界清楚，不想以后越来越乱
+- 你需要代理、TUN、GPU specialisation、Noctalia 这类“日常真的会用到”的东西
+
+---
+
+## 你会在这里得到什么
+
+- Flake + Home Manager 的分层结构
+- 多主机、多用户的统一组织方式
+- 用户级软件逐个声明，而不是全局硬塞
+- 桌面主机与服务器主机的不同 profile
+- Niri + Wayland 的桌面路线
+- Zed 官网稳定版与 YesPlayMusic 官网稳定版的固定打包与追新脚本
+- `run.sh` 的交互式部署流程
+- `scripts-rs/` 中一套对应的 Rust 脚本实现
+- `flake check` 下的脚本语法检查、ShellCheck 和 `scripts-rs` 的 `cargo check`
+
+---
+
+## 如果你现在就要开始
+
+### 1. 克隆仓库
 
 ```bash
 git clone https://github.com/MCB-SMART-BOY/nixos-config.git
 cd nixos-config
-# 建议先审查代码，再执行
+```
+
+### 2. 直接跑部署向导
+
+```bash
 ./run.sh
 ```
 
-脚本行为要点：
-- 拉取仓库并同步到 `/etc/nixos`
-- 失败自动临时切换 DNS 再重试
-- 默认执行 `nixos-rebuild switch --show-trace`
-- 保留本机 `hardware-configuration.nix`
-- 支持两种部署模式：新增/调整用户，或仅更新当前配置（保留用户/权限）
-- 覆盖策略、来源策略、是否升级依赖都通过向导菜单选择
-- 向导模式下除“新增用户名”外，其他配置均可通过菜单选择
-- 可交互选择管理员用户（`mcb.adminUsers`）
-- server profile 支持运维预设与自定义软件/虚拟化开关
-- 新增未预置用户时自动生成 `home/users/<name>/default.nix` 模板
-- 新增未预置用户时优先复用模板用户的 `packages.nix`（若存在）
-- 默认仅生成最小模板；如需复制模板用户的 `config/assets/scripts`，可设置 `RUN_SH_COPY_USER_TEMPLATE=true`
-- 脚本为全交互模式：直接运行 `./run.sh` 即可
+`run.sh` 现在是全交互模式。它会一步一步问你：
 
-### 2) 日常更新
+- 你是在“新增/调整用户”，还是“只更新当前配置”
+- 你要用本地仓库、远端固定版本，还是远端最新版本
+- 目标主机是谁
+- 这台主机有哪些用户、哪些人有管理员权限
+- 是否启用 per-user TUN
+- 是否要做 GPU 覆盖
+- 如果是服务器，要不要打开 Docker / Libvirt / CLI 工具组
+
+你不需要在第一次上手时就把所有 Nix 文件摸透。先用向导把系统部署起来，再回头精修，是这套仓库更推荐的节奏。
+
+### 3. 日常更新
 
 ```bash
 sudo nixos-rebuild switch --flake .#<hostname>
-sudo nixos-rebuild test   --flake .#<hostname>
-sudo nixos-rebuild build  --flake .#<hostname>
 ```
 
-### 3) 更新依赖版本
+如果你只是想先试一遍、不急着切换：
 
 ```bash
-nix flake update
-sudo nixos-rebuild switch --flake .#<hostname>
-```
-
-### 4) 更新 Zed / YesPlayMusic 官网稳定版 pin
-
-```bash
-./pkgs/scripts/update-upstream-apps.sh
-sudo nixos-rebuild switch --flake .#<hostname>
-```
-
-仅检查是否已追平上游（不修改文件）：
-```bash
-./pkgs/scripts/update-upstream-apps.sh --check
+sudo nixos-rebuild test --flake .#<hostname>
 ```
 
 ---
 
-## 结构概览
+## 这套仓库最重要的约定
 
-```
-nixos-config/
-├── run.sh                    # 一键部署脚本
-├── scripts-rs/               # Rust 版本脚本（与 Shell 脚本并存）
-├── scripts/run/cmd/          # run.sh 命令入口（deploy/release）
-├── scripts/run/lib/          # run.sh 分层函数库（ui/env/targets/pipeline/wizard/state）
-├── flake.nix                 # Flake 入口
-├── flake.lock                # 版本锁定（可复现）
-├── hosts/                    # 主机配置目录
-│   ├── profiles/             # 主机配置组合
-│   ├── laptop/               # 笔记本主机
-│   ├── server/               # 服务器主机
-│   └── nixos/                # 默认主机
-├── modules/                  # 系统模块（default.nix 聚合）
-├── home/                     # Home Manager 用户入口
-│   ├── profiles/             # 用户配置组合
-│   ├── modules/              # 用户模块拆分
-│   └── users/                # 用户入口（私有配置）
-├── configuration.nix         # 非 Flake 兼容入口
-├── docs/                     # 项目文档
-└── README.md
-```
+### 系统共享的东西，放系统层
+
+比如：
+
+- 基础运行时
+- 网络 CLI / GUI
+- Wayland 基础工具
+- 系统级服务
+- 桌面图形运行时
+
+这些内容主要由 `hosts/profiles/*.nix` 和 `modules/*.nix` 控制。
+
+### 只属于某个用户的软件，放用户层
+
+比如：
+
+- Zed
+- YesPlayMusic
+- 浏览器、聊天软件、办公软件
+- 某个用户自己才需要的开发工具
+
+这些内容不要再往 `environment.systemPackages` 里塞，而是写在：
+
+- `home/users/<user>/packages.nix`
+
+这样做的好处很实际：
+
+- 不同用户的软件声明互不干扰
+- Nix store 仍然共享构建产物，不会重复安装一份又一份
+- 你以后看配置时，能一眼看出“这是系统共有”还是“这是某个用户自己要的”
 
 ---
 
-## 核心入口
+## 目录先别全记，先记这几个入口
 
 系统层：
-- 主机入口：`hosts/<hostname>/default.nix`
-- 主机 Profiles：`hosts/profiles/desktop.nix` / `hosts/profiles/server.nix`
-- 系统模块：`modules/*.nix`
+
+- `hosts/<hostname>/default.nix`
+- `hosts/profiles/desktop.nix`
+- `hosts/profiles/server.nix`
+- `modules/`
 
 用户层：
-- 用户入口：`home/users/<user>/default.nix`
-- 用户个人应用：`home/users/<user>/packages.nix`
-- 用户软件清单：`home/users/<user>/packages.nix`（`home.packages` 逐项声明）
 
-Rust 脚本层：
-- Rust 对应实现：`scripts-rs/src/bin/*.rs`
-- 本地检查：`cd scripts-rs && cargo check`
-- 用户配置：`home/users/<user>/config/*`
-- 用户模块：`home/modules/*.nix`
+- `home/users/<user>/default.nix`
+- `home/users/<user>/packages.nix`
+- `home/users/<user>/config/`
 
----
+脚本层：
 
-## GPU 模式与特化（igpu / hybrid / dgpu）
+- `run.sh`
+- `scripts/run/`
+- `scripts-rs/`
+- `home/users/<user>/scripts/`
 
-GPU 模块位于 `modules/hardware/gpu.nix`，通过 `mcb.hardware.gpu` 配置。支持 GPU 特化（specialisation），用于快速切换模式。
+如果你只想快速理解目录分工，不要在 README 里硬读完整个树，直接去看：
 
-示例：
-```nix
-mcb.hardware.gpu.specialisations.enable = true;
-mcb.hardware.gpu.specialisations.modes = [ "igpu" "hybrid" "dgpu" ];
-```
-
-说明：
-- igpu：只用核显
-- hybrid：核显 + NVIDIA（需要 busId）
-- dgpu：只用独显（需硬件支持 dGPU-only 或 MUX）
-
-重要提示：
-- BIOS 若设为 dGPU-only，切换到 igpu/hybrid 可能黑屏
-- 要使用 hybrid，必须补齐 iGPU/dGPU busId
-
-### 桌面栏一键切换
-Noctalia 模块 `GPU:xxx` 支持点击下拉选择，脚本路径：
-- `home/users/<user>/scripts/noctalia-gpu-mode`
-
-切换会执行 `nixos-rebuild switch --specialisation ...`，建议切换后重启系统以保证稳定。
+- [docs/STRUCTURE.md](/home/mcbgaruda/projects/nixos-config/docs/STRUCTURE.md)
 
 ---
 
-## 代理 / TUN / per-user 路由
+## 关于 `run.sh` 和 `scripts-rs`
 
-代理模式：
+现在仓库里有两条脚本路线：
+
+- `run.sh`
+  - 当前默认部署入口
+  - 交互式向导完整可用
+  - 已经拆成 `scripts/run/cmd` 和 `scripts/run/lib`
+- `scripts-rs/`
+  - 对应的一套 Rust 实现
+  - `run-rs` 与 `noctalia-gpu-mode-rs` 已不再委托 Bash
+  - 适合你希望把脚本能力逐步迁到 Rust 时使用和维护
+
+如果你只是部署系统，文档里仍然优先写 `./run.sh`。
+如果你在维护脚本体系，`scripts-rs/README.md` 会更适合你。
+
+---
+
+## 你大概率会改到哪里
+
+- 改主机名、默认用户、管理员用户：`hosts/<hostname>/default.nix`
+- 改系统共享包组：`hosts/profiles/*.nix` 和 `modules/packages.nix`
+- 给某个用户加软件：`home/users/<user>/packages.nix`
+- 放某个用户自己的私有覆盖：`home/users/<user>/local.nix`
+- 改 Niri / Noctalia / 主题配置：`home/users/<user>/config/`
+- 改代理 / TUN / 路由：`modules/networking.nix` 和主机配置
+- 改 GPU specialisation：`modules/hardware/gpu.nix` 和主机配置
+
+---
+
+## GPU、代理、多用户这些功能在这里是认真的
+
+这套仓库不是只把软件装起来就结束了，它对下面这些问题是有明确组织方式的：
+
+- GPU 模式：`igpu` / `hybrid` / `dgpu`
+- Noctalia 顶栏切换 GPU specialisation
 - `mcb.proxyMode = "tun" | "http" | "off"`
+- per-user TUN 与按用户分流
+- 多用户软件声明与共享 Nix store
 
-per-user 路由：
-- `mcb.perUserTun.*`（按 UID 分流）
+如果你现在正卡在这些地方，不要直接在仓库里到处搜字符串，先看对应文档：
 
-详细方案与排错请看：`docs/NETWORK_CN.md`
+- GPU / 日常维护：[docs/USAGE.md](/home/mcbgaruda/projects/nixos-config/docs/USAGE.md)
+- 结构分工：[docs/STRUCTURE.md](/home/mcbgaruda/projects/nixos-config/docs/STRUCTURE.md)
+- 深层联动关系：[docs/DETAILS.md](/home/mcbgaruda/projects/nixos-config/docs/DETAILS.md)
+- 国内网络与代理排障：[docs/NETWORK_CN.md](/home/mcbgaruda/projects/nixos-config/docs/NETWORK_CN.md)
 
 ---
 
 ## 文档索引
 
-- `docs/USAGE.md`：使用说明书（建议先读）
-- `docs/STRUCTURE.md`：结构说明
-- `docs/DETAILS.md`：细节说明（主机/模块/选项）
-- `docs/NETWORK_CN.md`：国内网络问题排查
+- [docs/USAGE.md](/home/mcbgaruda/projects/nixos-config/docs/USAGE.md)
+  - 从零部署、日常更新、加用户、改 GPU、常见维护流程
+- [docs/STRUCTURE.md](/home/mcbgaruda/projects/nixos-config/docs/STRUCTURE.md)
+  - 仓库目录图和“改什么去哪里”
+- [docs/DETAILS.md](/home/mcbgaruda/projects/nixos-config/docs/DETAILS.md)
+  - 模块联动、参数含义、脚本路线、包和桌面细节
+- [docs/NETWORK_CN.md](/home/mcbgaruda/projects/nixos-config/docs/NETWORK_CN.md)
+  - 中国大陆网络环境下的下载、镜像、DNS、代理与 TUN 排障
+- [scripts-rs/README.md](/home/mcbgaruda/projects/nixos-config/scripts-rs/README.md)
+  - Rust 脚本集合的构建、使用与定位
 
 ---
 
-## 常见操作速查
+## 最后一个建议
 
-- 修改主机配置：`hosts/<hostname>/default.nix`
-- 修改用户名：更新主机文件与 `home/users/<user>/`
-- 修改桌面快捷键：`home/users/<user>/config/niri/config.kdl`
-- 修改 Noctalia 顶栏：`home/users/<user>/default.nix` + `home/users/<user>/scripts/`
-- 新增主机：在 `hosts/` 新建目录并放 `default.nix`
+第一次接手这套配置时，不要急着“全面理解”。
+更有效的方式是：
 
----
+1. 先把系统跑起来
+2. 再只追你眼前那一个问题
+3. 每次只弄清楚一层配置为什么存在
 
-如需进一步定制（主题、输入法、脚本、包组、GPU 自动化检测等），可以在仓库内扩展模块，或直接告知需求。
+这样这套仓库会越来越顺手，而不是越来越重。
