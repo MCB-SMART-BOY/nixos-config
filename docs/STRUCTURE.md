@@ -96,6 +96,9 @@
 - 服务
 - 系统共享包组
 
+其中 `mcb.*` 选项定义现在已经进一步拆到 `modules/options/`，
+而 [options.nix](/home/mcbgaruda/projects/nixos-config/modules/options.nix) 只保留聚合入口。
+
 如果一个改动应该影响一整类主机，而不是某个具体用户，通常就在这里。
 
 ### `home/`

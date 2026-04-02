@@ -79,6 +79,9 @@ Nix store 仍然会共享构建产物，区别只在于：
 - `hosts/profiles/*.nix`
 - `modules/*.nix`
 
+如果你改的是 `mcb.*` 选项本身，而不是消费这些选项的模块，
+现在优先看 `modules/options/`；[options.nix](/home/mcbgaruda/projects/nixos-config/modules/options.nix) 已经降成聚合入口。
+
 职责大致是：
 
 - `hosts/<hostname>/default.nix`

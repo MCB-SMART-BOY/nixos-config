@@ -95,6 +95,7 @@ sudo nixos-rebuild switch --flake .#<hostname>
 - `hosts/profiles/server.nix`
 - `hosts/templates/`
 - `modules/`
+- `modules/options/`（`mcb.*` 选项定义已按领域拆到这里，`modules/options.nix` 只做聚合）
 
 用户层：
 
