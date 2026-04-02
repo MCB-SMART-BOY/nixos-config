@@ -1,5 +1,5 @@
 # 软件目录分片：editors-and-ide
-# 由原 catalog/packages.toml 按 group 拆分而来。
+# 本地覆盖层目录条目：给 mcbctl 提供仓库内维护软件的元数据。
 
 [[package]]
 id = "neovim"
@@ -51,4 +51,3 @@ description = "仓库内维护的 Zed 官方稳定版。"
 keywords = ["editor", "zed", "local-package"]
 source = "local/zed"
 desktop_entry_flag = "enableZed"
-

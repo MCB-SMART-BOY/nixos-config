@@ -1,5 +1,5 @@
 # 软件目录分片：proxy-gui
-# 由原 catalog/packages.toml 按 group 拆分而来。
+# 本地覆盖层目录条目：给 mcbctl 提供仓库内维护软件的元数据。
 
 [[package]]
 id = "clash-nyanpasu"
@@ -20,4 +20,3 @@ expr = "pkgs.metacubexd"
 description = "MetaCubeX 的 Web 控制前端。"
 keywords = ["proxy", "dashboard", "metacubex"]
 source = "nixpkgs"
-

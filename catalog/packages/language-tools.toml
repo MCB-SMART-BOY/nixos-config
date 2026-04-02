@@ -1,5 +1,5 @@
 # 软件目录分片：language-tools
-# 由原 catalog/packages.toml 按 group 拆分而来。
+# 本地覆盖层目录条目：给 mcbctl 提供仓库内维护软件的元数据。
 
 [[package]]
 id = "nixd"
@@ -40,4 +40,3 @@ expr = "pkgs.nodePackages.prettier"
 description = "通用代码格式化器。"
 keywords = ["formatter", "web", "javascript"]
 source = "nixpkgs"
-

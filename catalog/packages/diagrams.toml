@@ -1,5 +1,5 @@
 # 软件目录分片：diagrams
-# 由原 catalog/packages.toml 按 group 拆分而来。
+# 本地覆盖层目录条目：给 mcbctl 提供仓库内维护软件的元数据。
 
 [[package]]
 id = "drawio"
@@ -10,4 +10,3 @@ expr = "pkgs.drawio"
 description = "流程图与结构图工具。"
 keywords = ["diagram", "drawing", "flowchart"]
 source = "nixpkgs"
-

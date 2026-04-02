@@ -1,5 +1,5 @@
 # 软件目录分片：terminals-and-browsers
-# 由原 catalog/packages.toml 按 group 拆分而来。
+# 本地覆盖层目录条目：给 mcbctl 提供仓库内维护软件的元数据。
 
 [[package]]
 id = "foot"
@@ -40,4 +40,3 @@ expr = "pkgs.google-chrome"
 description = "Chromium 系浏览器。"
 keywords = ["browser", "web", "chromium"]
 source = "nixpkgs"
-

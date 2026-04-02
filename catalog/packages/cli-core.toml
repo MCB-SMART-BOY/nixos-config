@@ -1,5 +1,5 @@
 # 软件目录分片：cli-core
-# 由原 catalog/packages.toml 按 group 拆分而来。
+# 本地覆盖层目录条目：给 mcbctl 提供仓库内维护软件的元数据。
 
 [[package]]
 id = "git"
@@ -70,4 +70,3 @@ expr = "pkgs.delta"
 description = "面向 Git 的差异高亮查看器。"
 keywords = ["diff", "git", "pager"]
 source = "nixpkgs"
-

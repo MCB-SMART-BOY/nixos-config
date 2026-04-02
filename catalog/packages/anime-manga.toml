@@ -1,5 +1,5 @@
 # 软件目录分片：anime-manga
-# 由原 catalog/packages.toml 按 group 拆分而来。
+# 本地覆盖层目录条目：给 mcbctl 提供仓库内维护软件的元数据。
 
 [[package]]
 id = "kazumi"
@@ -50,4 +50,3 @@ expr = "pkgs.venera"
 description = "漫画下载与阅读 GUI。"
 keywords = ["manga", "reader", "gui"]
 source = "nixpkgs"
-

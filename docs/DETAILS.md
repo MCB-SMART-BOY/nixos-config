@@ -217,6 +217,10 @@ GPU 配置集中在：
   运行时配置聚合入口
 - `mcbctl/src/bin/control/mcb-deploy/runtime/`
   per-user TUN、GPU、服务器运行时能力配置分拆层
+- `mcbctl/src/store/hosts/`
+  主机 managed 存储分拆层；`eval.rs`、`layout.rs`、`render.rs` 分别负责评估读取、目录布局和 Nix 分片渲染写入
+- `mcbctl/src/tui/state/model.rs`
+  `AppContext` / `AppState` 模型定义与基础状态构造
 - `mcbctl/src/bin/control/mcb-deploy/ui.rs`
   基础交互输出、菜单和确认提示
 - `mcbctl/src/bin/control/mcb-deploy/orchestrate.rs`
