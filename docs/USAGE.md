@@ -220,6 +220,18 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 noctalia-gpu-mode --session-note
 ```
 
+如果你想先确认这台机器在项目里被判断成哪类 GPU 主机：
+
+```bash
+noctalia-gpu-mode --host-topology
+```
+
+当前会输出三类之一：
+
+- `igpu-only`
+- `multi-gpu`
+- `dgpu-only`
+
 几个现实提醒：
 
 - BIOS 如果已经锁成 `dGPU-only`，切回 `igpu` 或 `hybrid` 可能会黑屏

@@ -218,6 +218,9 @@ cargo run --bin noctalia-gpu-mode
 
 # 查看当前模式切换建议
 cargo run --bin noctalia-gpu-mode -- --session-note
+
+# 输出主机 GPU 拓扑（igpu-only / multi-gpu / dgpu-only）
+cargo run --bin noctalia-gpu-mode -- --host-topology
 ```
 
 ### 格式化

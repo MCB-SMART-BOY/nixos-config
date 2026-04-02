@@ -49,6 +49,10 @@ fn real_main() -> Result<()> {
     match args.next().as_deref() {
         Some("--menu") => menu::menu_flow(),
         Some("--menu-cli") => menu::menu_flow_cli(),
+        Some("--host-topology") => {
+            println!("{}", state::host_topology().id());
+            Ok(())
+        }
         Some("--session-note") => apply::show_session_note(),
         Some("--apply") => {
             let target = args.next().unwrap_or_default();

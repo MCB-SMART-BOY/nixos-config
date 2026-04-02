@@ -52,7 +52,10 @@ pub(super) fn menu_flow() -> Result<()> {
     let modes = state::list_modes();
     if modes.is_empty() {
         if command_exists("notify-send") {
-            let mut hint = "No GPU specialisations found.".to_string();
+            let mut hint = format!(
+                "No GPU specialisations found. Host topology: {}.",
+                state::host_topology().summary()
+            );
             if let Some(path) = state::mode_file() {
                 hint.push_str(&format!(
                     " Provide modes via {} or NOCTALIA_GPU_MODES.",
@@ -137,7 +140,10 @@ fn read_choice(max: usize) -> Option<usize> {
 pub(super) fn menu_flow_cli() -> Result<()> {
     let modes = state::list_modes();
     if modes.is_empty() {
-        let mut hint = "No GPU specialisations found.".to_string();
+        let mut hint = format!(
+            "No GPU specialisations found. Host topology: {}.",
+            state::host_topology().summary()
+        );
         if let Some(path) = state::mode_file() {
             hint.push_str(&format!(
                 " Provide modes via {} or NOCTALIA_GPU_MODES.",
@@ -159,6 +165,7 @@ pub(super) fn menu_flow_cli() -> Result<()> {
     }
 
     println!("Select GPU mode:");
+    println!("Host topology: {}", state::host_topology().summary());
     for (idx, label) in labels.iter().enumerate() {
         println!("  {}) {}", idx + 1, label);
     }
