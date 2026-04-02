@@ -47,6 +47,7 @@ pub fn ensure_managed_settings_layout(managed_dir: &Path) -> Result<()> {
     )?;
 
     for (name, content) in [
+        ("desktop.nix", render_settings_placeholder_file("desktop")),
         ("session.nix", render_settings_placeholder_file("session")),
         ("mime.nix", render_settings_placeholder_file("mime")),
     ] {
@@ -138,6 +139,7 @@ fn render_settings_default_file() -> String {
 
 fn render_settings_placeholder_file(kind: &str) -> String {
     let title = match kind {
+        "desktop" => "desktop",
         "session" => "session",
         "mime" => "mime",
         other => other,

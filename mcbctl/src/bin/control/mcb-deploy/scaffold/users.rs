@@ -1,4 +1,6 @@
 use super::*;
+use mcbctl::store::home::ensure_managed_settings_layout;
+use mcbctl::store::packages::ensure_managed_packages_layout;
 
 impl App {
     pub(crate) fn ensure_user_home_entries(&mut self, repo_dir: &Path) -> Result<()> {
@@ -157,113 +159,8 @@ impl App {
                 )?;
             }
 
-            let managed_packages = managed_dir.join("packages.nix");
-            if !managed_packages.is_file() {
-                fs::write(
-                    &managed_packages,
-                    r#"# 机器管理的用户软件入口（由 mcbctl 维护）。
-# 说明：真正的软件组会按文件写入 ./packages/*.nix，这里只负责聚合导入。
-
-{ lib, ... }:
-
-let
-  packageDir = ./packages;
-  packageImports =
-    if builtins.pathExists packageDir then
-      builtins.map (name: packageDir + "/${name}") (
-        lib.sort lib.lessThan (
-          lib.filter (name: lib.hasSuffix ".nix" name) (builtins.attrNames (builtins.readDir packageDir))
-        )
-      )
-    else
-      [ ];
-in
-{
-  imports = packageImports;
-}
-"#,
-                )?;
-            }
-
-            let managed_packages_dir = managed_dir.join("packages");
-            fs::create_dir_all(&managed_packages_dir)?;
-
-            let managed_packages_readme = managed_packages_dir.join("README.md");
-            if !managed_packages_readme.is_file() {
-                fs::write(
-                    &managed_packages_readme,
-                    r#"# Managed Packages
-
-这个目录给 `mcbctl` 的 Packages 页面使用。
-
-约定：
-
-- 一个软件组对应一个 `.nix` 文件
-- `managed/packages.nix` 只做聚合导入
-- 这里的文件可以由 TUI 重写，不要放手写长期逻辑
-"#,
-                )?;
-            }
-
-            let managed_settings_dir = managed_dir.join("settings");
-            fs::create_dir_all(&managed_settings_dir)?;
-
-            let managed_settings_default = managed_settings_dir.join("default.nix");
-            if !managed_settings_default.is_file() {
-                fs::write(
-                    &managed_settings_default,
-                    r#"# 机器管理的用户设置聚合入口。
-
-{ lib, ... }:
-
-let
-  splitImports = lib.concatLists [
-    (lib.optional (builtins.pathExists ./desktop.nix) ./desktop.nix)
-    (lib.optional (builtins.pathExists ./session.nix) ./session.nix)
-    (lib.optional (builtins.pathExists ./mime.nix) ./mime.nix)
-  ];
-in
-{
-  imports = splitImports;
-}
-"#,
-                )?;
-            }
-
-            for (name, body) in [
-                (
-                    "desktop.nix",
-                    r#"# 机器管理的桌面设置分片。
-
-{ ... }:
-
-{ }
-"#,
-                ),
-                (
-                    "session.nix",
-                    r#"# 机器管理的 session 设置分片。
-
-{ ... }:
-
-{ }
-"#,
-                ),
-                (
-                    "mime.nix",
-                    r#"# 机器管理的 MIME 设置分片。
-
-{ ... }:
-
-{ }
-"#,
-                ),
-            ] {
-                let path = managed_settings_dir.join(name);
-                if !path.is_file() {
-                    fs::write(path, body)?;
-                }
-            }
+            ensure_managed_packages_layout(&managed_dir)?;
+            ensure_managed_settings_layout(&managed_dir)?;
 
             if !create_default {
                 continue;
