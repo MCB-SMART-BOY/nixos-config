@@ -174,8 +174,8 @@ auto-format = true
 [[language]]
 name = "bash"
 scope = "source.bash"
-injection-regex = "(shell|bash|zsh|sh)"
-file-types = ["sh", "bash", "zsh", ".zshrc", ".bashrc", ".bash_profile", ".zshenv", ".zprofile"]
+injection-regex = "(shell|bash|zsh|fish|sh)"
+file-types = ["sh", "bash", "zsh", "fish", ".zshrc", ".bashrc", ".bash_profile", ".zshenv", ".zprofile", "config.fish"]
 roots = []
 comment-token = "#"
 language-servers = ["bash-language-server"]

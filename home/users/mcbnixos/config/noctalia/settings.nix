@@ -19,8 +19,8 @@
           id = "CustomButton";
           icon = "git-branch";
           textCommand = "${scriptBin}/noctalia-flake-updates";
-          leftClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'cd /etc/nixos 2>/dev/null || cd \"$HOME/nixos-config\" 2>/dev/null || cd \"$HOME\"; git status; echo; nix flake check --no-build || true; echo; exec bash'";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'cd /etc/nixos 2>/dev/null || cd \"$HOME/nixos-config\" 2>/dev/null || cd \"$HOME\"; echo \"Hint: run nix flake update && nrs\"; exec bash'";
+          leftClickExec = "${scriptBin}/niri-run alacritty -e fish -ic 'cd /etc/nixos 2>/dev/null; or cd \"$HOME/nixos-config\" 2>/dev/null; or cd \"$HOME\"; git status; echo; nix flake check --no-build; or true; echo; exec fish'";
+          rightClickExec = "${scriptBin}/niri-run alacritty -e fish -ic 'cd /etc/nixos 2>/dev/null; or cd \"$HOME/nixos-config\" 2>/dev/null; or cd \"$HOME\"; echo \"Hint: run nix flake update && nrs\"; exec fish'";
           parseJson = true;
           textIntervalMs = 900000;
           maxTextLength = {
@@ -72,7 +72,7 @@
           icon = "cpu";
           textCommand = "${scriptBin}/noctalia-cpu";
           leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'sensors || true; echo; exec bash'";
+          rightClickExec = "${scriptBin}/niri-run alacritty -e fish -ic 'sensors; or true; echo; exec fish'";
           parseJson = true;
           textIntervalMs = 2000;
           maxTextLength = {
@@ -85,7 +85,7 @@
           icon = "memory-stick";
           textCommand = "${scriptBin}/noctalia-memory";
           leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'free -h; echo; vmstat -s 2>/dev/null | head -n 20 || true; echo; exec bash'";
+          rightClickExec = "${scriptBin}/niri-run alacritty -e fish -ic 'free -h; echo; vmstat -s 2>/dev/null | head -n 20; or true; echo; exec fish'";
           parseJson = true;
           textIntervalMs = 3000;
           maxTextLength = {
@@ -97,7 +97,7 @@
           id = "CustomButton";
           icon = "thermometer";
           textCommand = "${scriptBin}/noctalia-temperature";
-          leftClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'watch -n 1 sensors'";
+          leftClickExec = "${scriptBin}/niri-run alacritty -e fish -ic 'watch -n 1 sensors'";
           rightClickExec = "${scriptBin}/niri-run alacritty -e btop";
           parseJson = true;
           textIntervalMs = 5000;
@@ -111,7 +111,7 @@
           icon = "hard-drive";
           textCommand = "${scriptBin}/noctalia-disk";
           leftClickExec = "${scriptBin}/niri-run baobab";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'df -h; echo; lsblk; echo; exec bash'";
+          rightClickExec = "${scriptBin}/niri-run alacritty -e fish -ic 'df -h; echo; lsblk; echo; exec fish'";
           parseJson = true;
           textIntervalMs = 30000;
           maxTextLength = {

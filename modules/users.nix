@@ -22,6 +22,9 @@ let
 in
 {
   config = {
+    # 统一启用 fish，并将其加入 /etc/shells，供用户默认登录 shell 使用。
+    programs.fish.enable = true;
+
     # 为每个用户创建私有组，避免共享 users 组导致跨用户目录权限扩大。
     users.groups = lib.genAttrs allUsers (_: { });
 
@@ -39,7 +42,7 @@ in
         ++ desktopGroups
         ++ lib.optionals config.virtualisation.docker.enable [ "docker" ]
         ++ lib.optionals config.virtualisation.libvirtd.enable [ "libvirtd" ];
-      shell = pkgs.zsh;
+      shell = pkgs.fish;
       linger = cfg.userLinger;
     });
   };

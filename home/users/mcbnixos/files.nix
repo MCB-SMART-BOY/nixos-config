@@ -31,7 +31,7 @@ in
   };
 
   # Shell / Tmux 配置
-  programs.zsh.initContent = builtins.readFile ./config/zsh/.zshrc;
+  programs.fish.interactiveShellInit = builtins.readFile ./config/fish/config.fish;
   programs.tmux.extraConfig = builtins.readFile ./config/tmux/tmux.conf;
 
   # 终端与系统工具配置

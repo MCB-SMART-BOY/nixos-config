@@ -26,7 +26,7 @@ bufferline = "multiple" # 多文件时显示标签栏
 color-modes = true      # 状态栏模式变色
 
 # Shell 环境
-shell = ["zsh", "-c"]
+shell = ["fish", "-c"]
 
 # 格式化与换行
 text-width = 100

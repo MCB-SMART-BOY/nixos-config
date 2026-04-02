@@ -83,10 +83,6 @@ let
     zoxide
     starship
     direnv
-    oh-my-zsh
-    zsh-autosuggestions
-    zsh-syntax-highlighting
-    zsh-completions
     fish
     # 监控与磁盘
     btop

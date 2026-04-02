@@ -195,8 +195,8 @@ blinking = "Off"
 # 🖥️ 终端
 # ══════════════════════════════════════════════════════════════════
 # [terminal]
-# 建议注释掉，让系统自动使用默认 Shell（zsh）
-# shell = { program = "zsh" }
+# 建议注释掉，让系统自动使用默认 Shell（fish）
+# shell = { program = "fish" }
 
 [env]
 TERM = "alacritty"

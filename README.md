@@ -10,6 +10,7 @@
 如果你第一次打开这个仓库，先记住三件事：
 
 - 控制台入口现在是 `nix run .#mcbctl`
+- 同一个入口也可以直接转发部署：`nix run .#mcbctl -- deploy`
 - 显式 TUI 别名仍然是 `nix run .#mcb-tui`
 - 如果你要直接进部署向导，使用 `nix run .#mcb-deploy`
 - 某个用户自己的软件，去写 `home/users/<user>/packages.nix`

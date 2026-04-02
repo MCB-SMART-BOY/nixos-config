@@ -39,6 +39,10 @@
 
 - `mcbctl`
   TUI 控制台入口
+- `mcbctl deploy`
+  从同一入口直接转发到部署向导
+- `mcbctl release`
+  从同一入口直接转发到发布流程
 - `mcb-tui`
   显式 TUI 别名；和 `mcbctl` 指向同一类控制台入口
 - `mcb-deploy`
@@ -64,6 +68,12 @@
 
 ```bash
 nix run .#mcbctl
+```
+
+如果你想从同一个入口直接进部署向导，也可以：
+
+```bash
+nix run .#mcbctl -- deploy
 ```
 
 如果你想显式写 TUI 名称，也可以：
