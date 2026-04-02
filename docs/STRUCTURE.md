@@ -172,6 +172,8 @@
   TUI / 控制台共享的数据模型和枚举；`DeployPlan` 这类跨入口复用的部署计划对象也在这里
 - `mcbctl/src/store/`
   读写 `catalog/`、`managed/`、主机探测这类存储与环境逻辑；`store/deploy.rs` 现在也承载共享的同步、硬件配置生成与 `nixos-rebuild` 执行
+- `mcbctl/src/store/hosts/`
+  主机 managed 存储分拆层；`eval.rs`、`layout.rs`、`render.rs` 分别负责评估读取、目录布局和 Nix 分片渲染写入
 - `mcbctl/src/tui/views/`
   TUI 渲染层；已按页面拆开，不再继续把所有渲染堆在一个 `mod.rs` 里
 - `mcbctl/src/tui/state.rs`
