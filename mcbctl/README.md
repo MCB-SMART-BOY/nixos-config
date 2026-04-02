@@ -16,7 +16,7 @@
 你可以这样理解：
 
 - `mcbctl/src/bin/*.rs`
-  具体命令实现
+  具体命令实现；现在已经按领域分到 `control/`、`network/`、`desktop/`、`music/`、`noctalia/`、`update/`
 - `mcbctl/src/lib.rs`
   公共复用逻辑
 - `mcbctl/src/domain/`
@@ -24,7 +24,7 @@
 - `mcbctl/src/store/`
   `catalog/`、`managed/`、主机探测等 I/O 逻辑；`store/deploy.rs` 现在也负责共享的仓库同步计划、`nixos-rebuild` 计划与执行
 - `mcbctl/src/tui/views/`
-  TUI 渲染层
+  TUI 渲染层；页面渲染已拆成独立文件
 - `mcbctl/src/tui/state.rs`
   当前的状态机和页面业务编排
 - `pkgs/mcbctl/default.nix`

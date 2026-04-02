@@ -86,7 +86,10 @@ pub fn resolve_sibling_binary(name: &str) -> Result<PathBuf> {
     if candidate.is_file() {
         Ok(candidate)
     } else {
-        Err(anyhow!("failed to locate sibling binary: {}", candidate.display()))
+        Err(anyhow!(
+            "failed to locate sibling binary: {}",
+            candidate.display()
+        ))
     }
 }
 

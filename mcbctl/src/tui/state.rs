@@ -312,7 +312,9 @@ impl AppState {
         }
 
         if self.context.privilege_mode == "rootless" && self.deploy_action != DeployAction::Build {
-            anyhow::bail!("rootless 模式下当前页只能直接执行 build；如需 switch/test/boot，请使用 sudo/root 或退回 deploy wizard。");
+            anyhow::bail!(
+                "rootless 模式下当前页只能直接执行 build；如需 switch/test/boot，请使用 sudo/root 或退回 deploy wizard。"
+            );
         }
 
         let use_sudo = self.should_use_sudo();
@@ -385,9 +387,7 @@ impl AppState {
                 rebuild_plan.command_preview(self.should_use_sudo())
             ));
         } else {
-            notes.push(
-                "命令预览：当前来源会转交给完整部署向导处理。".to_string(),
-            );
+            notes.push("命令预览：当前来源会转交给完整部署向导处理。".to_string());
         }
         if self.can_execute_deploy_directly() {
             notes.push("执行路径：当前页可直接执行；按 x 立即运行。".to_string());
@@ -1393,10 +1393,7 @@ impl AppState {
         let mut lines = vec![
             format!("当前动作：{}", action.label()),
             format!("说明：{}", action.description()),
-            format!(
-                "当前仓库：{}",
-                self.context.repo_root.display()
-            ),
+            format!("当前仓库：{}", self.context.repo_root.display()),
             format!("/etc/nixos：{}", self.context.etc_root.display()),
             format!("当前主机：{}", self.target_host),
             format!(
@@ -1472,10 +1469,8 @@ impl AppState {
                 self.status = "flake update 已完成。".to_string();
             }
             ActionItem::UpdateUpstreamCheck => {
-                let status = self.run_sibling_in_repo(
-                    "update-upstream-apps",
-                    &["--check".to_string()],
-                )?;
+                let status =
+                    self.run_sibling_in_repo("update-upstream-apps", &["--check".to_string()])?;
                 if !status.success() {
                     anyhow::bail!(
                         "update-upstream-apps --check exited with {}",
@@ -2707,7 +2702,11 @@ impl AppState {
         if !self.host_dirty_user_hosts.is_empty() {
             dirty.push(format!(
                 "Users: {}",
-                self.host_dirty_user_hosts.iter().cloned().collect::<Vec<_>>().join(", ")
+                self.host_dirty_user_hosts
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
         if !self.host_dirty_runtime_hosts.is_empty() {
@@ -2723,13 +2722,21 @@ impl AppState {
         if !self.package_dirty_users.is_empty() {
             dirty.push(format!(
                 "Packages: {}",
-                self.package_dirty_users.iter().cloned().collect::<Vec<_>>().join(", ")
+                self.package_dirty_users
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
         if !self.home_dirty_users.is_empty() {
             dirty.push(format!(
                 "Home: {}",
-                self.home_dirty_users.iter().cloned().collect::<Vec<_>>().join(", ")
+                self.home_dirty_users
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             ));
         }
 
@@ -2737,10 +2744,7 @@ impl AppState {
             return Ok(());
         }
 
-        anyhow::bail!(
-            "仍有未保存修改；请先保存后再执行：{}",
-            dirty.join(" | ")
-        )
+        anyhow::bail!("仍有未保存修改；请先保存后再执行：{}", dirty.join(" | "))
     }
 
     fn clean_etc_dir_keep_hardware(&self) -> Result<()> {
@@ -2801,11 +2805,7 @@ impl AppState {
         Ok(())
     }
 
-    fn run_sibling_in_repo(
-        &self,
-        name: &str,
-        args: &[String],
-    ) -> Result<std::process::ExitStatus> {
+    fn run_sibling_in_repo(&self, name: &str, args: &[String]) -> Result<std::process::ExitStatus> {
         let binary = resolve_sibling_binary(name)?;
         std::process::Command::new(&binary)
             .args(args)

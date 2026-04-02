@@ -77,8 +77,12 @@ impl ActionItem {
             ActionItem::UpdateUpstreamCheck => "检查 Zed / YesPlayMusic 等上游 pin 是否已落后。",
             ActionItem::UpdateUpstreamPins => "刷新上游 pin 并回写仓库里的 source.nix。",
             ActionItem::SyncRepoToEtc => "把当前仓库同步到 /etc/nixos，同时保留根目录硬件配置。",
-            ActionItem::RebuildCurrentHost => "对当前主机执行一次标准重建；rootless 下自动退化为 build。",
-            ActionItem::LaunchDeployWizard => "退回到完整部署向导，处理远端来源、初始化与复杂交互。",
+            ActionItem::RebuildCurrentHost => {
+                "对当前主机执行一次标准重建；rootless 下自动退化为 build。"
+            }
+            ActionItem::LaunchDeployWizard => {
+                "退回到完整部署向导，处理远端来源、初始化与复杂交互。"
+            }
         }
     }
 }

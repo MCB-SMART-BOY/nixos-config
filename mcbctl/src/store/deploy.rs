@@ -188,15 +188,18 @@ pub fn ensure_root_hardware_config(etc_root: &Path, use_sudo: bool) -> Result<()
         );
     }
 
-    run_root_command_ok("mkdir", &["-p".to_string(), etc_root.display().to_string()], use_sudo)?;
+    run_root_command_ok(
+        "mkdir",
+        &["-p".to_string(), etc_root.display().to_string()],
+        use_sudo,
+    )?;
     run_root_command_ok(
         "env",
         &[
             format!("HW_FILE={}", target.display()),
             "sh".to_string(),
             "-c".to_string(),
-            "umask 022 && nixos-generate-config --show-hardware-config > \"$HW_FILE\""
-                .to_string(),
+            "umask 022 && nixos-generate-config --show-hardware-config > \"$HW_FILE\"".to_string(),
         ],
         use_sudo,
     )?;

@@ -160,7 +160,8 @@
 常见内容：
 
 - `mcbctl/src/bin/*.rs`
-  一个文件对应一个命令
+  现在按领域归类到子目录里：
+  `control/`、`network/`、`desktop/`、`music/`、`noctalia/`、`update/`
 - `mcbctl/src/lib.rs`
   公共函数和复用逻辑
 - `mcbctl/src/domain/`
@@ -168,7 +169,7 @@
 - `mcbctl/src/store/`
   读写 `catalog/`、`managed/`、主机探测这类存储与环境逻辑；`store/deploy.rs` 现在也承载共享的同步、硬件配置生成与 `nixos-rebuild` 执行
 - `mcbctl/src/tui/views/`
-  TUI 渲染层
+  TUI 渲染层；已按页面拆开，不再继续把所有渲染堆在一个 `mod.rs` 里
 - `mcbctl/src/tui/state.rs`
   当前仍保留的状态机与业务编排层
 

@@ -14,3 +14,111 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml = "0.8"
 walkdir = "2.5"
+
+[[bin]]
+name = "mcbctl"
+path = "src/bin/control/mcbctl.rs"
+
+[[bin]]
+name = "mcb-deploy"
+path = "src/bin/control/mcb-deploy.rs"
+
+[[bin]]
+name = "clash-verge-prestart"
+path = "src/bin/network/clash-verge-prestart.rs"
+
+[[bin]]
+name = "mcb-tun-route"
+path = "src/bin/network/mcb-tun-route.rs"
+
+[[bin]]
+name = "lock-screen"
+path = "src/bin/desktop/lock-screen.rs"
+
+[[bin]]
+name = "niri-run"
+path = "src/bin/desktop/niri-run.rs"
+
+[[bin]]
+name = "steam-gamescope"
+path = "src/bin/desktop/steam-gamescope.rs"
+
+[[bin]]
+name = "wallpaper-random"
+path = "src/bin/desktop/wallpaper-random.rs"
+
+[[bin]]
+name = "electron-auto-gpu"
+path = "src/bin/desktop/electron-auto-gpu.rs"
+
+[[bin]]
+name = "zed-auto-gpu"
+path = "src/bin/desktop/zed-auto-gpu.rs"
+
+[[bin]]
+name = "flatpak-setup"
+path = "src/bin/desktop/flatpak-setup.rs"
+
+[[bin]]
+name = "musicfox-wrapper"
+path = "src/bin/music/musicfox-wrapper.rs"
+
+[[bin]]
+name = "noctalia-bluetooth"
+path = "src/bin/noctalia/noctalia-bluetooth.rs"
+
+[[bin]]
+name = "noctalia-cpu"
+path = "src/bin/noctalia/noctalia-cpu.rs"
+
+[[bin]]
+name = "noctalia-disk"
+path = "src/bin/noctalia/noctalia-disk.rs"
+
+[[bin]]
+name = "noctalia-flake-updates"
+path = "src/bin/noctalia/noctalia-flake-updates.rs"
+
+[[bin]]
+name = "noctalia-gpu-current"
+path = "src/bin/noctalia/noctalia-gpu-current.rs"
+
+[[bin]]
+name = "noctalia-gpu-mode"
+path = "src/bin/noctalia/noctalia-gpu-mode.rs"
+
+[[bin]]
+name = "noctalia-memory"
+path = "src/bin/noctalia/noctalia-memory.rs"
+
+[[bin]]
+name = "noctalia-net-speed"
+path = "src/bin/noctalia/noctalia-net-speed.rs"
+
+[[bin]]
+name = "noctalia-net-status"
+path = "src/bin/noctalia/noctalia-net-status.rs"
+
+[[bin]]
+name = "noctalia-power"
+path = "src/bin/noctalia/noctalia-power.rs"
+
+[[bin]]
+name = "noctalia-proxy-status"
+path = "src/bin/noctalia/noctalia-proxy-status.rs"
+
+[[bin]]
+name = "noctalia-temperature"
+path = "src/bin/noctalia/noctalia-temperature.rs"
+
+[[bin]]
+name = "update-upstream-apps"
+path = "src/bin/update/update-upstream-apps.rs"
+
+[[bin]]
+name = "update-yesplaymusic-source"
+path = "src/bin/update/update-yesplaymusic-source.rs"
+
+[[bin]]
+name = "update-zed-source"
+path = "src/bin/update/update-zed-source.rs"
