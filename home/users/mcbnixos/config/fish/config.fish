@@ -141,6 +141,8 @@ alias nfu='nix flake update'
 alias nsp='nix search nixpkgs'
 alias nsh='nix-shell'
 alias ngc='sudo nix-collect-garbage -d'
+alias timers='systemctl list-timers --all'
+alias utimers='systemctl --user list-timers --all'
 
 alias g='git'
 alias ga='git add'

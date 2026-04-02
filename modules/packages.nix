@@ -13,6 +13,23 @@ let
   # 读取 mcb.packages.* 开关
   cfg = config.mcb.packages;
   mcbctlPkg = pkgs.mcbctl;
+  batExtrasSuite = pkgs.symlinkJoin {
+    name = "bat-extras-suite";
+    paths = with pkgs.bat-extras; [
+      batdiff
+      batgrep
+      batman
+      batwatch
+      prettybat
+    ];
+  };
+  schedulerCliSuite = pkgs.symlinkJoin {
+    name = "scheduler-cli-suite";
+    paths = with pkgs; [
+      cronie
+      at
+    ];
+  };
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
   legacyUserScopedToggles = [
@@ -89,6 +106,8 @@ let
     man-pages
     bind
     netcat-openbsd
+    schedulerCliSuite
+    moreutils
     pciutils
     htop
     lsof
@@ -104,11 +123,7 @@ let
     fzf
     ripgrep
     bat
-    bat-extras.batdiff
-    bat-extras.batgrep
-    bat-extras.batman
-    bat-extras.batwatch
-    bat-extras.prettybat
+    batExtrasSuite
     delta
     tealdeer
     atuin

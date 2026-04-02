@@ -7,6 +7,25 @@
   ...
 }:
 
+let
+  batExtrasSuite = pkgs.symlinkJoin {
+    name = "bat-extras-suite";
+    paths = with pkgs.bat-extras; [
+      batdiff
+      batgrep
+      batman
+      batwatch
+      prettybat
+    ];
+  };
+  schedulerCliSuite = pkgs.symlinkJoin {
+    name = "scheduler-cli-suite";
+    paths = with pkgs; [
+      cronie
+      at
+    ];
+  };
+in
 lib.optionals (!(hostPkgEnabled "enableShellTools")) (with pkgs; [
   git # 版本控制
   lazygit # Git TUI
@@ -17,6 +36,8 @@ lib.optionals (!(hostPkgEnabled "enableShellTools")) (with pkgs; [
   man-pages # 常见 Linux 手册页
   bind # dig/nslookup
   netcat-openbsd # nc
+  schedulerCliSuite # crond/crontab/anacron + at/atq/atrm/batch
+  moreutils # sponge/ts/vidir 等命令集合
   pciutils # lspci
   file # 文件类型识别
   tree # 目录树查看
@@ -29,11 +50,7 @@ lib.optionals (!(hostPkgEnabled "enableShellTools")) (with pkgs; [
   fzf # 模糊搜索
   ripgrep # 全文搜索
   bat # cat 高亮版
-  bat-extras.batdiff # diff 高亮查看
-  bat-extras.batgrep # grep 结果高亮查看
-  bat-extras.batman # man 彩色渲染
-  bat-extras.batwatch # watch + bat
-  bat-extras.prettybat # bat 美化输出
+  batExtrasSuite # batdiff/batgrep/batman/batwatch/prettybat 集合
   delta # git diff 美化
   xh # HTTPie 风格的现代 HTTP 客户端
   doggo # dig 的现代替代
