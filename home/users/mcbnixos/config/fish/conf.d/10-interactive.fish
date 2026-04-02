@@ -13,7 +13,3 @@ else
     set -g fish_cursor_replace_one underscore
     set -g fish_cursor_visual block
 end
-
-if command -q atuin
-    atuin init fish | source
-end
