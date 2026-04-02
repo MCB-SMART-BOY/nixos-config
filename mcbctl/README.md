@@ -29,6 +29,8 @@
   当前的顶层状态机和跨页业务编排
 - `mcbctl/src/tui/state/`
   页面级状态逻辑分拆层；`deploy.rs`、`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经独立出去
+- `mcbctl/src/tui/state/helpers.rs`
+  TUI 状态层共享的列表格式化、解析、循环切换和 catalog 辅助函数
 - `mcbctl/src/tui/state/hosts/`
   `Users` / `Hosts` 页进一步拆成 `users.rs` 和 `runtime.rs`
 - `mcbctl/src/tui/state/packages/`
