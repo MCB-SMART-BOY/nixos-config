@@ -203,6 +203,14 @@
   来源准备、本地仓库/远端仓库选择与拉取
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
   release 版本解析、说明生成与发布流程
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode.rs`
+  Noctalia GPU 模式入口与参数分发
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/state.rs`
+  当前模式探测、specialisation 列表与状态文件读写
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/menu.rs`
+  GUI/CLI 菜单选择流程
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/apply.rs`
+  切换命令拼装与终端执行
 
 这里现在不只是“备用路线”，而是仓库的正式脚本实现。
 

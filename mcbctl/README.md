@@ -58,6 +58,14 @@
   配置来源、本地仓库探测、远端拉取与镜像重试
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
   release 版本、说明生成与 GitHub Release 发布
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode.rs`
+  Noctalia GPU 模式命令入口与参数分发
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/state.rs`
+  GPU 模式发现、当前模式探测与状态文件读写
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/menu.rs`
+  GUI/CLI 模式菜单与选择流程
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/apply.rs`
+  GPU specialisation 切换命令拼装与执行
 
 所以如果你改的是命令行为，重点看这里。
 如果你改的是“这个命令怎么进入系统或用户环境”，就要连同 `pkgs/mcbctl/` 和 `home/modules/desktop.nix` 一起看。
