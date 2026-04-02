@@ -177,7 +177,9 @@
 - `mcbctl/src/tui/views/`
   TUI 渲染层；已按页面拆开，不再继续把所有渲染堆在一个 `mod.rs` 里
 - `mcbctl/src/tui/state.rs`
-  当前保留的顶层状态机与跨页编排层
+  TUI 状态层聚合入口与模块装配
+- `mcbctl/src/tui/state/model.rs`
+  `AppContext` / `AppState` 模型定义与基础状态构造
 - `mcbctl/src/tui/state/`
   页面级状态逻辑分拆层；`deploy.rs`、`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经从主 `state.rs` 中拆出
 - `mcbctl/src/tui/state/helpers.rs`

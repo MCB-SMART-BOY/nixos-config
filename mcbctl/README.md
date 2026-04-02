@@ -28,7 +28,9 @@
 - `mcbctl/src/tui/views/`
   TUI 渲染层；页面渲染已拆成独立文件
 - `mcbctl/src/tui/state.rs`
-  当前的顶层状态机和跨页业务编排
+  TUI 状态层聚合入口与模块装配
+- `mcbctl/src/tui/state/model.rs`
+  `AppContext` / `AppState` 模型定义与基础状态构造
 - `mcbctl/src/tui/state/`
   页面级状态逻辑分拆层；`deploy.rs`、`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经独立出去
 - `mcbctl/src/tui/state/helpers.rs`
