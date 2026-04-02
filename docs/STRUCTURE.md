@@ -206,7 +206,9 @@
 - `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
   运行时配置聚合入口
 - `mcbctl/src/bin/control/mcb-deploy/runtime/`
-  per-user TUN、GPU、服务器运行时能力配置分拆层；`gpu.rs`、`tun.rs`、`server.rs` 分别承载各自的交互与状态写入
+  per-user TUN、GPU、服务器运行时能力配置分拆层；`tun.rs`、`server.rs` 分别承载各自职责，GPU 侧继续拆到 `runtime/gpu/`
+- `mcbctl/src/bin/control/mcb-deploy/runtime/gpu/`
+  GPU 自动探测、Bus ID 解析和交互配置分拆层；`detect.rs`、`prompt.rs` 分别承载硬件探测与交互式配置
 - `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
   新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
