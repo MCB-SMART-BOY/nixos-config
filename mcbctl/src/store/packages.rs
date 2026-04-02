@@ -153,21 +153,7 @@ fn load_user_managed_package_ids(
         }
     }
 
-    if !selected.is_empty() {
-        return selected;
-    }
-
-    let legacy_path = managed_dir.join("packages.nix");
-    let mut legacy_selected = BTreeMap::new();
-    for id in load_managed_package_ids(&legacy_path, catalog) {
-        let group = catalog
-            .iter()
-            .find(|entry| entry.id == id)
-            .map(|entry| entry.group_key().to_string())
-            .unwrap_or_else(|| "misc".to_string());
-        legacy_selected.insert(id, group);
-    }
-    legacy_selected
+    selected
 }
 
 fn load_managed_package_ids(path: &Path, catalog: &[CatalogEntry]) -> BTreeSet<String> {
