@@ -83,7 +83,7 @@
 - `mcb-deploy`
   直接部署 / release 流程
 - `noctalia-gpu-mode`
-  GPU specialisation 菜单与切换
+  GPU specialisation 菜单、状态输出与切换
 - `lock-screen`
   锁屏入口
 - `niri-run`
@@ -215,6 +215,9 @@ cargo run --bin mcb-deploy -- --help
 ```bash
 cd mcbctl
 cargo run --bin noctalia-gpu-mode
+
+# 查看当前模式切换建议
+cargo run --bin noctalia-gpu-mode -- --session-note
 ```
 
 ### 格式化

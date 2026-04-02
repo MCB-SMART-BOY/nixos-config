@@ -68,6 +68,9 @@ pub(super) fn menu_flow() -> Result<()> {
 
     let mut labels = vec!["base".to_string()];
     let mut label_to_mode = HashMap::new();
+    let default_mode = state::default_effective_mode();
+    labels[0] = format!("base (default: {default_mode})");
+    label_to_mode.insert(labels[0].clone(), "base".to_string());
     for m in &modes {
         let label = m.strip_prefix("gpu-").unwrap_or(m).to_string();
         labels.push(label.clone());
@@ -90,13 +93,9 @@ pub(super) fn menu_flow() -> Result<()> {
         return Ok(());
     }
 
-    let target = if selection == "base" {
-        "base".to_string()
-    } else {
-        match label_to_mode.get(&selection) {
-            Some(v) => v.clone(),
-            None => return Ok(()),
-        }
+    let target = match label_to_mode.get(&selection) {
+        Some(v) => v.clone(),
+        None => return Ok(()),
     };
 
     let cmd_path = select_self_command();
@@ -149,8 +148,10 @@ pub(super) fn menu_flow_cli() -> Result<()> {
         return Ok(());
     }
 
-    let mut labels = vec!["base".to_string()];
+    let default_mode = state::default_effective_mode();
+    let mut labels = vec![format!("base (default: {default_mode})")];
     let mut label_to_mode = HashMap::new();
+    label_to_mode.insert(labels[0].clone(), "base".to_string());
     for m in &modes {
         let label = m.strip_prefix("gpu-").unwrap_or(m).to_string();
         labels.push(label.clone());
@@ -166,9 +167,7 @@ pub(super) fn menu_flow_cli() -> Result<()> {
     };
     let selection = &labels[choice - 1];
 
-    if selection == "base" {
-        apply::apply_mode("base")
-    } else if let Some(mode) = label_to_mode.get(selection) {
+    if let Some(mode) = label_to_mode.get(selection) {
         apply::apply_mode(mode)
     } else {
         Ok(())

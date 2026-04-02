@@ -1,6 +1,58 @@
 use super::*;
 use anyhow::Context;
 
+fn desktop_notify(summary: &str, body: &str) {
+    if command_exists("notify-send") {
+        let _ = Command::new("notify-send").args([summary, body]).status();
+    }
+}
+
+fn transition_note(from_raw: &str, to_raw: &str) -> String {
+    let from_effective = state::effective_mode(from_raw);
+    let to_effective = state::effective_mode(to_raw);
+
+    if from_effective == to_effective {
+        if from_raw == to_raw {
+            return format!("当前已经是 {to_effective} 模式，无需额外处理。");
+        }
+        return format!(
+            "已切到 {to_raw}，但实际 GPU 模式仍是 {to_effective}。Waybar/Noctalia 会自动刷新。"
+        );
+    }
+
+    let relog_recommended = from_effective == "hybrid"
+        || to_effective == "hybrid"
+        || from_effective == "dgpu"
+        || to_effective == "dgpu";
+
+    if relog_recommended {
+        format!(
+            "已从 {from_effective} 切到 {to_effective}。Waybar/Noctalia 会自动刷新，但已打开的图形应用不会迁移到新 GPU。建议至少重启图形应用；如果出现渲染异常或性能不一致，建议注销并重新登录图形会话。"
+        )
+    } else {
+        format!(
+            "已从 {from_effective} 切到 {to_effective}。Waybar/Noctalia 会自动刷新，但已打开的图形应用通常需要手动重启。"
+        )
+    }
+}
+
+pub(super) fn show_session_note() -> Result<()> {
+    let raw_mode = state::current_mode();
+    let effective = state::effective_mode(&raw_mode);
+    let message = if raw_mode == "base" {
+        format!(
+            "当前 specialisation 是 base，实际默认 GPU 模式是 {effective}。切到其它模式后，Waybar/Noctalia 会自动刷新，但已打开的图形应用通常需要手动重启。涉及 hybrid 或 dgpu 的切换，更建议注销并重新登录图形会话。"
+        )
+    } else {
+        format!(
+            "当前 GPU 模式是 {effective}（specialisation: {raw_mode}）。切换后，Waybar/Noctalia 会自动刷新，但已打开的图形应用通常不会迁移到新 GPU。涉及 hybrid 或 dgpu 的切换，更建议注销并重新登录图形会话。"
+        )
+    };
+    println!("{message}");
+    desktop_notify("GPU specialisation", &message);
+    Ok(())
+}
+
 fn host_name() -> String {
     if let Ok(h) = fs::read_to_string("/etc/hostname") {
         let trimmed = h.trim().to_string();
@@ -150,6 +202,7 @@ pub(super) fn launch_in_terminal(command: &[String]) -> Result<()> {
 }
 
 pub(super) fn apply_mode(target: &str) -> Result<()> {
+    let previous_raw = state::current_mode();
     let (specialisation, store_mode) = if target.is_empty() || target == "base" {
         (None, "base".to_string())
     } else {
@@ -161,6 +214,9 @@ pub(super) fn apply_mode(target: &str) -> Result<()> {
     let status = run_inherit(&cmd)?;
     if status.success() {
         let _ = state::write_state_mode(&store_mode);
+        let note = transition_note(&previous_raw, &store_mode);
+        println!("{note}");
+        desktop_notify("GPU specialisation", &note);
         Ok(())
     } else {
         Err(anyhow!(

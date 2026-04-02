@@ -8,6 +8,61 @@ pub(super) fn mode_file() -> Option<PathBuf> {
     Some(config_home.join("noctalia/gpu-modes"))
 }
 
+fn default_mode_file() -> Option<PathBuf> {
+    let config_home = std::env::var("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|_| std::env::var("HOME").map(PathBuf::from))
+        .ok()?;
+    Some(config_home.join("noctalia/gpu-default-mode"))
+}
+
+fn parse_effective_mode_line(line: &str) -> Option<String> {
+    let no_comment = line.split('#').next().unwrap_or_default().trim();
+    if no_comment.is_empty() {
+        return None;
+    }
+    let normalized = normalize_mode(no_comment);
+    Some(
+        normalized
+            .strip_prefix("gpu-")
+            .unwrap_or(&normalized)
+            .to_string(),
+    )
+}
+
+pub(super) fn default_effective_mode() -> String {
+    if let Ok(raw) = std::env::var("NOCTALIA_GPU_DEFAULT_MODE")
+        && let Some(mode) = parse_effective_mode_line(&raw)
+    {
+        return mode;
+    }
+
+    if let Some(file) = default_mode_file()
+        && let Ok(text) = fs::read_to_string(file)
+        && let Some(mode) = text.lines().find_map(parse_effective_mode_line)
+    {
+        return mode;
+    }
+
+    "igpu".to_string()
+}
+
+pub(super) fn effective_mode(raw: &str) -> String {
+    if raw.is_empty() || raw == "base" {
+        return default_effective_mode();
+    }
+
+    let normalized = normalize_mode(raw);
+    normalized
+        .strip_prefix("gpu-")
+        .unwrap_or(&normalized)
+        .to_string()
+}
+
+pub(super) fn current_mode() -> String {
+    current_mode_inner()
+}
+
 fn state_file() -> Option<PathBuf> {
     let base = std::env::var("XDG_STATE_HOME")
         .map(PathBuf::from)
@@ -110,7 +165,7 @@ fn readlink_abs(path: &str) -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
-fn current_mode() -> String {
+fn current_mode_inner() -> String {
     for p in ["/run/current-system", "/run/booted-system"] {
         if let Some(abs) = readlink_abs(p)
             && let Some(mode) = mode_from_path(&abs)
@@ -141,11 +196,29 @@ fn current_mode() -> String {
 }
 
 pub(super) fn emit_status() {
-    let mode = current_mode();
-    let label = mode.strip_prefix("gpu-").unwrap_or(&mode);
+    let raw_mode = current_mode_inner();
+    let effective = effective_mode(&raw_mode);
+    let specialisation = if raw_mode == "base" {
+        format!("base (default: {effective})")
+    } else {
+        raw_mode.clone()
+    };
+    let class = if raw_mode == "base" {
+        vec![
+            "gpu-mode".to_string(),
+            "gpu-base".to_string(),
+            format!("gpu-{effective}"),
+        ]
+    } else {
+        vec!["gpu-mode".to_string(), raw_mode.clone()]
+    };
     let json = serde_json::json!({
-        "text": format!("GPU:{label}"),
-        "tooltip": format!("GPU specialisation: {mode}")
+        "text": format!("GPU:{effective}"),
+        "alt": effective,
+        "class": class,
+        "tooltip": format!(
+            "GPU specialisation: {specialisation}\nEffective mode: {effective}\n切换后 Waybar/Noctalia 会自动刷新，但已打开的图形应用通常需要手动重启。"
+        )
     });
     println!("{json}");
 }

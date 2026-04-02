@@ -193,6 +193,7 @@
         "interval": 5,
         "return-type": "json",
         "on-click": "sh -c \"$HOME/.local/bin/noctalia-gpu-mode --menu\"",
+        "on-click-right": "sh -c \"$HOME/.local/bin/noctalia-gpu-mode --session-note\"",
         "tooltip": true
     },
 

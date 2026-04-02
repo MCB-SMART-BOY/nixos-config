@@ -208,11 +208,25 @@ sudo nixos-rebuild switch --specialisation gpu-hybrid
 sudo nixos-rebuild switch --specialisation gpu-dgpu
 ```
 
+桌面侧现在的交互是：
+
+- 左键 GPU 按钮：打开模式菜单
+- 右键 GPU 按钮：查看当前模式切换建议
+- 文本显示：显示当前生效 GPU 模式；如果当前 specialisation 是 `base`，会在 tooltip 里额外说明默认模式
+
+也可以手动查看当前会话建议：
+
+```bash
+noctalia-gpu-mode --session-note
+```
+
 几个现实提醒：
 
 - BIOS 如果已经锁成 `dGPU-only`，切回 `igpu` 或 `hybrid` 可能会黑屏
 - `hybrid` 不是只写一个字符串，还需要正确的 busId
 - `mcb-deploy` 在向导里会优先尝试自动探测，再回退到现有配置
+- Waybar / Noctalia 会自动刷新，但已打开的图形应用通常不会迁移到新 GPU
+- 涉及 `hybrid` 或 `dgpu` 的切换，更稳的做法仍然是重启图形应用；如果出现渲染异常，建议注销并重新登录图形会话
 
 ## 7. 代理、TUN、per-user 路由
 

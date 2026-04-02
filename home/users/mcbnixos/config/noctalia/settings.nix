@@ -127,7 +127,7 @@
           icon = "gpu";
           textCommand = "${scriptBin}/noctalia-gpu-mode";
           leftClickExec = "${scriptBin}/noctalia-gpu-mode --menu";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e ${scriptBin}/noctalia-gpu-mode --menu-cli";
+          rightClickExec = "${scriptBin}/noctalia-gpu-mode --session-note";
           leftClickUpdateText = true;
           parseJson = true;
           textIntervalMs = 5000;

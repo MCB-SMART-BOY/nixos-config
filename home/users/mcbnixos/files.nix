@@ -10,6 +10,7 @@
 let
   gpuModes = lib.attrByPath [ "mcb" "hardware" "gpu" "specialisations" "modes" ] [ ] osConfig;
   gpuModesText = lib.concatStringsSep "\n" gpuModes + "\n";
+  gpuDefaultMode = lib.attrByPath [ "mcb" "hardware" "gpu" "mode" ] "igpu" osConfig;
 in
 
 {
@@ -44,6 +45,7 @@ in
   xdg.configFile."fastfetch/config.jsonc".source = ./config/fastfetch/config.jsonc;
   # Noctalia GPU 模式来源（当 /run/current-system/specialisation 不可用时）
   xdg.configFile."noctalia/gpu-modes".text = gpuModesText;
+  xdg.configFile."noctalia/gpu-default-mode".text = gpuDefaultMode + "\n";
 
   # 终端模拟器 / 编辑器配置
   xdg.configFile."foot/foot.ini".source = ./config/foot/foot.ini;
