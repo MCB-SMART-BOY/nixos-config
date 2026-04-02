@@ -248,6 +248,7 @@
 
 - `hosts/profiles/*.nix`
 - `modules/packages.nix`
+  其中系统包模块已经继续拆到 `modules/packages/options.nix`、`system.nix`、`group-defs.nix`、`suites.nix`
 - `modules/services/*.nix`
 - `modules/networking.nix`
 
