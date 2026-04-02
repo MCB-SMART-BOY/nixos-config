@@ -196,7 +196,9 @@
 - `mcbctl/src/bin/control/mcb-deploy/selection.rs`
   主机/用户/管理员选择、模板解析与相关校验
 - `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
-  per-user TUN、GPU、服务器运行时能力配置
+  运行时配置聚合入口
+- `mcbctl/src/bin/control/mcb-deploy/runtime/`
+  per-user TUN、GPU、服务器运行时能力配置分拆层；`gpu.rs`、`tun.rs`、`server.rs` 分别承载各自的交互与状态写入
 - `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
   新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
@@ -290,6 +292,7 @@
 - `mcbctl/src/bin/control/mcb-deploy/execute.rs`
 - `mcbctl/src/bin/control/mcb-deploy/selection.rs`
 - `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
+- `mcbctl/src/bin/control/mcb-deploy/runtime/`
 - `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
