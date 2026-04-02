@@ -21,7 +21,7 @@
 - 改新用户模板：`home/templates/users/`
 - 改主机模板：`hosts/templates/`
 - 改控制台入口：`mcbctl/src/bin/mcbctl.rs`
-- 改部署流程：`mcbctl/src/bin/mcb-deploy.rs`
+- 改部署流程：`mcbctl/src/bin/control/mcb-deploy.rs`
 - 改 Rust 公共逻辑：`mcbctl/src/lib.rs`
 
 ## 1. Home Manager 这一层，负责“人”
@@ -182,7 +182,7 @@ GPU 配置集中在：
 
 部署流程的主入口现在是：
 
-- `mcbctl/src/bin/mcb-deploy.rs`
+- `mcbctl/src/bin/control/mcb-deploy.rs`
 
 它负责的事情包括：
 
@@ -193,6 +193,13 @@ GPU 配置集中在：
 - `/etc/nixos` 同步
 - `nixos-rebuild` 重建
 - release 发布
+
+它内部现在也开始按职责继续拆：
+
+- `mcbctl/src/bin/control/mcb-deploy/source.rs`
+  配置来源、本地仓库探测、远端仓库拉取与镜像重试
+- `mcbctl/src/bin/control/mcb-deploy/release.rs`
+  release 版本解析、说明生成与发布
 
 这里有一个很重要的变化：
 

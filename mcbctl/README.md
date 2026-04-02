@@ -26,11 +26,22 @@
 - `mcbctl/src/tui/views/`
   TUI 渲染层；页面渲染已拆成独立文件
 - `mcbctl/src/tui/state.rs`
-  当前的状态机和页面业务编排
+  当前的顶层状态机和跨页业务编排
+- `mcbctl/src/tui/state/`
+  页面级状态逻辑分拆层；`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经独立出去
 - `pkgs/mcbctl/default.nix`
   把这些 Rust 二进制打成 Nix 包
 - `home/modules/desktop.nix`
   把桌面用户需要的命令带进 Home Manager 环境
+
+部署入口内部也开始收口成更清晰的层次：
+
+- `mcbctl/src/bin/control/mcb-deploy.rs`
+  部署向导的状态、流程和高层编排
+- `mcbctl/src/bin/control/mcb-deploy/source.rs`
+  配置来源、本地仓库探测、远端拉取与镜像重试
+- `mcbctl/src/bin/control/mcb-deploy/release.rs`
+  release 版本、说明生成与 GitHub Release 发布
 
 所以如果你改的是命令行为，重点看这里。
 如果你改的是“这个命令怎么进入系统或用户环境”，就要连同 `pkgs/mcbctl/` 和 `home/modules/desktop.nix` 一起看。

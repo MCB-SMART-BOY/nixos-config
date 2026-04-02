@@ -171,7 +171,18 @@
 - `mcbctl/src/tui/views/`
   TUI 渲染层；已按页面拆开，不再继续把所有渲染堆在一个 `mod.rs` 里
 - `mcbctl/src/tui/state.rs`
-  当前仍保留的状态机与业务编排层
+  当前保留的顶层状态机与跨页编排层
+- `mcbctl/src/tui/state/`
+  页面级状态逻辑分拆层；`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经从主 `state.rs` 中拆出
+
+部署入口本身也开始按职责拆分：
+
+- `mcbctl/src/bin/control/mcb-deploy.rs`
+  部署向导主入口与高层编排
+- `mcbctl/src/bin/control/mcb-deploy/source.rs`
+  来源准备、本地仓库/远端仓库选择与拉取
+- `mcbctl/src/bin/control/mcb-deploy/release.rs`
+  release 版本解析、说明生成与发布流程
 
 这里现在不只是“备用路线”，而是仓库的正式脚本实现。
 
@@ -244,10 +255,10 @@
 看：
 
 - `mcbctl/src/bin/mcbctl.rs`
-- `mcbctl/src/bin/mcb-deploy.rs`
-- `mcbctl/src/bin/update-zed-source.rs`
-- `mcbctl/src/bin/update-yesplaymusic-source.rs`
-- `mcbctl/src/bin/update-upstream-apps.rs`
+- `mcbctl/src/bin/control/mcb-deploy.rs`
+- `mcbctl/src/bin/control/mcb-deploy/source.rs`
+- `mcbctl/src/bin/control/mcb-deploy/release.rs`
+- `mcbctl/src/bin/update/`
 
 ## 最值得坚持的边界
 
