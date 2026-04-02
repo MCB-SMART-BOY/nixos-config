@@ -7,6 +7,13 @@ fn desktop_notify(summary: &str, body: &str) {
     }
 }
 
+fn switching_disabled_message(topology: state::HostGpuTopology) -> String {
+    format!(
+        "{} 当前主机不是多显卡机器，GPU 模式切换入口默认禁用。",
+        topology_message(topology)
+    )
+}
+
 fn topology_message(topology: state::HostGpuTopology) -> &'static str {
     match topology {
         state::HostGpuTopology::IgpuOnly => {
@@ -62,6 +69,13 @@ pub(super) fn show_session_note() -> Result<()> {
     let raw_mode = state::current_mode();
     let effective = state::effective_mode(&raw_mode);
     let topology = state::host_topology();
+    if topology != state::HostGpuTopology::MultiGpu {
+        let message = switching_disabled_message(topology);
+        println!("{message}");
+        desktop_notify("GPU specialisation", &message);
+        return Ok(());
+    }
+
     let message = if raw_mode == "base" {
         format!(
             "{} 当前 specialisation 是 base，实际默认 GPU 模式是 {effective}。切到其它模式后，Waybar/Noctalia 会自动刷新，但已打开的图形应用通常需要手动重启。涉及多显卡主机上的 hybrid 或 dgpu 切换，更建议注销并重新登录图形会话。",
@@ -228,6 +242,14 @@ pub(super) fn launch_in_terminal(command: &[String]) -> Result<()> {
 
 pub(super) fn apply_mode(target: &str) -> Result<()> {
     let previous_raw = state::current_mode();
+    let topology = state::host_topology();
+    if topology != state::HostGpuTopology::MultiGpu {
+        let message = switching_disabled_message(topology);
+        println!("{message}");
+        desktop_notify("GPU specialisation", &message);
+        return Ok(());
+    }
+
     let (specialisation, store_mode) = if target.is_empty() || target == "base" {
         (None, "base".to_string())
     } else {

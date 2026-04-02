@@ -305,6 +305,20 @@ pub(super) fn emit_status() {
     let raw_mode = current_mode_inner();
     let effective = effective_mode(&raw_mode);
     let topology = host_topology();
+    if topology != HostGpuTopology::MultiGpu {
+        let json = serde_json::json!({
+            "text": "",
+            "alt": effective,
+            "class": ["gpu-mode", "hidden", topology.id()],
+            "tooltip": format!(
+                "Host topology: {}\n当前主机不是多显卡机器，GPU 模式切换入口已隐藏。",
+                topology.summary()
+            )
+        });
+        println!("{json}");
+        return;
+    }
+
     let specialisation = if raw_mode == "base" {
         format!("base (default: {effective})")
     } else {

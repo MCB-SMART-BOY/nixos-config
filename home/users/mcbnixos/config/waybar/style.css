@@ -216,6 +216,16 @@ tooltip label {
     color: @accent-2;
 }
 
+#custom-gpu-mode.hidden {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: transparent;
+    opacity: 0;
+}
+
 #backlight {
     color: @accent-2;
 }

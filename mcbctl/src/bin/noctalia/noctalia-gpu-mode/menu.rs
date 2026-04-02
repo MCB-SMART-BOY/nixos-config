@@ -1,5 +1,12 @@
 use super::*;
 
+fn multi_gpu_required_note() -> String {
+    format!(
+        "当前主机拓扑是 {}，GPU 模式切换入口仅在多显卡主机上启用。",
+        state::host_topology().summary()
+    )
+}
+
 fn pick_menu(lines: &[String]) -> std::result::Result<String, MenuPickError> {
     let mut candidates: Vec<(&str, Vec<&str>)> = Vec::new();
     if command_exists("fuzzel") {
@@ -49,6 +56,16 @@ fn quote_shell(s: &str) -> String {
 }
 
 pub(super) fn menu_flow() -> Result<()> {
+    if state::host_topology() != state::HostGpuTopology::MultiGpu {
+        let hint = multi_gpu_required_note();
+        if command_exists("notify-send") {
+            let _ = Command::new("notify-send")
+                .args(["GPU specialisation", &hint])
+                .status();
+        }
+        return Ok(());
+    }
+
     let modes = state::list_modes();
     if modes.is_empty() {
         if command_exists("notify-send") {
@@ -138,6 +155,11 @@ fn read_choice(max: usize) -> Option<usize> {
 }
 
 pub(super) fn menu_flow_cli() -> Result<()> {
+    if state::host_topology() != state::HostGpuTopology::MultiGpu {
+        println!("{}", multi_gpu_required_note());
+        return Ok(());
+    }
+
     let modes = state::list_modes();
     if modes.is_empty() {
         let mut hint = format!(

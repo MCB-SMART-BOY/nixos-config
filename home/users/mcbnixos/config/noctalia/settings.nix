@@ -1,7 +1,26 @@
 # mcbnixos 专用 Noctalia 顶栏布局与按钮定义。
 # 该文件只负责 settings attrset；由 ../../noctalia.nix 载入。
 
-{ scriptBin }:
+{
+  scriptBin,
+  lib,
+  osConfig ? { },
+}:
+
+let
+  gpuDefaultMode = lib.attrByPath [ "mcb" "hardware" "gpu" "mode" ] "igpu" osConfig;
+  gpuIntelBusId = lib.attrByPath [ "mcb" "hardware" "gpu" "prime" "intelBusId" ] null osConfig;
+  gpuAmdBusId = lib.attrByPath [ "mcb" "hardware" "gpu" "prime" "amdgpuBusId" ] null osConfig;
+  gpuNvidiaBusId = lib.attrByPath [ "mcb" "hardware" "gpu" "prime" "nvidiaBusId" ] null osConfig;
+  gpuHostTopology =
+    if gpuNvidiaBusId != null && (gpuIntelBusId != null || gpuAmdBusId != null) then
+      "multi-gpu"
+    else if gpuNvidiaBusId != null || gpuDefaultMode == "dgpu" then
+      "dgpu-only"
+    else
+      "igpu-only";
+  gpuButtonEnabled = gpuHostTopology == "multi-gpu";
+in
 
 {
   bar = {
@@ -122,6 +141,7 @@
         { id = "Volume"; }
         { id = "Brightness"; }
         { id = "Battery"; }
+      ] ++ (if gpuButtonEnabled then [
         {
           id = "CustomButton";
           icon = "gpu";
@@ -136,6 +156,7 @@
             vertical = 10;
           };
         }
+      ] else [ ]) ++ [
         {
           id = "CustomButton";
           icon = "shield";

@@ -232,6 +232,8 @@ noctalia-gpu-mode --host-topology
 - `multi-gpu`
 - `dgpu-only`
 
+其中 GPU 模式按钮和交互入口默认只在 `multi-gpu` 主机上启用；单集显或独显主机会自动隐藏这个入口，并退化成说明信息。
+
 几个现实提醒：
 
 - BIOS 如果已经锁成 `dGPU-only`，切回 `igpu` 或 `hybrid` 可能会黑屏
