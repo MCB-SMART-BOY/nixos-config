@@ -137,7 +137,7 @@
   起步示例
 - `config/`
   会被链接到 `~/.config`
-  其中 shell 通用模块继续拆在 `home/modules/shell/*.nix`，fish 交互层按 `config/fish/conf.d/*.fish` 拆分，不再把所有逻辑塞进单个 `config.fish`
+  其中 shell 通用模块继续拆在 `home/modules/shell/*.nix`，fish 交互层按 `config/fish/conf.d/*.fish` 拆分；函数层也继续按 `core` / `navigation` / `nixos` / `file` 分开，不再把所有逻辑塞进单个文件
 - `assets/`
   这个用户自己的资源文件
 
