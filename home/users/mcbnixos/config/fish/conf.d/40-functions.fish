@@ -11,6 +11,12 @@ end
 function cd --description 'cd with zoxide fallback' --wraps cd
     set -l current_dir $PWD
 
+    if not status is-interactive
+        builtin cd $argv
+        and set -gx OLDPWD $current_dir
+        return $status
+    end
+
     if test (count $argv) -eq 0
         builtin cd ~
         and set -gx OLDPWD $current_dir
@@ -116,6 +122,11 @@ end
 
 function extract
     set -l file $argv[1]
+    if test -z "$file"
+        echo "extract: 缺少压缩包路径"
+        return 1
+    end
+
     if not test -f "$file"
         echo "'$file' 不是有效文件"
         return 1
@@ -166,7 +177,7 @@ function fe
 
     set -l preview_cmd 'sed -n "1,200p" {}'
     if command -q bat
-        set preview_cmd 'bat --color=always {}'
+        set preview_cmd 'bat --color=always --paging=never --line-range=:200 {}'
     end
     set -l file (fd --type f --hidden --exclude .git | fzf --preview "$preview_cmd")
     if test -n "$file"

@@ -1,5 +1,9 @@
 # 高频快捷入口：nix、git、cargo 和日常命令。
 
+if not status is-interactive
+    return
+end
+
 if command -q zoxide
     alias j='z'
     alias ji='zi'

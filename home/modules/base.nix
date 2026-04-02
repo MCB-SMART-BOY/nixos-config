@@ -7,7 +7,7 @@ let
   homeDir = config.home.homeDirectory;
   # 统一编辑器/终端默认值，应用会读取这些变量
   editor = "hx";
-  manpager = "less -R";
+  manpager = "sh -c 'col -bx | bat -l man -p'";
   terminal = "alacritty";
 in
 {
@@ -17,7 +17,12 @@ in
     VISUAL = lib.mkDefault editor;
     TERMINAL = lib.mkDefault terminal;
     BROWSER = lib.mkDefault "firefox";
+    COLORTERM = lib.mkDefault "truecolor";
+    PAGER = lib.mkDefault "less";
+    LESS = lib.mkDefault "--RAW-CONTROL-CHARS --LONG-PROMPT --ignore-case --quit-if-one-screen --tabs=4";
     MANPAGER = lib.mkDefault manpager;
+    GIT_PAGER = lib.mkDefault "delta";
+    DELTA_PAGER = lib.mkDefault "less";
 
     # XDG 目录：统一用户配置/缓存/数据位置
     XDG_CONFIG_HOME = "${homeDir}/.config";
