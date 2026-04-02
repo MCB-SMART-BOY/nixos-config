@@ -187,7 +187,7 @@
 - `mcbctl/src/tui/state/hosts/`
   `Users` / `Hosts` 两页的进一步分拆层；用户结构编辑和运行时配置编辑分别落到 `users.rs`、`runtime.rs`
 - `mcbctl/src/tui/state/packages/`
-  `Packages` 页的进一步分拆层；浏览/汇总和交互修改分别落到 `browse.rs`、`mutate.rs`
+  `Packages` 页的进一步分拆层；浏览/汇总落到 `browse.rs`，交互修改继续拆到 `mutate_navigation.rs`、`mutate_search.rs`、`mutate_groups.rs`、`mutate_save.rs`
 
 部署入口本身也开始按职责拆分：
 

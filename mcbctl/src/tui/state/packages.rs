@@ -1,7 +1,14 @@
 use super::*;
 
 mod browse;
-mod mutate;
+#[path = "packages/mutate_groups.rs"]
+mod mutate_groups;
+#[path = "packages/mutate_navigation.rs"]
+mod mutate_navigation;
+#[path = "packages/mutate_save.rs"]
+mod mutate_save;
+#[path = "packages/mutate_search.rs"]
+mod mutate_search;
 
 impl AppState {
     fn current_user_selection(&self) -> Option<&BTreeMap<String, String>> {
