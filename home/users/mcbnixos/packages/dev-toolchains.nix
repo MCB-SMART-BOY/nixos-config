@@ -4,6 +4,7 @@
 
 with pkgs; [
   rustup # Rust 工具链管理
+  cargo-watch # cargo watch -x check 等工作流
   opam # OCaml 包管理
   elan # Lean 工具链管理
   gnumake # make 构建
