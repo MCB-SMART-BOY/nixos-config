@@ -94,8 +94,6 @@
   从同一入口直接转发到部署向导
 - `mcbctl release`
   从同一入口直接转发到发布流程
-- `mcb-tui`
-  显式 TUI 别名；和 `mcbctl` 指向同一类控制台入口
 - `mcb-deploy`
   直接部署 / release 流程
 - `noctalia-gpu-mode`
@@ -125,12 +123,6 @@ nix run .#mcbctl
 
 ```bash
 nix run .#mcbctl -- deploy
-```
-
-如果你想显式写 TUI 名称，也可以：
-
-```bash
-nix run .#mcb-tui
 ```
 
 如果你要直接进部署向导：

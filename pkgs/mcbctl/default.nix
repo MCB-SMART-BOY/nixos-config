@@ -21,7 +21,6 @@ rustPlatform.buildRustPackage {
   doCheck = false;
 
   postInstall = ''
-    ln -s "$out/bin/mcbctl" "$out/bin/mcb-tui"
     ln -s "$out/bin/mcb-deploy" "$out/bin/deploy"
   '';
 

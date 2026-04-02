@@ -149,7 +149,6 @@
         {
           default = mkApp "${mcbctlPkg}/bin/mcbctl";
           mcbctl = mkApp "${mcbctlPkg}/bin/mcbctl";
-          mcb-tui = mkApp "${mcbctlPkg}/bin/mcbctl";
           mcb-deploy = mkApp "${mcbctlPkg}/bin/mcb-deploy";
           deploy = mkApp "${mcbctlPkg}/bin/deploy";
           update-zed-source = mkApp "${mcbctlPkg}/bin/update-zed-source";
