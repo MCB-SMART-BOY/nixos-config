@@ -31,7 +31,10 @@ in
   };
 
   # Shell / Tmux 配置
-  programs.fish.interactiveShellInit = builtins.readFile ./config/fish/config.fish;
+  xdg.configFile."fish/conf.d" = {
+    source = ./config/fish/conf.d;
+    recursive = true;
+  };
   programs.tmux.extraConfig = builtins.readFile ./config/tmux/tmux.conf;
 
   # 终端与系统工具配置

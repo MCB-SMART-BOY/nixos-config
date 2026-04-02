@@ -137,6 +137,7 @@
   起步示例
 - `config/`
   会被链接到 `~/.config`
+  其中 fish 已经按 `config/fish/conf.d/*.fish` 拆分，不再把所有交互逻辑塞进单个 `config.fish`
 - `assets/`
   这个用户自己的资源文件
 
