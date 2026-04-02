@@ -40,13 +40,24 @@ let
     # 基础运行时工具
     bash
     coreutils
+    diffutils
     findutils
     gawk
     gnugrep
+    gnused
+    gnutar
+    gzip
     iproute2
+    iputils
+    inetutils
+    less
     procps
+    psmisc
     util-linux
     systemd
+    which
+    xz
+    bzip2
     # Vulkan 用户态 loader（提供 libvulkan.so.1）
     vulkan-loader
   ];
@@ -68,17 +79,45 @@ let
   ];
 
   shellTools = with pkgs; [
-    # 核心命令行工具
+    # 经典 CLI 基座：补齐其他发行版常见但 NixOS 默认未必直接给出的命令
     git
     lazygit
     wget
     curl
+    openssh
+    man-db
+    man-pages
+    bind
+    netcat-openbsd
+    pciutils
+    htop
+    lsof
+    file
+    tree
+    unzip
+    zip
+    p7zip
+    rsync
+    # 现代替代与增强
     eza
     fd
     fzf
     ripgrep
     bat
+    bat-extras.batdiff
+    bat-extras.batgrep
+    bat-extras.batman
+    bat-extras.batwatch
+    bat-extras.prettybat
     delta
+    tealdeer
+    atuin
+    broot
+    sd
+    xh
+    zellij
+    ouch
+    doggo
     # 命令行工作流
     zoxide
     starship
@@ -174,13 +213,10 @@ let
     lldb
     # 二进制工具
     patchelf
-    file
     # 性能与监控
-    htop
     iotop
     iftop
     sysstat
-    lsof
     # 网络诊断
     mtr
     nmap
@@ -193,11 +229,6 @@ let
     hyperfine
     tokei
     # 压缩与传输
-    tree
-    unzip
-    zip
-    p7zip
-    rsync
     rclone
     # 构建辅助
     just

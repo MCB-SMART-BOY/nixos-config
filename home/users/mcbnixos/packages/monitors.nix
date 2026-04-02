@@ -8,6 +8,7 @@
 }:
 
 lib.optionals (!(hostPkgEnabled "enableShellTools")) (with pkgs; [
+  htop # 传统进程查看器
   btop # 现代资源监控 TUI
   bottom # 资源监控 TUI（另一个风格）
   fastfetch # 系统信息展示
@@ -15,4 +16,5 @@ lib.optionals (!(hostPkgEnabled "enableShellTools")) (with pkgs; [
   gdu # 磁盘空间分析
   dust # 目录体积分析
   procs # ps 增强版
+  lsof # 文件句柄/端口占用查询
 ])

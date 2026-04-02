@@ -37,6 +37,12 @@ if command -q fish_add_path
     fish_add_path --move --prepend $HOME/.local/bin
 end
 
+if status is-interactive
+    if command -q atuin
+        atuin init fish | source
+    end
+end
+
 if command -q eza
     alias ls='eza --icons --group-directories-first --git'
     alias ll='eza -l --icons --group-directories-first --git --time-style=long-iso'
@@ -47,6 +53,14 @@ end
 if command -q bat
     alias bcat='bat --paging=never --style=plain'
     alias catt='bat --paging=always'
+end
+
+if command -q broot
+    alias br='broot'
+end
+
+if command -q tldr
+    alias tl='tldr'
 end
 
 alias grep='grep --color=auto'
