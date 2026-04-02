@@ -46,6 +46,10 @@ if command -q zed
     alias ze='zed'
 end
 
+if command -q yy
+    alias y='yy'
+end
+
 alias ip='ip -color=auto'
 alias myip='curl -s https://ipinfo.io/ip'
 alias ports='ss -tulanp'

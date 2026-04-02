@@ -7,6 +7,34 @@
     enable = true;
   };
 
+  programs.eza = {
+    enable = true;
+    enableFishIntegration = true;
+    git = true;
+    icons = "auto";
+    colors = "auto";
+    extraOptions = [
+      "--group-directories-first"
+      "--time-style=long-iso"
+    ];
+  };
+
+  programs.bat = {
+    enable = true;
+    config = {
+      paging = "never";
+      style = "plain";
+    };
+  };
+
+  programs.broot = {
+    enable = true;
+    enableFishIntegration = true;
+    settings = {
+      modal = true;
+    };
+  };
+
   programs.fzf = {
     enable = true;
     enableFishIntegration = true;

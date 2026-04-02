@@ -121,6 +121,11 @@ function extract
         return 1
     end
 
+    if command -q ouch
+        ouch decompress $file
+        return $status
+    end
+
     switch $file
         case '*.tar.bz2'
             tar xjf $file
@@ -149,6 +154,16 @@ function extract
 end
 
 function fe
+    if not command -q fzf
+        echo "fe: 缺少 fzf"
+        return 1
+    end
+
+    if not command -q fd
+        echo "fe: 缺少 fd"
+        return 1
+    end
+
     set -l preview_cmd 'sed -n "1,200p" {}'
     if command -q bat
         set preview_cmd 'bat --color=always {}'
@@ -160,7 +175,22 @@ function fe
 end
 
 function fcd
-    set -l dir (fd --type d --hidden --exclude .git | fzf --preview 'eza -la --icons {}')
+    if not command -q fzf
+        echo "fcd: 缺少 fzf"
+        return 1
+    end
+
+    if not command -q fd
+        echo "fcd: 缺少 fd"
+        return 1
+    end
+
+    set -l preview_cmd 'ls -la {}'
+    if command -q eza
+        set preview_cmd 'eza -la --icons {}'
+    end
+
+    set -l dir (fd --type d --hidden --exclude .git | fzf --preview "$preview_cmd")
     if test -n "$dir"
         cd $dir
     end

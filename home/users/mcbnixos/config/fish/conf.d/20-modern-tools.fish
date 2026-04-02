@@ -5,9 +5,6 @@ if not status is-interactive
 end
 
 if command -q eza
-    alias ls='eza --icons --group-directories-first --git'
-    alias ll='eza -l --icons --group-directories-first --git --time-style=long-iso'
-    alias la='eza -la --icons --group-directories-first --git'
     alias tree='eza --tree --icons'
 end
 
@@ -27,10 +24,6 @@ end
 
 if command -q batwatch
     alias watch='batwatch'
-end
-
-if command -q broot
-    alias br='broot'
 end
 
 if command -q tldr
