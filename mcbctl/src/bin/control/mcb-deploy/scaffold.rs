@@ -151,9 +151,6 @@ impl App {
     ./packages.nix
   ]
   ++ lib.optional (builtins.pathExists ./settings/default.nix) ./settings/default.nix
-  ++ lib.optional (
-    (!builtins.pathExists ./settings/default.nix) && builtins.pathExists ./settings.nix
-  ) ./settings.nix
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 }
 "#,
@@ -208,21 +205,6 @@ in
                 )?;
             }
 
-            let managed_settings = managed_dir.join("settings.nix");
-            if !managed_settings.is_file() {
-                fs::write(
-                    &managed_settings,
-                    r#"# 兼容旧结构的用户设置入口。
-# 现在用户级 managed 设置已经拆成 settings/default.nix + desktop/session/mime 分片。
-
-{ ... }:
-
-{
-}
-"#,
-                )?;
-            }
-
             let managed_settings_dir = managed_dir.join("settings");
             fs::create_dir_all(&managed_settings_dir)?;
 
@@ -240,11 +222,9 @@ let
     (lib.optional (builtins.pathExists ./session.nix) ./session.nix)
     (lib.optional (builtins.pathExists ./mime.nix) ./mime.nix)
   ];
-  legacySettings =
-    lib.optional ((splitImports == [ ]) && builtins.pathExists ../settings.nix) ../settings.nix;
 in
 {
-  imports = splitImports ++ legacySettings;
+  imports = splitImports;
 }
 "#,
                 )?;

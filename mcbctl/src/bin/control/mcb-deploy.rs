@@ -123,7 +123,6 @@ enum WizardAction {
 
 struct App {
     repo_dir: PathBuf,
-    app_version: String,
     repo_urls: Vec<String>,
     branch: String,
     source_ref: String,
@@ -186,14 +185,6 @@ struct App {
 impl App {
     fn new() -> Result<Self> {
         let repo_dir = detect_repo_dir()?;
-        let version_file = repo_dir.join("VERSION");
-        let mut app_version = "v2026.03.20".to_string();
-        if let Ok(v) = fs::read_to_string(&version_file) {
-            let trimmed = v.trim();
-            if !trimmed.is_empty() {
-                app_version = trimmed.to_string();
-            }
-        }
         let git_clone_timeout_sec = std::env::var("GIT_CLONE_TIMEOUT_SEC")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
@@ -202,7 +193,6 @@ impl App {
 
         Ok(Self {
             repo_dir,
-            app_version,
             repo_urls: vec![
                 "https://gitee.com/MCB-SMART-BOY/nixos-config.git".to_string(),
                 "https://github.com/MCB-SMART-BOY/nixos-config.git".to_string(),
@@ -292,7 +282,7 @@ impl App {
 
     fn banner(&self) {
         println!("==========================================");
-        println!("  NixOS 一键部署（mcbctl {}）", self.app_version);
+        println!("  NixOS 一键部署（mcbctl）");
         println!("==========================================");
     }
 
@@ -327,7 +317,7 @@ impl App {
   所有配置项（部署模式、来源、覆盖策略、用户、权限、GPU、TUN 等）
   均在执行过程中通过菜单选择。
 
-  release 模式用于发布新版本：更新 VERSION、创建 tag，并发布 GitHub Release。"
+  release 模式用于发布新版本：创建 tag，并发布 GitHub Release。"
         );
     }
 

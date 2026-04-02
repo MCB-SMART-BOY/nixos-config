@@ -80,11 +80,6 @@ impl App {
         }
     }
 
-    pub(super) fn update_version_files(&self, version: &str) -> Result<()> {
-        fs::write(self.repo_dir.join("VERSION"), format!("{version}\n"))?;
-        Ok(())
-    }
-
     pub(super) fn release_flow(&mut self) -> Result<()> {
         self.banner();
         if !command_exists("git") {
@@ -131,25 +126,6 @@ impl App {
             }
             println!("\nRelease Notes 预览：\n{notes}\n");
             self.confirm_continue(&format!("确认发布 {version}？"))?;
-        }
-
-        self.update_version_files(&version)?;
-        let add = Command::new("git").args(["add", "VERSION"]).status()?;
-        if !add.success() {
-            bail!("git add 失败");
-        }
-        let cached = Command::new("git")
-            .args(["diff", "--cached", "--quiet"])
-            .status()?;
-        if !cached.success() {
-            let commit = Command::new("git")
-                .args(["commit", "-m", &format!("release: {version}")])
-                .status()?;
-            if !commit.success() {
-                bail!("版本提交失败");
-            }
-        } else {
-            self.warn("VERSION 未变化，跳过版本提交。");
         }
 
         for args in [

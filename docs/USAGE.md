@@ -48,7 +48,7 @@ nix run .#mcb-deploy
 
 - 部署任务模型
 - `managed/` 机器管理区落点
-- `Packages` 页面默认走 `nixpkgs` 搜索；`catalog/packages/*.toml` 现在只保留本地覆盖层 / 仓库内自维护包元数据（`catalog/packages.toml` 只保留兼容占位）
+- `Packages` 页面默认走 `nixpkgs` 搜索；`catalog/packages/*.toml` 现在只保留本地覆盖层 / 仓库内自维护包元数据
 - `Packages` 页面可以为指定用户勾选软件，并按组写入 `home/users/<user>/managed/packages/*.nix`
   当前组标签、说明和排序来自 `catalog/groups.toml`
   常用按键：`←/→` 切用户，`f` 在 `nixpkgs` 搜索 / 本地覆盖视图之间切换，`/` 输入关键词，`Enter` 或 `r` 刷新搜索，`j/k` 选软件，`[`/`]` 切分类，`u/i` 切来源过滤，`g/G` 改目标组，`m/M` 整组移动，`,`/`.` 切组过滤，`z` 聚焦当前条目所在组，`Z` 清空组过滤，`n` 新建组，`R` 重命名当前组，`Space` 勾选，`s` 保存

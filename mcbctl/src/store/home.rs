@@ -23,14 +23,7 @@ pub fn load_user_managed_settings(repo_root: &Path, user: &str) -> HomeManagedSe
     let content = if let Ok(content) = fs::read_to_string(&split_path) {
         content
     } else {
-        let legacy_path = repo_root
-            .join("home/users")
-            .join(user)
-            .join("managed/settings.nix");
-        let Ok(content) = fs::read_to_string(legacy_path) else {
-            return HomeManagedSettings::default();
-        };
-        content
+        return HomeManagedSettings::default();
     };
 
     HomeManagedSettings {
@@ -134,11 +127,9 @@ fn render_settings_default_file() -> String {
         "    (lib.optional (builtins.pathExists ./session.nix) ./session.nix)",
         "    (lib.optional (builtins.pathExists ./mime.nix) ./mime.nix)",
         "  ];",
-        "  legacySettings =",
-        "    lib.optional ((splitImports == [ ]) && builtins.pathExists ../settings.nix) ../settings.nix;",
         "in",
         "{",
-        "  imports = splitImports ++ legacySettings;",
+        "  imports = splitImports;",
         "}",
         "",
     ]

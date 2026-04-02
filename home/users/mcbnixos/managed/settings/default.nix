@@ -8,9 +8,7 @@ let
     (lib.optional (builtins.pathExists ./session.nix) ./session.nix)
     (lib.optional (builtins.pathExists ./mime.nix) ./mime.nix)
   ];
-  legacySettings =
-    lib.optional ((splitImports == [ ]) && builtins.pathExists ../settings.nix) ../settings.nix;
 in
 {
-  imports = splitImports ++ legacySettings;
+  imports = splitImports;
 }

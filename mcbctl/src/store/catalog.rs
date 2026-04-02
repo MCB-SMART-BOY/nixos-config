@@ -23,16 +23,12 @@ struct HomeOptionsCatalog {
 }
 
 pub fn load_catalog(path: &Path) -> (Vec<CatalogEntry>, Vec<String>, Vec<String>) {
-    let packages_dir = path.parent().map(|parent| parent.join("packages"));
-    let packages = if let Some(dir) = packages_dir
+    let packages = if path.is_dir() {
+        load_catalog_directory(path)
+    } else if let Some(dir) = path.parent().map(|parent| parent.join("packages"))
         && dir.is_dir()
     {
-        let split = load_catalog_directory(&dir);
-        if !split.is_empty() {
-            split
-        } else {
-            load_catalog_file(path)
-        }
+        load_catalog_directory(&dir)
     } else {
         load_catalog_file(path)
     };

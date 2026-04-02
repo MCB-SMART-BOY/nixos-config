@@ -72,7 +72,7 @@ impl AppContext {
         let hosts = list_hosts(&repo_root);
         let users = list_users(&repo_root);
 
-        let catalog_path = repo_root.join("catalog/packages.toml");
+        let catalog_path = repo_root.join("catalog/packages");
         let catalog_groups_path = repo_root.join("catalog/groups.toml");
         let catalog_home_options_path = repo_root.join("catalog/home-options.toml");
         let (catalog_entries, catalog_categories, catalog_sources) = load_catalog(&catalog_path);

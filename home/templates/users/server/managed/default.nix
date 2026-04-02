@@ -7,8 +7,5 @@
     ./packages.nix
   ]
   ++ lib.optional (builtins.pathExists ./settings/default.nix) ./settings/default.nix
-  ++ lib.optional (
-    (!builtins.pathExists ./settings/default.nix) && builtins.pathExists ./settings.nix
-  ) ./settings.nix
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 }

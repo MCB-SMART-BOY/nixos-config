@@ -3,7 +3,5 @@
 { lib, ... }:
 
 {
-  imports = [
-    ./override.nix
-  ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
+  imports = [ ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 }
