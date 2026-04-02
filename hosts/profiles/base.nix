@@ -17,4 +17,10 @@
       "dgpu"
     ];
   };
+
+  # 经典计划任务工具默认可用；现代 systemd timers 同时保留。
+  mcb.services = {
+    enableCron = lib.mkDefault true;
+    enableAtd = lib.mkDefault true;
+  };
 }

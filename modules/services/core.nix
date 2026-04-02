@@ -174,6 +174,10 @@ let
     };
 in
 {
+  # 经典调度器：通过 mcb.services.* 显式控制，避免散落在主机文件中。
+  services.cron.enable = config.mcb.services.enableCron;
+  services.atd.enable = config.mcb.services.enableAtd;
+
   # 允许远程 SSH 连接
   services.openssh.enable = true;
 

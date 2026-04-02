@@ -8,6 +8,7 @@
     ./options/users.nix
     ./options/nix.nix
     ./options/networking.nix
+    ./options/services.nix
     ./options/flatpak.nix
     ./options/desktop.nix
     ./options/hardware.nix
