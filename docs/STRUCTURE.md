@@ -173,7 +173,9 @@
 - `mcbctl/src/tui/state.rs`
   当前保留的顶层状态机与跨页编排层
 - `mcbctl/src/tui/state/`
-  页面级状态逻辑分拆层；`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经从主 `state.rs` 中拆出
+  页面级状态逻辑分拆层；`deploy.rs`、`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经从主 `state.rs` 中拆出
+- `mcbctl/src/tui/state/hosts/`
+  `Users` / `Hosts` 两页的进一步分拆层；用户结构编辑和运行时配置编辑分别落到 `users.rs`、`runtime.rs`
 - `mcbctl/src/tui/state/packages/`
   `Packages` 页的进一步分拆层；浏览/汇总和交互修改分别落到 `browse.rs`、`mutate.rs`
 

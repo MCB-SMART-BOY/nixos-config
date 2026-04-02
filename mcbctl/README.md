@@ -28,7 +28,9 @@
 - `mcbctl/src/tui/state.rs`
   当前的顶层状态机和跨页业务编排
 - `mcbctl/src/tui/state/`
-  页面级状态逻辑分拆层；`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经独立出去
+  页面级状态逻辑分拆层；`deploy.rs`、`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经独立出去
+- `mcbctl/src/tui/state/hosts/`
+  `Users` / `Hosts` 页进一步拆成 `users.rs` 和 `runtime.rs`
 - `mcbctl/src/tui/state/packages/`
   `Packages` 页进一步拆成 `browse.rs` 和 `mutate.rs`，不再把浏览、搜索、分组编辑和落盘全堆在一个文件里
 - `pkgs/mcbctl/default.nix`
