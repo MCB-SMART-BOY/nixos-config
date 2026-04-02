@@ -45,7 +45,9 @@
 - `mcbctl/src/bin/control/mcb-deploy/ui.rs`
   基础交互输出、菜单和确认提示
 - `mcbctl/src/bin/control/mcb-deploy/orchestrate.rs`
-  环境检查、仓库自检、临时 DNS、部署编排与总执行入口
+  部署编排聚合入口
+- `mcbctl/src/bin/control/mcb-deploy/orchestrate/`
+  环境检查、仓库自检、临时 DNS、部署编排与总执行入口分拆层
 - `mcbctl/src/bin/control/mcb-deploy/utils.rs`
   仓库探测、临时路径、复制与校验等通用工具函数
 - `mcbctl/src/bin/control/mcb-deploy/plan.rs`
