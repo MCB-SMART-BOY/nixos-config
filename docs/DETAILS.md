@@ -196,6 +196,18 @@ GPU 配置集中在：
 
 它内部现在也开始按职责继续拆：
 
+- `mcbctl/src/bin/control/mcb-deploy/plan.rs`
+  部署摘要、计划对象生成和同步/重建命令预览
+- `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
+  交互式部署向导的步骤流转与回退
+- `mcbctl/src/bin/control/mcb-deploy/execute.rs`
+  `/etc/nixos` 备份、同步与 `nixos-rebuild` 执行
+- `mcbctl/src/bin/control/mcb-deploy/selection.rs`
+  主机/用户/管理员选择、模板解析和基础校验
+- `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
+  per-user TUN、GPU、服务器运行时能力配置
+- `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
+  新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
   配置来源、本地仓库探测、远端仓库拉取与镜像重试
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`

@@ -29,6 +29,8 @@
   当前的顶层状态机和跨页业务编排
 - `mcbctl/src/tui/state/`
   页面级状态逻辑分拆层；`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经独立出去
+- `mcbctl/src/tui/state/packages/`
+  `Packages` 页进一步拆成 `browse.rs` 和 `mutate.rs`，不再把浏览、搜索、分组编辑和落盘全堆在一个文件里
 - `pkgs/mcbctl/default.nix`
   把这些 Rust 二进制打成 Nix 包
 - `home/modules/desktop.nix`
@@ -38,6 +40,18 @@
 
 - `mcbctl/src/bin/control/mcb-deploy.rs`
   部署向导的状态、流程和高层编排
+- `mcbctl/src/bin/control/mcb-deploy/plan.rs`
+  部署摘要、计划对象生成与命令预览
+- `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
+  交互式向导步骤与回退流转
+- `mcbctl/src/bin/control/mcb-deploy/execute.rs`
+  `/etc/nixos` 备份、同步与 `nixos-rebuild` 执行
+- `mcbctl/src/bin/control/mcb-deploy/selection.rs`
+  主机/用户/管理员选择、模板解析和基础校验
+- `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
+  per-user TUN、GPU、服务器运行时能力配置
+- `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
+  新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
   配置来源、本地仓库探测、远端拉取与镜像重试
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`

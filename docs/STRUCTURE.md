@@ -174,11 +174,25 @@
   当前保留的顶层状态机与跨页编排层
 - `mcbctl/src/tui/state/`
   页面级状态逻辑分拆层；`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经从主 `state.rs` 中拆出
+- `mcbctl/src/tui/state/packages/`
+  `Packages` 页的进一步分拆层；浏览/汇总和交互修改分别落到 `browse.rs`、`mutate.rs`
 
 部署入口本身也开始按职责拆分：
 
 - `mcbctl/src/bin/control/mcb-deploy.rs`
   部署向导主入口与高层编排
+- `mcbctl/src/bin/control/mcb-deploy/plan.rs`
+  部署摘要、`DeployPlan` 拼装和 `nixos-rebuild` / repo sync 计划对象生成
+- `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
+  交互式部署向导的步骤流转与回退逻辑
+- `mcbctl/src/bin/control/mcb-deploy/execute.rs`
+  `/etc/nixos` 备份、同步与重建执行
+- `mcbctl/src/bin/control/mcb-deploy/selection.rs`
+  主机/用户/管理员选择、模板解析与相关校验
+- `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
+  per-user TUN、GPU、服务器运行时能力配置
+- `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
+  新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
   来源准备、本地仓库/远端仓库选择与拉取
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
@@ -256,6 +270,12 @@
 
 - `mcbctl/src/bin/mcbctl.rs`
 - `mcbctl/src/bin/control/mcb-deploy.rs`
+- `mcbctl/src/bin/control/mcb-deploy/plan.rs`
+- `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
+- `mcbctl/src/bin/control/mcb-deploy/execute.rs`
+- `mcbctl/src/bin/control/mcb-deploy/selection.rs`
+- `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
+- `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
 - `mcbctl/src/bin/update/`
