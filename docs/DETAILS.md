@@ -217,6 +217,12 @@ GPU 配置集中在：
   运行时配置聚合入口
 - `mcbctl/src/bin/control/mcb-deploy/runtime/`
   per-user TUN、GPU、服务器运行时能力配置分拆层
+- `mcbctl/src/bin/control/mcb-deploy/ui.rs`
+  基础交互输出、菜单和确认提示
+- `mcbctl/src/bin/control/mcb-deploy/orchestrate.rs`
+  环境检查、仓库自检、临时 DNS、部署编排与总执行入口
+- `mcbctl/src/bin/control/mcb-deploy/utils.rs`
+  仓库探测、临时路径、复制与校验等通用工具函数
 - `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
   新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`

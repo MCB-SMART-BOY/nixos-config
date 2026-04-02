@@ -41,7 +41,13 @@
 部署入口内部也开始收口成更清晰的层次：
 
 - `mcbctl/src/bin/control/mcb-deploy.rs`
-  部署向导的状态、流程和高层编排
+  部署向导主入口、类型定义与参数解析
+- `mcbctl/src/bin/control/mcb-deploy/ui.rs`
+  基础交互输出、菜单和确认提示
+- `mcbctl/src/bin/control/mcb-deploy/orchestrate.rs`
+  环境检查、仓库自检、临时 DNS、部署编排与总执行入口
+- `mcbctl/src/bin/control/mcb-deploy/utils.rs`
+  仓库探测、临时路径、复制与校验等通用工具函数
 - `mcbctl/src/bin/control/mcb-deploy/plan.rs`
   部署摘要、计划对象生成与命令预览
 - `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
