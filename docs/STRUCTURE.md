@@ -185,7 +185,7 @@
 - `mcbctl/src/tui/state/helpers.rs`
   TUI 状态层共享的列表格式化、解析、循环切换和 catalog 辅助函数
 - `mcbctl/src/tui/state/hosts/`
-  `Users` / `Hosts` 两页的进一步分拆层；用户结构编辑和运行时配置编辑分别落到 `users.rs`、`runtime.rs`
+  `Users` / `Hosts` 两页的进一步分拆层；用户结构编辑落到 `users.rs`，运行时配置继续拆到 `runtime/display.rs`、`edit.rs`、`persist.rs`、`validate.rs`
 - `mcbctl/src/tui/state/packages/`
   `Packages` 页的进一步分拆层；浏览/汇总落到 `browse.rs`，交互修改继续拆到 `mutate_navigation.rs`、`mutate_search.rs`、`mutate_groups.rs`、`mutate_save.rs`
 

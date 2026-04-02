@@ -36,7 +36,7 @@
 - `mcbctl/src/tui/state/helpers.rs`
   TUI 状态层共享的列表格式化、解析、循环切换和 catalog 辅助函数
 - `mcbctl/src/tui/state/hosts/`
-  `Users` / `Hosts` 页进一步拆成 `users.rs` 和 `runtime.rs`
+  `Users` / `Hosts` 页进一步拆成 `users.rs` 和 `runtime/` 分片；运行时配置继续拆到 `display.rs`、`edit.rs`、`persist.rs`、`validate.rs`
 - `mcbctl/src/tui/state/packages/`
   `Packages` 页进一步拆成 `browse.rs` 和 `mutate_*` 分片，不再把浏览、搜索、分组编辑和落盘全堆在一个文件里
 - `pkgs/mcbctl/default.nix`
