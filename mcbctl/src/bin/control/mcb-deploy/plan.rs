@@ -62,8 +62,14 @@ impl App {
                 notes.push("Per-user TUN：未启用".to_string());
             }
 
+            notes.push(format!("GPU 拓扑：{}", self.detected_gpu.summary_line()));
+
             if self.gpu_override {
-                notes.push(format!("GPU：{}", self.gpu_mode));
+                if self.gpu_override_from_detection {
+                    notes.push(format!("GPU：按主机自动识别 -> {}", self.gpu_mode));
+                } else {
+                    notes.push(format!("GPU：{}", self.gpu_mode));
+                }
                 if !self.gpu_igpu_vendor.is_empty() {
                     notes.push(format!("  - iGPU 厂商：{}", self.gpu_igpu_vendor));
                 }

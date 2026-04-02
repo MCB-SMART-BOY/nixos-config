@@ -61,19 +61,9 @@ in
     };
 
     hardware.gpu = {
-      # 与 nixos 主机相同的 PCI busId（含 hybrid 特化）
-      igpuVendor = "intel";
-      prime = {
-        intelBusId = "PCI:0:2:0";
-        nvidiaBusId = "PCI:1:0:0";
-      };
-      nvidia.open = true;
-      specialisations.enable = true;
-      specialisations.modes = [
-        "igpu"
-        "hybrid"
-        "dgpu"
-      ];
+      # 模板本身不再写死具体机器的 busId。
+      # 实际首次部署时，mcb-deploy 会根据当前主机自动识别 GPU 拓扑并写入 hosts/<host>/local.nix。
+      specialisations.enable = false;
     };
   };
 

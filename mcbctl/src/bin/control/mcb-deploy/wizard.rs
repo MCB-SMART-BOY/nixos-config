@@ -11,6 +11,7 @@ impl App {
                         self.select_host(repo_dir)?;
                         self.validate_host(repo_dir)?;
                         self.detect_host_profile_kind(repo_dir);
+                        self.detect_host_gpu_profile();
                         step = 2;
                     }
                     2 => {
@@ -41,6 +42,7 @@ impl App {
                     if self.host_exists(repo_dir) {
                         self.detect_host_profile_kind(repo_dir);
                     }
+                    self.detect_host_gpu_profile();
                     step = 2;
                 }
                 2 => {

@@ -50,6 +50,66 @@ enum HostProfileKind {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DetectedGpuTopology {
+    Unknown,
+    IgpuOnly,
+    MultiGpu,
+    DgpuOnly,
+}
+
+impl DetectedGpuTopology {
+    fn summary(self) -> &'static str {
+        match self {
+            Self::Unknown => "未识别",
+            Self::IgpuOnly => "单集显主机",
+            Self::MultiGpu => "多显卡主机",
+            Self::DgpuOnly => "独显主机",
+        }
+    }
+
+    fn recommended_mode(self) -> &'static str {
+        match self {
+            Self::Unknown => "igpu",
+            Self::IgpuOnly => "igpu",
+            Self::MultiGpu => "hybrid",
+            Self::DgpuOnly => "dgpu",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct DetectedGpuProfile {
+    topology: Option<DetectedGpuTopology>,
+    igpu_vendor: String,
+    intel_bus: String,
+    amd_bus: String,
+    nvidia_bus: String,
+}
+
+impl DetectedGpuProfile {
+    fn topology(&self) -> DetectedGpuTopology {
+        self.topology.unwrap_or(DetectedGpuTopology::Unknown)
+    }
+
+    fn summary_line(&self) -> String {
+        let mut parts = vec![self.topology().summary().to_string()];
+        if !self.igpu_vendor.is_empty() {
+            parts.push(format!("iGPU={}", self.igpu_vendor));
+        }
+        if !self.intel_bus.is_empty() {
+            parts.push(format!("Intel {}", self.intel_bus));
+        }
+        if !self.amd_bus.is_empty() {
+            parts.push(format!("AMD {}", self.amd_bus));
+        }
+        if !self.nvidia_bus.is_empty() {
+            parts.push(format!("NVIDIA {}", self.nvidia_bus));
+        }
+        parts.join("，")
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum RunAction {
     Deploy,
     Release,
@@ -95,6 +155,7 @@ struct App {
     server_enable_libvirtd: String,
     created_home_users: Vec<String>,
     gpu_override: bool,
+    gpu_override_from_detection: bool,
     gpu_mode: String,
     gpu_igpu_vendor: String,
     gpu_prime_mode: String,
@@ -105,6 +166,7 @@ struct App {
     gpu_specialisations_enabled: bool,
     gpu_specialisations_set: bool,
     gpu_specialisation_modes: Vec<String>,
+    detected_gpu: DetectedGpuProfile,
     mode: String,
     rebuild_upgrade: bool,
     etc_dir: PathBuf,
@@ -175,6 +237,7 @@ impl App {
             server_enable_libvirtd: String::new(),
             created_home_users: Vec::new(),
             gpu_override: false,
+            gpu_override_from_detection: false,
             gpu_mode: String::new(),
             gpu_igpu_vendor: String::new(),
             gpu_prime_mode: String::new(),
@@ -185,6 +248,7 @@ impl App {
             gpu_specialisations_enabled: false,
             gpu_specialisations_set: false,
             gpu_specialisation_modes: Vec::new(),
+            detected_gpu: DetectedGpuProfile::default(),
             mode: "switch".to_string(),
             rebuild_upgrade: false,
             etc_dir: PathBuf::from("/etc/nixos"),

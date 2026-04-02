@@ -26,6 +26,7 @@ impl App {
 
     pub(super) fn reset_gpu_override(&mut self) {
         self.gpu_override = false;
+        self.gpu_override_from_detection = false;
         self.gpu_mode.clear();
         self.gpu_igpu_vendor.clear();
         self.gpu_prime_mode.clear();
@@ -36,6 +37,98 @@ impl App {
         self.gpu_specialisations_enabled = false;
         self.gpu_specialisations_set = false;
         self.gpu_specialisation_modes.clear();
+    }
+
+    pub(super) fn detect_host_gpu_profile(&mut self) {
+        let intel = Self::detect_bus_ids_from_lspci("intel");
+        let amd = Self::detect_bus_ids_from_lspci("amd");
+        let nvidia = Self::detect_bus_ids_from_lspci("nvidia");
+
+        let intel_bus = intel
+            .first()
+            .cloned()
+            .or_else(|| self.resolve_bus_id_default("intel"));
+        let amd_bus = amd
+            .first()
+            .cloned()
+            .or_else(|| self.resolve_bus_id_default("amd"));
+        let nvidia_bus = nvidia
+            .first()
+            .cloned()
+            .or_else(|| self.resolve_bus_id_default("nvidia"));
+
+        let topology = if nvidia_bus.is_some() && (intel_bus.is_some() || amd_bus.is_some()) {
+            DetectedGpuTopology::MultiGpu
+        } else if nvidia_bus.is_some() {
+            DetectedGpuTopology::DgpuOnly
+        } else if intel_bus.is_some() || amd_bus.is_some() {
+            DetectedGpuTopology::IgpuOnly
+        } else {
+            DetectedGpuTopology::Unknown
+        };
+
+        self.detected_gpu = DetectedGpuProfile {
+            topology: Some(topology),
+            igpu_vendor: if intel_bus.is_some() {
+                "intel".to_string()
+            } else if amd_bus.is_some() {
+                "amd".to_string()
+            } else {
+                String::new()
+            },
+            intel_bus: intel_bus.unwrap_or_default(),
+            amd_bus: amd_bus.unwrap_or_default(),
+            nvidia_bus: nvidia_bus.unwrap_or_default(),
+        };
+    }
+
+    fn apply_detected_gpu_defaults(&mut self) -> bool {
+        let topology = self.detected_gpu.topology();
+        if topology == DetectedGpuTopology::Unknown {
+            return false;
+        }
+
+        self.gpu_override = true;
+        self.gpu_override_from_detection = true;
+        self.gpu_mode = topology.recommended_mode().to_string();
+        self.gpu_igpu_vendor = self.detected_gpu.igpu_vendor.clone();
+        self.gpu_prime_mode.clear();
+        self.gpu_intel_bus = self.detected_gpu.intel_bus.clone();
+        self.gpu_amd_bus = self.detected_gpu.amd_bus.clone();
+        self.gpu_nvidia_bus = self.detected_gpu.nvidia_bus.clone();
+        self.gpu_nvidia_open.clear();
+        self.gpu_specialisations_set = true;
+
+        match topology {
+            DetectedGpuTopology::IgpuOnly => {
+                self.gpu_prime_mode.clear();
+                self.gpu_nvidia_bus.clear();
+                self.gpu_nvidia_open.clear();
+                self.gpu_specialisations_enabled = false;
+                self.gpu_specialisation_modes.clear();
+            }
+            DetectedGpuTopology::MultiGpu => {
+                self.gpu_mode = "hybrid".to_string();
+                self.gpu_prime_mode = "offload".to_string();
+                self.gpu_nvidia_open = "true".to_string();
+                self.gpu_specialisations_enabled = true;
+                self.gpu_specialisation_modes =
+                    vec!["igpu".to_string(), "hybrid".to_string(), "dgpu".to_string()];
+            }
+            DetectedGpuTopology::DgpuOnly => {
+                self.gpu_mode = "dgpu".to_string();
+                self.gpu_igpu_vendor.clear();
+                self.gpu_prime_mode.clear();
+                self.gpu_intel_bus.clear();
+                self.gpu_amd_bus.clear();
+                self.gpu_nvidia_open = "true".to_string();
+                self.gpu_specialisations_enabled = false;
+                self.gpu_specialisation_modes.clear();
+            }
+            DetectedGpuTopology::Unknown => return false,
+        }
+
+        true
     }
 
     pub(super) fn configure_per_user_tun(&mut self) -> Result<WizardAction> {
@@ -221,13 +314,70 @@ impl App {
     }
 
     pub(super) fn configure_gpu(&mut self) -> Result<WizardAction> {
+        let topology = self.detected_gpu.topology();
+
         if !self.is_tty() {
-            self.reset_gpu_override();
+            if self.host_profile_kind == HostProfileKind::Desktop {
+                let _ = self.apply_detected_gpu_defaults();
+            } else {
+                self.reset_gpu_override();
+            }
             return Ok(WizardAction::Continue);
         }
 
+        self.section("GPU 自动识别");
+        self.note(&format!(
+            "检测到当前主机：{}",
+            self.detected_gpu.summary_line()
+        ));
+
+        match topology {
+            DetectedGpuTopology::IgpuOnly => {
+                self.note(
+                    "当前是单集显主机，部署将直接按识别结果写入 igpu 模式，不再进入 GPU 切换问答。",
+                );
+                let _ = self.apply_detected_gpu_defaults();
+                return Ok(WizardAction::Continue);
+            }
+            DetectedGpuTopology::DgpuOnly => {
+                self.note(
+                    "当前是独显主机，部署将直接按识别结果写入 dgpu 模式，不再进入 GPU 切换问答。",
+                );
+                let _ = self.apply_detected_gpu_defaults();
+                return Ok(WizardAction::Continue);
+            }
+            DetectedGpuTopology::Unknown => {
+                self.warn("未能自动识别当前主机 GPU 拓扑，将退回手动 GPU 配置。");
+            }
+            DetectedGpuTopology::MultiGpu => {
+                let pick = self.menu_prompt(
+                    "GPU 方案",
+                    1,
+                    &[
+                        "使用自动识别结果（推荐：hybrid）".to_string(),
+                        "沿用主机现有 GPU 配置".to_string(),
+                        "手动指定 GPU 模式".to_string(),
+                        "返回".to_string(),
+                    ],
+                )?;
+
+                match pick {
+                    1 => {
+                        let _ = self.apply_detected_gpu_defaults();
+                        return Ok(WizardAction::Continue);
+                    }
+                    2 => {
+                        self.reset_gpu_override();
+                        return Ok(WizardAction::Continue);
+                    }
+                    4 => return Ok(WizardAction::Back),
+                    _ => {}
+                }
+            }
+        }
+
         let pick = self.menu_prompt(
-            "GPU 方案",
+            "手动 GPU 方案",
             1,
             &[
                 "沿用主机现有 GPU 配置".to_string(),
@@ -248,6 +398,7 @@ impl App {
         }
 
         self.gpu_override = true;
+        self.gpu_override_from_detection = false;
         self.gpu_mode = match pick {
             2 => "dgpu".to_string(),
             3 => "hybrid".to_string(),

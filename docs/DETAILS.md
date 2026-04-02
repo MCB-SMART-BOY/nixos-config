@@ -138,6 +138,12 @@ GPU 配置集中在：
 - `hybrid`
 - `dgpu`
 
+现在这块还有一个明确的部署期约束：
+
+- `mcb-deploy` 会先识别当前主机属于单集显、多显卡还是独显主机
+- 新建桌面主机时，不再依赖模板里硬编码的 GPU busId
+- 真正机器相关的 GPU 参数会写进 `hosts/<hostname>/local.nix`
+
 其中最容易踩坑的是 `hybrid`：
 
 - 需要正确的 busId
