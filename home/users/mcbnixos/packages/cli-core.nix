@@ -25,6 +25,24 @@ let
       at
     ];
   };
+  classicAdminSuite = pkgs.symlinkJoin {
+    name = "classic-admin-suite";
+    paths = with pkgs; [
+      acl
+      attr
+      bc
+      time
+      patch
+      dos2unix
+    ];
+  };
+  mailCliSuite = pkgs.symlinkJoin {
+    name = "mail-cli-suite";
+    paths = with pkgs; [
+      mailutils
+      procmail
+    ];
+  };
 in
 lib.optionals (!(hostPkgEnabled "enableShellTools")) (with pkgs; [
   git # 版本控制
@@ -37,6 +55,8 @@ lib.optionals (!(hostPkgEnabled "enableShellTools")) (with pkgs; [
   bind # dig/nslookup
   netcat-openbsd # nc
   schedulerCliSuite # crond/crontab/anacron + at/atq/atrm/batch
+  classicAdminSuite # setfacl/getfacl、getfattr、bc、time、patch、dos2unix 集合
+  mailCliSuite # mail/mailx + procmail 等经典任务输出链工具
   moreutils # sponge/ts/vidir 等命令集合
   pciutils # lspci
   file # 文件类型识别

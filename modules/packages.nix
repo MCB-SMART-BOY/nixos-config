@@ -30,6 +30,24 @@ let
       at
     ];
   };
+  classicAdminSuite = pkgs.symlinkJoin {
+    name = "classic-admin-suite";
+    paths = with pkgs; [
+      acl
+      attr
+      bc
+      time
+      patch
+      dos2unix
+    ];
+  };
+  mailCliSuite = pkgs.symlinkJoin {
+    name = "mail-cli-suite";
+    paths = with pkgs; [
+      mailutils
+      procmail
+    ];
+  };
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
   legacyUserScopedToggles = [
@@ -107,6 +125,8 @@ let
     bind
     netcat-openbsd
     schedulerCliSuite
+    classicAdminSuite
+    mailCliSuite
     moreutils
     pciutils
     htop
