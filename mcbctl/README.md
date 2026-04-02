@@ -118,6 +118,20 @@ nix run .#mcb-deploy
 - 切换目标主机
 - 读取当前主机生效中的 `mcb.*` 关键字段
 - 编辑用户、管理员、主用户、主机角色、linger
+
+当前 `Deploy` / `Actions` 页已经可以：
+
+- `Deploy`
+  - 本地仓库 / `/etc/nixos` 这类常见来源直接执行
+  - 如果需要高级项或远端来源，自动退回完整 `mcb-deploy` 向导
+  - 缺失 `/etc/nixos/hardware-configuration.nix` 时会走共享生成逻辑
+- `Actions`
+  - 直接执行 `flake check`
+  - 直接执行 `flake update`
+  - 检查 / 刷新上游 pin
+  - 同步到 `/etc/nixos`
+  - 重建当前主机
+  - 退回完整 `mcb-deploy`
 - 编辑代理、TUN、GPU、虚拟化相关结构化设置
 - 把用户结构写回 `hosts/<host>/managed/users.nix`
 - 把运行时能力写回 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`

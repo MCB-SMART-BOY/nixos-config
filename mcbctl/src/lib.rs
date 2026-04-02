@@ -77,6 +77,30 @@ pub fn run_status_inherit(cmd: &str, args: &[String]) -> Result<ExitStatus> {
         .with_context(|| format!("failed to run {cmd}"))
 }
 
+pub fn resolve_sibling_binary(name: &str) -> Result<PathBuf> {
+    let current = env::current_exe().context("failed to locate current executable")?;
+    let Some(dir) = current.parent() else {
+        return Err(anyhow!("failed to resolve executable directory"));
+    };
+    let candidate = dir.join(name);
+    if candidate.is_file() {
+        Ok(candidate)
+    } else {
+        Err(anyhow!("failed to locate sibling binary: {}", candidate.display()))
+    }
+}
+
+pub fn run_sibling_status(name: &str, args: &[String]) -> Result<ExitStatus> {
+    let binary = resolve_sibling_binary(name)?;
+    Command::new(&binary)
+        .args(args)
+        .stdin(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .status()
+        .with_context(|| format!("failed to run {}", binary.display()))
+}
+
 pub fn xdg_cache_home() -> PathBuf {
     if let Ok(v) = env::var("XDG_CACHE_HOME") {
         return PathBuf::from(v);

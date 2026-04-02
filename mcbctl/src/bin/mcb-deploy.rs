@@ -1,7 +1,10 @@
 use anyhow::{Context, Result, bail};
 use mcbctl::domain::deploy::DeployPlan;
 use mcbctl::domain::tui::{DeployAction, DeploySource, DeployTask};
-use mcbctl::store::deploy::{NixosRebuildPlan, RepoSyncPlan, run_nixos_rebuild, run_repo_sync};
+use mcbctl::store::deploy::{
+    NixosRebuildPlan, RepoSyncPlan, ensure_root_hardware_config, run_nixos_rebuild,
+    run_repo_sync,
+};
 use mcbctl::{command_exists, find_repo_root, run_capture_allow_fail};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -484,45 +487,16 @@ impl App {
         self.etc_dir.join("hardware-configuration.nix")
     }
 
-    fn has_root_hardware_config(&self) -> bool {
-        self.root_hardware_config_path().is_file()
-    }
-
     fn ensure_root_hardware_config(&self) -> Result<()> {
         if !self.should_require_hardware_config() {
             return Ok(());
         }
-        if self.has_root_hardware_config() {
+        let target = self.root_hardware_config_path();
+        if target.is_file() {
             return Ok(());
         }
-        self.generate_root_hardware_config()
-    }
-
-    fn generate_root_hardware_config(&self) -> Result<()> {
-        if !command_exists("nixos-generate-config") {
-            bail!(
-                "缺少 {}，无法自动生成 {}。",
-                "nixos-generate-config",
-                self.root_hardware_config_path().display()
-            );
-        }
-
-        let target = self.root_hardware_config_path();
         self.warn(&format!("未发现 {}，将自动生成。", target.display()));
-        self.run_as_root_ok(
-            "mkdir",
-            &["-p".to_string(), self.etc_dir.display().to_string()],
-        )?;
-        self.run_as_root_ok(
-            "env",
-            &[
-                format!("HW_FILE={}", target.display()),
-                "sh".to_string(),
-                "-c".to_string(),
-                "umask 022 && nixos-generate-config --show-hardware-config > \"$HW_FILE\""
-                    .to_string(),
-            ],
-        )?;
+        ensure_root_hardware_config(&self.etc_dir, self.sudo_cmd.is_some())?;
         self.log(&format!("已生成 {}", target.display()));
         Ok(())
     }

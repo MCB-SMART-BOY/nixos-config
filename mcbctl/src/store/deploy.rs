@@ -2,7 +2,7 @@ use crate::command_exists;
 use crate::domain::tui::DeployAction;
 use anyhow::{Context, Result, bail};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
 #[derive(Clone, Debug)]
@@ -136,6 +136,71 @@ pub fn run_nixos_rebuild(plan: &NixosRebuildPlan, use_sudo: bool) -> Result<Exit
     };
 
     Ok(status)
+}
+
+pub fn run_root_command(cmd: &str, args: &[String], use_sudo: bool) -> Result<ExitStatus> {
+    let status = if use_sudo {
+        let mut command = Command::new("sudo");
+        command
+            .arg("-E")
+            .arg(cmd)
+            .args(args)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        command
+            .status()
+            .with_context(|| format!("failed to run sudo {cmd}"))?
+    } else {
+        let mut command = Command::new(cmd);
+        command
+            .args(args)
+            .stdin(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit());
+        command
+            .status()
+            .with_context(|| format!("failed to run {cmd}"))?
+    };
+
+    Ok(status)
+}
+
+pub fn run_root_command_ok(cmd: &str, args: &[String], use_sudo: bool) -> Result<()> {
+    let status = run_root_command(cmd, args, use_sudo)?;
+    if status.success() {
+        Ok(())
+    } else {
+        bail!("{cmd} failed with {}", status.code().unwrap_or(1))
+    }
+}
+
+pub fn ensure_root_hardware_config(etc_root: &Path, use_sudo: bool) -> Result<()> {
+    let target = etc_root.join("hardware-configuration.nix");
+    if target.is_file() {
+        return Ok(());
+    }
+    if !command_exists("nixos-generate-config") {
+        bail!(
+            "缺少 {}，无法自动生成 {}。",
+            "nixos-generate-config",
+            target.display()
+        );
+    }
+
+    run_root_command_ok("mkdir", &["-p".to_string(), etc_root.display().to_string()], use_sudo)?;
+    run_root_command_ok(
+        "env",
+        &[
+            format!("HW_FILE={}", target.display()),
+            "sh".to_string(),
+            "-c".to_string(),
+            "umask 022 && nixos-generate-config --show-hardware-config > \"$HW_FILE\""
+                .to_string(),
+        ],
+        use_sudo,
+    )?;
+    Ok(())
 }
 
 pub fn run_repo_sync<FL, FR, FC>(

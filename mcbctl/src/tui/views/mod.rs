@@ -407,29 +407,37 @@ fn render_home(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 fn render_actions(frame: &mut Frame, area: Rect, state: &AppState) {
-    render_placeholder(
-        frame,
-        area,
-        "Actions",
-        &[
-            "这里会收口维护动作。",
-            "计划纳入:",
-            "  - flake check",
-            "  - nix flake update",
-            "  - update-upstream-apps",
-            "  - sync to /etc/nixos",
-            "  - rebuild current host",
-        ],
-        &state.status,
-    );
-}
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+        .split(area);
 
-fn render_placeholder(frame: &mut Frame, area: Rect, title: &str, lines: &[&str], status: &str) {
-    let text = format!("{}\n\n状态: {}", lines.join("\n"), status);
-    let widget = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title(title))
+    let rows = state
+        .actions_rows()
+        .into_iter()
+        .map(|(label, value)| ListItem::new(format!("{label:<22} {value}")))
+        .collect::<Vec<_>>();
+
+    let mut list_state = ListState::default();
+    list_state.select(Some(state.actions_focus));
+    let list = List::new(rows)
+        .block(Block::default().borders(Borders::ALL).title("Maintenance Actions"))
+        .highlight_style(
+            Style::default()
+                .fg(Color::Black)
+                .bg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol(">> ");
+    frame.render_stateful_widget(list, chunks[0], &mut list_state);
+
+    let mut lines = state.actions_summary_lines();
+    lines.push(String::new());
+    lines.push(format!("状态：{}", state.status));
+    let summary = Paragraph::new(lines.join("\n"))
+        .block(Block::default().borders(Borders::ALL).title("Action Summary"))
         .wrap(Wrap { trim: false });
-    frame.render_widget(widget, area);
+    frame.render_widget(summary, chunks[1]);
 }
 
 fn render_package_group_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -560,7 +568,9 @@ fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {
 
 fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     let footer = match state.page() {
-        Page::Deploy => "Tab/Shift-Tab: 切页  j/k: 选字段  h/l 或 Enter: 调整  q: 退出",
+        Page::Deploy => {
+            "Deploy: j/k 选字段  h/l 或 Enter 调整  x 执行当前部署路径  Tab/Shift-Tab 切页  q 退出"
+        }
         Page::Users if state.active_users_text_mode().is_some() => {
             "Users 输入中: 直接键入  Backspace 删除  Enter 确认  Esc 取消"
         }
@@ -584,6 +594,9 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
             "Hosts: ←/→ 切主机  j/k 字段  h/l 调整枚举  Enter 编辑文本/映射  s 保存  q 退出"
         }
         Page::Home => "Home: ←/→ 切用户  j/k 选项  h/l 或 Enter 调整  s 保存  q 退出",
+        Page::Actions => {
+            "Actions: j/k 选动作  Enter/Space/x 执行  Tab/Shift-Tab 切页  q 退出"
+        }
         _ => "Tab/Shift-Tab: 切页  q: 退出",
     };
     let help = Paragraph::new(footer).block(Block::default().borders(Borders::ALL).title("Help"));

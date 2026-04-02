@@ -1,8 +1,6 @@
 use anyhow::{Result, bail};
 use mcbctl::tui::state::{AppContext, AppState};
-use mcbctl::{exit_from_status, tui::app};
-use std::path::PathBuf;
-use std::process::Command;
+use mcbctl::{exit_from_status, run_sibling_status, tui::app};
 
 fn main() {
     if let Err(err) = run() {
@@ -51,24 +49,10 @@ fn usage() {
 }
 
 fn run_sibling(name: &str, args: &[String]) -> Result<()> {
-    let binary = resolve_sibling_binary(name)?;
-    let status = Command::new(&binary).args(args).status()?;
+    let status = run_sibling_status(name, args)?;
     if status.success() {
         Ok(())
     } else {
         exit_from_status(status)
-    }
-}
-
-fn resolve_sibling_binary(name: &str) -> Result<PathBuf> {
-    let current = std::env::current_exe()?;
-    let Some(dir) = current.parent() else {
-        bail!("无法定位当前可执行文件目录。");
-    };
-    let candidate = dir.join(name);
-    if candidate.is_file() {
-        Ok(candidate)
-    } else {
-        bail!("未找到同级命令：{}", candidate.display());
     }
 }

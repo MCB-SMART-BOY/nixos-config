@@ -56,8 +56,13 @@ nix run .#mcb-deploy
 - `Hosts` 页面会读取当前目标主机的代理、TUN、GPU、虚拟化相关 `mcb.*` 设置，并分别写入 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`
   当前支持：`cacheProfile`、`proxyMode`、`proxyUrl`、`tunInterface`、`perUserTun.*`、`hardware.gpu.*`、`virtualisation.docker/libvirtd`
   常用按键：`←/→` 切主机，`j/k` 选字段，`h/l` 调整枚举/布尔，`Enter` 编辑文本或映射，`s` 保存
-  `Deploy` 页面现在还会给出共享执行层生成的 `nixos-rebuild` 命令预览
-  如果来源是当前仓库且仓库不在 `/etc/nixos`，还会额外给出同步到 `/etc/nixos` 的预览
+- `Deploy` 页面现在不只是预览：
+  本地仓库 / `/etc/nixos` 这类常见来源已经可以直接执行，按 `x` 会临时退出 TUI，跑完同步与 `nixos-rebuild` 再返回
+  如果来源是当前仓库且仓库不在 `/etc/nixos`，并且当前动作不是 rootless 下的 `build`，还会先同步到 `/etc/nixos`
+  如果开启高级项，或者选择远端来源，则会自动退回完整 `mcb-deploy` 向导
+- `Actions` 页面现在已经接通：
+  当前支持 `flake check`、`flake update`、上游 pin 检查/刷新、同步到 `/etc/nixos`、重建当前主机、启动完整部署向导
+  常用按键：`j/k` 选动作，`Enter` / `Space` / `x` 执行
 
 下一阶段继续接的是：
 
@@ -92,7 +97,7 @@ sudo nixos-generate-config
 
 也就是和 `/etc/nixos/configuration.nix` 同级。
 
-现在 `mcb-deploy` 在真正部署时，如果发现这份文件缺失，也会尝试自动生成到这里。
+现在 `mcb-deploy` 和 `mcbctl` 的共享执行层在真正部署时，如果发现这份文件缺失，也会尝试自动生成到这里。
 
 ### 2.2 仓库要在当前目录可见
 

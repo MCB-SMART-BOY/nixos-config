@@ -34,7 +34,12 @@ cd nixos-config
 nix run .#mcbctl
 ```
 
-`mcbctl` 现在默认进入 TUI 控制台。你可以在里面继续走部署、用户、软件和后续设置管理。
+`mcbctl` 现在默认进入 TUI 控制台。你可以在里面继续走部署、用户、软件、Home 设置和维护动作。
+
+当前 TUI 里已经能直接做两件关键事：
+
+- `Deploy` 页不再只是预览；本地仓库 / `/etc/nixos` 这类常见路径现在可以直接执行，同步和 `nixos-rebuild` 走共享执行层
+- `Actions` 页已经能直接运行 `flake check`、`flake update`、上游 pin 检查/刷新、同步到 `/etc/nixos`、重建当前主机、退回完整部署向导
 
 如果你就是想直接进入旧式的交互式部署向导，可以运行：
 

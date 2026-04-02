@@ -57,7 +57,7 @@ fn run_loop(terminal: &mut CrosstermTerminal, state: &mut AppState) -> Result<()
             KeyCode::Char('q') => break,
             KeyCode::Tab if key.modifiers.is_empty() => state.next_page(),
             KeyCode::BackTab if key.modifiers.is_empty() => state.previous_page(),
-            _ => handle_page_key(state, key.code, key.modifiers)?,
+            _ => handle_page_key(terminal, state, key.code, key.modifiers)?,
         }
     }
     Ok(())
@@ -94,7 +94,12 @@ fn handle_text_input(state: &mut AppState, code: KeyCode, modifiers: KeyModifier
     }
 }
 
-fn handle_page_key(state: &mut AppState, code: KeyCode, modifiers: KeyModifiers) -> Result<()> {
+fn handle_page_key(
+    terminal: &mut CrosstermTerminal,
+    state: &mut AppState,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> Result<()> {
     if modifiers.contains(KeyModifiers::CONTROL) {
         return Ok(());
     }
@@ -106,6 +111,9 @@ fn handle_page_key(state: &mut AppState, code: KeyCode, modifiers: KeyModifiers)
             KeyCode::Left | KeyCode::Char('h') => state.adjust_deploy_field(-1),
             KeyCode::Right | KeyCode::Char('l') | KeyCode::Enter | KeyCode::Char(' ') => {
                 state.adjust_deploy_field(1)
+            }
+            KeyCode::Char('x') => {
+                run_foreground_task(terminal, state, "Deploy", |state| state.execute_deploy())?
             }
             _ => {}
         },
@@ -168,7 +176,50 @@ fn handle_page_key(state: &mut AppState, code: KeyCode, modifiers: KeyModifiers)
             KeyCode::Char('s') => state.save_current_home_settings()?,
             _ => {}
         },
+        Page::Actions => match code {
+            KeyCode::Down | KeyCode::Char('j') => state.next_action_item(),
+            KeyCode::Up | KeyCode::Char('k') => state.previous_action_item(),
+            KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Char('x') => {
+                run_foreground_task(terminal, state, "Actions", |state| {
+                    state.execute_current_action()
+                })?
+            }
+            _ => {}
+        },
         _ => {}
     }
+    Ok(())
+}
+
+fn run_foreground_task<F>(
+    terminal: &mut CrosstermTerminal,
+    state: &mut AppState,
+    title: &str,
+    action: F,
+) -> Result<()>
+where
+    F: FnOnce(&mut AppState) -> Result<()>,
+{
+    restore_terminal(terminal)?;
+
+    println!("== {title} ==");
+    let result = action(state);
+    match &result {
+        Ok(_) => {
+            println!();
+            println!("{}", state.status);
+        }
+        Err(err) => {
+            eprintln!();
+            eprintln!("执行失败：{err:#}");
+            state.status = format!("执行失败：{err:#}");
+        }
+    }
+    println!();
+    println!("按 Enter 返回 mcbctl...");
+    let mut input = String::new();
+    let _ = io::stdin().read_line(&mut input);
+
+    *terminal = setup_terminal()?;
     Ok(())
 }
