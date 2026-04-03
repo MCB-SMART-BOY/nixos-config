@@ -15,17 +15,6 @@ impl App {
             ));
         }
 
-        let default_user = self.resolve_default_user();
-        let default_dir = repo_dir.join("home/users").join(&default_user);
-        if default_dir.is_dir() {
-            return Some((format!("home/users/{default_user}"), default_dir));
-        }
-
-        let fallback_dir = repo_dir.join("home/users/mcbnixos");
-        if fallback_dir.is_dir() {
-            return Some(("home/users/mcbnixos".to_string(), fallback_dir));
-        }
-
         None
     }
 

@@ -15,6 +15,8 @@ impl App {
         let template_source = self.resolve_user_template(repo_dir);
         if let Some((template_label, _)) = &template_source {
             self.note(&format!("新用户模板来源：{template_label}"));
+        } else {
+            self.warn("未找到用户模板目录；将生成最小用户结构，不复制任何现有用户目录。");
         }
 
         let copy_template_content = std::env::var("MCBCTL_COPY_USER_TEMPLATE")

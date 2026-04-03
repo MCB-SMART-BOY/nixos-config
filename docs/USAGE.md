@@ -198,6 +198,8 @@ nix flake check
 - `home/templates/users/laptop/`
 - `home/templates/users/server/`
 
+`mcb-deploy` 新建用户时只会从 `home/templates/users/` 取模板；如果模板缺失，就退回最小用户结构，不会再把真实用户目录当模板。
+
 ## 6. GPU specialisation 的常用用法
 
 这套仓库支持：
