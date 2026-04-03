@@ -33,6 +33,8 @@
   `AppContext` / `AppState` 模型定义与基础状态构造
 - `mcbctl/src/tui/state/`
   页面级状态逻辑分拆层；`deploy.rs`、`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经独立出去
+- `mcbctl/src/tui/state/actions/`
+  `Actions` 页进一步拆成 `display.rs`、`execute.rs`、`support.rs`，分别承载展示、执行和执行前辅助逻辑
 - `mcbctl/src/tui/state/helpers.rs`
   TUI 状态层共享的列表格式化、解析、循环切换和 catalog 辅助函数
 - `mcbctl/src/tui/state/hosts/`
