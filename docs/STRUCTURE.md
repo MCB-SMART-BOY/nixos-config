@@ -224,7 +224,9 @@
 - `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
   新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
-  来源准备、本地仓库/远端仓库选择与拉取
+  来源准备聚合入口
+- `mcbctl/src/bin/control/mcb-deploy/source/`
+  来源准备分拆层；`prompt.rs`、`local.rs`、`remote.rs` 分别承载来源选择、本地仓库准备与远端拉取/镜像重试
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
   release 版本解析、说明生成与发布流程
 - `mcbctl/src/bin/noctalia/noctalia-gpu-mode.rs`
@@ -324,6 +326,7 @@
 - `mcbctl/src/bin/control/mcb-deploy/runtime/`
 - `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
+- `mcbctl/src/bin/control/mcb-deploy/source/`
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
 - `mcbctl/src/bin/update/`
 

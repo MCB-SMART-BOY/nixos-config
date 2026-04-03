@@ -232,7 +232,9 @@ GPU 配置集中在：
 - `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
   新 host / 新用户目录脚手架与 `local.nix` 生成
 - `mcbctl/src/bin/control/mcb-deploy/source.rs`
-  配置来源、本地仓库探测、远端仓库拉取与镜像重试
+  配置来源层聚合入口
+- `mcbctl/src/bin/control/mcb-deploy/source/`
+  来源准备分拆层；来源选择、本地源准备和远端仓库拉取/镜像重试分别下沉到独立模块
 - `mcbctl/src/bin/control/mcb-deploy/release.rs`
   release 版本解析、说明生成与发布
 
