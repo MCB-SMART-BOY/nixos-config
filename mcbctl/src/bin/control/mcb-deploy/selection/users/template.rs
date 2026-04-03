@@ -81,7 +81,18 @@ impl App {
                 return v;
             }
         }
-        "mcbnixos".to_string()
+
+        let mut repo_candidates = self.list_existing_home_users(&self.repo_dir);
+        if self.etc_dir != self.repo_dir {
+            repo_candidates.extend(self.list_existing_home_users(&self.etc_dir));
+        }
+        repo_candidates.sort();
+        repo_candidates.dedup();
+        if let Some(user) = repo_candidates.into_iter().next() {
+            return user;
+        }
+
+        "user".to_string()
     }
 
     pub(crate) fn list_existing_home_users(&self, repo_dir: &Path) -> Vec<String> {
