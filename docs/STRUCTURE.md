@@ -230,7 +230,9 @@
 - `mcbctl/src/bin/noctalia/noctalia-gpu-mode.rs`
   Noctalia GPU 模式入口与参数分发
 - `mcbctl/src/bin/noctalia/noctalia-gpu-mode/state.rs`
-  当前模式探测、specialisation 列表与状态文件读写
+  GPU 模式状态层聚合入口
+- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/state/`
+  GPU 拓扑探测、当前模式探测、specialisation 列表发现与状态输出分拆层
 - `mcbctl/src/bin/noctalia/noctalia-gpu-mode/menu.rs`
   GUI/CLI 菜单选择流程
 - `mcbctl/src/bin/noctalia/noctalia-gpu-mode/apply.rs`

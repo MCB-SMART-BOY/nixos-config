@@ -1,11 +1,10 @@
 use anyhow::{Result, anyhow};
-use mcbctl::{command_exists, home_dir, prepend_paths, xdg_state_home};
+use mcbctl::{command_exists, home_dir, prepend_paths};
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 const MODE_DIR: &str = "/run/current-system/specialisation";
 
