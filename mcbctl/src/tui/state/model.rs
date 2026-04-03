@@ -138,13 +138,15 @@ impl AppState {
         }
         refresh_local_catalog_indexes(&mut context, &package_local_entry_ids);
         let host_settings_by_name = load_host_settings(&context.repo_root, &context.hosts);
-        let package_user_index = default_package_user_index(&context);
+        let package_user_index =
+            default_package_user_index(&context, &target_host, &host_settings_by_name);
         let package_user_selections = load_package_user_selections(
             &context.repo_root,
             &context.users,
             &context.catalog_entries,
         );
-        let home_user_index = default_package_user_index(&context);
+        let home_user_index =
+            default_package_user_index(&context, &target_host, &host_settings_by_name);
         let home_settings_by_user = load_home_user_settings(&context.repo_root, &context.users);
 
         Self {

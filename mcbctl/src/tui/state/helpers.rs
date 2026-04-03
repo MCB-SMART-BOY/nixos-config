@@ -31,7 +31,11 @@ pub(super) fn default_target_host(context: &AppContext) -> String {
         .unwrap_or_else(|| context.current_host.clone())
 }
 
-pub(super) fn default_package_user_index(context: &AppContext) -> usize {
+pub(super) fn default_package_user_index(
+    context: &AppContext,
+    target_host: &str,
+    host_settings_by_name: &BTreeMap<String, HostManagedSettings>,
+) -> usize {
     if let Some(index) = context
         .users
         .iter()
@@ -39,7 +43,13 @@ pub(super) fn default_package_user_index(context: &AppContext) -> usize {
     {
         return index;
     }
-    if let Some(index) = context.users.iter().position(|user| user == "mcbnixos") {
+
+    if let Some(primary_user) = host_settings_by_name
+        .get(target_host)
+        .map(|settings| settings.primary_user.trim())
+        .filter(|user| !user.is_empty())
+        && let Some(index) = context.users.iter().position(|user| user == primary_user)
+    {
         return index;
     }
     0
