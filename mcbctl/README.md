@@ -42,7 +42,7 @@
 - `mcbctl/src/tui/state/hosts/`
   `Users` / `Hosts` 页进一步拆成 `users.rs` 和 `runtime/` 分片；运行时配置继续拆到 `display.rs`、`edit.rs`、`persist.rs`、`validate.rs`
 - `mcbctl/src/tui/state/packages/`
-  `Packages` 页进一步拆成 `browse.rs` 和 `mutate_*` 分片，不再把浏览、搜索、分组编辑和落盘全堆在一个文件里
+  `Packages` 页进一步拆成 `browse.rs`、`support.rs`、`confirm.rs` 和 `mutate_*` 分片，不再把浏览、搜索、分组编辑、确认逻辑和落盘全堆在一个文件里
 - `pkgs/mcbctl/default.nix`
   把这些 Rust 二进制打成 Nix 包
 - `home/modules/desktop.nix`
