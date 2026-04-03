@@ -171,7 +171,7 @@ Noctalia 里代理图标的状态来自脚本：
 
 - `~/.local/bin/noctalia-proxy-status`
 
-这个命令由 `mcbctl` 打包；桌面用户会通过 `home/modules/desktop.nix` 把它放进自己的环境。
+这个命令由 `mcbctl` 打包；桌面用户会通过 `home/modules/desktop.nix` 与 `home/modules/desktop/` 把它放进自己的环境。
 
 它默认会检查这些服务名：
 

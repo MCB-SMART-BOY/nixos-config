@@ -149,7 +149,7 @@ sudo nixos-rebuild switch --flake .#<hostname>
 - 改系统共享包组：`hosts/profiles/*.nix` 和 `modules/packages.nix`
 - 改某个用户的软件：`home/users/<user>/packages.nix`
 - 改用户界面配置：`home/users/<user>/config/`
-- 改 Noctalia / 桌面行为：`home/modules/desktop.nix`、`pkgs/mcbctl/default.nix`
+- 改 Noctalia / 桌面行为：`home/modules/desktop.nix`、`home/modules/desktop/`、`pkgs/mcbctl/default.nix`
 - 改代理 / TUN / 路由：`modules/networking.nix` 与 `modules/services/core.nix`
 - 改 GPU specialisation：`modules/hardware/gpu.nix`
 - 改脚本工具本身：`mcbctl/src/bin/*.rs` 与 `mcbctl/src/lib.rs`

@@ -304,6 +304,7 @@
 
 - `pkgs/mcbctl/default.nix`
 - `home/modules/desktop.nix`
+- `home/modules/desktop/`
 
 ### 我要改部署或追新工具
 

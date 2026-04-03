@@ -16,7 +16,7 @@
 - 改系统共享包组：`hosts/profiles/*.nix` 与 `modules/packages.nix`
 - 改某个用户的软件：`home/users/<user>/packages.nix`
 - 改用户界面配置：`home/users/<user>/config/`
-- 改用户命令接线：`pkgs/mcbctl/default.nix` 与 `home/modules/desktop.nix`
+- 改用户命令接线：`pkgs/mcbctl/default.nix` 与 `home/modules/desktop.nix` / `home/modules/desktop/`
 - 改 TUI 机器管理区：`home/users/<user>/managed/` 与 `hosts/<host>/managed/`
 - 改新用户模板：`home/templates/users/`
 - 改主机模板：`hosts/templates/`
@@ -158,7 +158,7 @@ GPU 配置集中在：
 
 - Rust 命令实现放在 `mcbctl/src/bin/*.rs`
 - Nix 打包入口在 `pkgs/mcbctl/default.nix`
-- 桌面用户通过 `home/modules/desktop.nix` 把 `mcbctl` 包放进自己的环境
+- 桌面用户通过 `home/modules/desktop.nix` 与 `home/modules/desktop/` 把 `mcbctl` 包放进自己的环境
 
 同时，仓库现在新增了机器管理区：
 
