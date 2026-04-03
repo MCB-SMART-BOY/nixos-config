@@ -9,8 +9,7 @@
 
 let
   cfg = config.mcb.hardware.gpu;
-  legacyNvidia = config.mcb.hardware.nvidia.enable;
-  nvidiaEnabled = legacyNvidia || cfg.mode != "igpu";
+  nvidiaEnabled = cfg.mode != "igpu";
   hybrid = cfg.mode == "hybrid";
   igpuVendor = cfg.igpuVendor;
   resolvePkg =

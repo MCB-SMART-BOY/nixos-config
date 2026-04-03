@@ -7,12 +7,6 @@ let
 in
 {
   options.mcb.hardware = {
-    nvidia.enable = mkOption {
-      type = types.bool;
-      default = false;
-      description = "Enable NVIDIA driver stack on this host (legacy switch; prefer mcb.hardware.gpu.mode).";
-    };
-
     gpu = {
       mode = mkOption {
         type = types.enum [
