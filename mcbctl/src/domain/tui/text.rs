@@ -1,0 +1,39 @@
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PackageTextMode {
+    Search,
+    CreateGroup,
+    RenameGroup,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PackageDataMode {
+    Local,
+    Search,
+}
+
+impl PackageDataMode {
+    pub fn label(self) -> &'static str {
+        match self {
+            PackageDataMode::Local => "本地覆盖/已声明",
+            PackageDataMode::Search => "nixpkgs 搜索",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum UsersTextMode {
+    ManagedUsers,
+    AdminUsers,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HostsTextMode {
+    ProxyUrl,
+    TunInterface,
+    PerUserTunInterfaces,
+    PerUserTunDnsPorts,
+    IntelBusId,
+    AmdBusId,
+    NvidiaBusId,
+    SpecialisationModes,
+}

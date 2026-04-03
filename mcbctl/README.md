@@ -20,7 +20,7 @@
 - `mcbctl/src/lib.rs`
   公共复用逻辑
 - `mcbctl/src/domain/`
-  共享的数据模型、枚举和领域对象；`DeployPlan` 这类跨 TUI / CLI 的部署计划对象也在这里
+  共享的数据模型、枚举和领域对象；`DeployPlan` 这类跨 TUI / CLI 的部署计划对象也在这里，TUI 相关类型也已拆到 `domain/tui/` 下的 `navigation.rs`、`deploy.rs`、`managed.rs`、`text.rs`、`catalog.rs`
 - `mcbctl/src/store/`
   `catalog/`、`managed/`、主机探测等 I/O 逻辑；`store/deploy.rs` 现在也负责共享的仓库同步计划、`nixos-rebuild` 计划与执行
 - `mcbctl/src/store/hosts/`
