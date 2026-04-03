@@ -48,7 +48,10 @@ fn selected_entries_by_group<'a>(
 ) -> BTreeMap<String, Vec<&'a CatalogEntry>> {
     let mut grouped = BTreeMap::<String, Vec<&CatalogEntry>>::new();
 
-    for entry in catalog.iter().filter(|entry| selected.contains_key(&entry.id)) {
+    for entry in catalog
+        .iter()
+        .filter(|entry| selected.contains_key(&entry.id))
+    {
         grouped
             .entry(
                 selected

@@ -13,7 +13,10 @@ impl AppState {
 
         let default_group = self.default_group_for_entry(&entry);
         let enabled = {
-            let selection = self.package_user_selections.entry(user.clone()).or_default();
+            let selection = self
+                .package_user_selections
+                .entry(user.clone())
+                .or_default();
             if selection.contains_key(&entry.id) {
                 selection.remove(&entry.id);
                 false

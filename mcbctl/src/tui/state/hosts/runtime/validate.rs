@@ -45,7 +45,8 @@ impl AppState {
                 .as_deref()
                 .is_some_and(|value| !value.trim().is_empty());
             if !has_igpu || !has_nvidia {
-                errors.push("GPU hybrid 模式要求设置 nvidiaBusId 和匹配的 iGPU Bus ID。".to_string());
+                errors
+                    .push("GPU hybrid 模式要求设置 nvidiaBusId 和匹配的 iGPU Bus ID。".to_string());
             }
         }
         if settings.gpu_specialisations_enable
