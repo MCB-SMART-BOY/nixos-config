@@ -213,6 +213,8 @@
   `/etc/nixos` 备份、同步与重建执行
 - `mcbctl/src/bin/control/mcb-deploy/selection.rs`
   主机/用户/管理员选择、模板解析与相关校验
+- `mcbctl/src/bin/control/mcb-deploy/selection/users/`
+  用户选择层继续拆到 `template.rs`、`targets.rs`、`prompt.rs`、`validate.rs`，分别负责模板来源、用户集合操作、交互提示和最终校验
 - `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
   运行时配置聚合入口
 - `mcbctl/src/bin/control/mcb-deploy/runtime/`
