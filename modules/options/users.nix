@@ -9,8 +9,8 @@ in
   options.mcb = {
     user = mkOption {
       type = types.str;
-      default = "mcbnixos";
-      description = "Primary system user.";
+      default = "user";
+      description = "Primary system user name when a host does not declare one explicitly.";
     };
 
     users = mkOption {
