@@ -25,6 +25,8 @@
   `catalog/`、`managed/`、主机探测等 I/O 逻辑；`store/deploy.rs` 现在也负责共享的仓库同步计划、`nixos-rebuild` 计划与执行
 - `mcbctl/src/store/hosts/`
   主机 managed 存储分拆层；`eval.rs`、`layout.rs`、`render.rs` 分别负责评估读取、目录布局和 Nix 分片渲染写入
+- `mcbctl/src/store/packages/`
+  用户软件 managed 存储分拆层；`load.rs`、`layout.rs`、`render.rs` 分别负责读取、目录布局和按组渲染写入
 - `mcbctl/src/tui/views/`
   TUI 渲染层；页面渲染已拆成独立文件
 - `mcbctl/src/tui/state.rs`
