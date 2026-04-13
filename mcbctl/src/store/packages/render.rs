@@ -53,8 +53,7 @@ fn ensure_stale_package_file_is_managed(path: &Path) -> Result<()> {
         fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     let has_valid_marker = managed_file_kind(&content)
         .is_some_and(|kind| kind.starts_with("package-group:") && managed_file_is_valid(&content));
-    let legacy_group_file = content.trim_start().starts_with("# 机器管理的软件组：");
-    if has_valid_marker || legacy_group_file {
+    if has_valid_marker {
         return Ok(());
     }
 

@@ -1,9 +1,13 @@
 use anyhow::{Context, Result, bail};
 use mcbctl::domain::tui::DeployAction;
+use mcbctl::release_bundle::{ReleaseBundleOptions, build_release_bundle};
 use mcbctl::repo::{
-    audit_repository, ensure_repository_integrity, migrate_managed_files, preferred_remote_branch,
+    audit_repository, ensure_repository_integrity, extract_manual_managed_files,
+    migrate_managed_files, migrate_root_hardware_config, preferred_remote_branch,
 };
-use mcbctl::store::deploy::{NixosRebuildPlan, merged_nix_config, run_nixos_rebuild};
+use mcbctl::store::deploy::{
+    NixosRebuildPlan, host_hardware_config_path, merged_nix_config, run_nixos_rebuild,
+};
 use mcbctl::tui::state::{AppContext, AppState};
 use mcbctl::{
     command_exists, exit_from_status, find_repo_root, home_dir, run_capture_allow_fail,
@@ -75,6 +79,15 @@ fn run() -> Result<()> {
         "migrate-managed" => {
             return run_migrate_managed(&args[1..]);
         }
+        "extract-managed" => {
+            return run_extract_managed(&args[1..]);
+        }
+        "migrate-hardware-config" => {
+            return run_migrate_hardware_config(&args[1..]);
+        }
+        "release-bundle" => {
+            return run_release_bundle(&args[1..]);
+        }
         "lint-repo" => {
             return run_lint_repo(&args[1..]);
         }
@@ -102,7 +115,7 @@ fn launch_tui() -> Result<()> {
 
 fn usage() {
     println!(
-        "用法:\n  mcbctl\n  mcbctl tui\n  mcbctl deploy [--help]\n  mcbctl release\n  mcbctl rebuild <switch|test|boot|build> [host] [--flake <path>] [--upgrade] [--sudo|--no-sudo]\n  mcbctl build-host [host] [--flake <path>] [--dry-run]\n  mcbctl repo-integrity [--root <path>]\n  mcbctl migrate-managed [--root <path>]\n  mcbctl lint-repo [--root <path>]\n  mcbctl doctor [--root <path>]\n  mcbctl terminal-action <flake-status|flake-hint|sensors|memory|disk>\n  mcbctl screenshot-edit <full|region>\n\n说明:\n  默认进入 TUI 控制台。\n  `mcbctl deploy` 会转发到交互式部署向导。\n  `mcbctl release` 会转发到发布流程。\n  `rebuild` / `build-host` 是 fish 快捷入口背后的 Rust 主线命令。\n  `repo-integrity` / `migrate-managed` / `lint-repo` / `doctor` 用于 Rust 主线下的仓库校验与受管文件维护。"
+        "用法:\n  mcbctl\n  mcbctl tui\n  mcbctl deploy [--help]\n  mcbctl release\n  mcbctl rebuild <switch|test|boot|build> [host] [--flake <path>] [--upgrade] [--sudo|--no-sudo]\n  mcbctl build-host [host] [--flake <path>] [--dry-run]\n  mcbctl repo-integrity [--root <path>]\n  mcbctl migrate-managed [--root <path>]\n  mcbctl extract-managed [--root <path>]\n  mcbctl migrate-hardware-config [--root <path>] [--host <name>]\n  mcbctl release-bundle --target <triple> --bin-dir <path> --out-dir <path> [--version <tag>]\n  mcbctl lint-repo [--root <path>]\n  mcbctl doctor [--root <path>]\n  mcbctl terminal-action <flake-status|flake-hint|sensors|memory|disk>\n  mcbctl screenshot-edit <full|region>\n\n说明:\n  默认进入 TUI 控制台。\n  `mcbctl deploy` 会转发到交互式部署向导。\n  `mcbctl release` 会转发到发布流程。\n  `rebuild` / `build-host` 是 fish 快捷入口背后的 Rust 主线命令。\n  `repo-integrity` / `migrate-managed` / `extract-managed` / `migrate-hardware-config` / `release-bundle` / `lint-repo` / `doctor` 用于 Rust 主线下的仓库校验、迁移与发布产物打包。"
     );
 }
 
@@ -144,6 +157,113 @@ fn run_migrate_managed(args: &[String]) -> Result<()> {
     for path in &report.skipped {
         println!("  ok {path}");
     }
+    Ok(())
+}
+
+fn run_extract_managed(args: &[String]) -> Result<()> {
+    if has_help_flag(args) {
+        println!("用法:\n  mcbctl extract-managed [--root <path>]");
+        return Ok(());
+    }
+
+    let root = parse_root_arg(args)?;
+    let report = extract_manual_managed_files(&root)?;
+    println!("extract-managed");
+    println!("repo root: {}", root.display());
+    println!("extracted: {}", report.extracted.len());
+    for path in &report.extracted {
+        println!("  extracted {path}");
+    }
+    println!("already-managed: {}", report.skipped_valid.len());
+    println!("legacy-needs-migrate: {}", report.skipped_legacy.len());
+    for path in &report.skipped_legacy {
+        println!("  migrate first {path}");
+    }
+    Ok(())
+}
+
+fn run_migrate_hardware_config(args: &[String]) -> Result<()> {
+    if has_help_flag(args) {
+        println!("用法:\n  mcbctl migrate-hardware-config [--root <path>] [--host <name>]");
+        return Ok(());
+    }
+
+    let (root, host) = parse_root_host_args(args)?;
+    let report = migrate_root_hardware_config(&root, &host)?;
+    println!("migrate-hardware-config");
+    println!("repo root: {}", root.display());
+    println!("target host: {host}");
+    println!(
+        "{}: {}",
+        if report.moved {
+            "migrated"
+        } else {
+            "already-present"
+        },
+        report.destination
+    );
+    Ok(())
+}
+
+fn run_release_bundle(args: &[String]) -> Result<()> {
+    if has_help_flag(args) {
+        println!(
+            "用法:\n  mcbctl release-bundle --target <triple> --bin-dir <path> --out-dir <path> [--version <tag>]"
+        );
+        return Ok(());
+    }
+
+    let mut target = None;
+    let mut bin_dir = None;
+    let mut out_dir = None;
+    let mut version = None;
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--target" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--target 缺少三元组");
+                };
+                target = Some(value.to_string());
+                idx += 2;
+            }
+            "--bin-dir" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--bin-dir 缺少路径");
+                };
+                bin_dir = Some(PathBuf::from(value));
+                idx += 2;
+            }
+            "--out-dir" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--out-dir 缺少路径");
+                };
+                out_dir = Some(PathBuf::from(value));
+                idx += 2;
+            }
+            "--version" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--version 缺少版本");
+                };
+                version = Some(value.to_string());
+                idx += 2;
+            }
+            other => bail!("不支持的参数：{other}"),
+        }
+    }
+
+    let options = ReleaseBundleOptions {
+        target: target.ok_or_else(|| anyhow::anyhow!("缺少 --target"))?,
+        version: version.unwrap_or_else(default_release_bundle_version),
+        bin_dir: bin_dir.ok_or_else(|| anyhow::anyhow!("缺少 --bin-dir"))?,
+        out_dir: out_dir.ok_or_else(|| anyhow::anyhow!("缺少 --out-dir"))?,
+    };
+    let report = build_release_bundle(&options)?;
+    println!("release-bundle");
+    println!("target: {}", options.target);
+    println!("version: {}", options.version);
+    println!("archive: {}", report.archive.display());
+    println!("checksum: {}", report.checksum_file.display());
     Ok(())
 }
 
@@ -341,12 +461,26 @@ fn run_doctor(args: &[String]) -> Result<()> {
             "missing"
         }
     );
+    let current_host = current_host_name();
+    let repo_hardware = current_host
+        .as_deref()
+        .filter(|host| root.join("hosts").join(host).is_dir())
+        .map(|host| {
+            let path = host_hardware_config_path(&root, host);
+            if path.is_file() {
+                format!("present ({})", path.display())
+            } else {
+                format!("missing for {host} (eval fallback active)")
+            }
+        })
+        .unwrap_or_else(|| "unknown (current host not mapped into repo)".to_string());
+    println!("repo hardware config: {repo_hardware}");
     println!(
-        "repo hardware config: {}",
+        "legacy root hardware config: {}",
         if root.join("hardware-configuration.nix").is_file() {
-            "present"
+            "present (run `mcbctl migrate-hardware-config`)"
         } else {
-            "missing (eval fallback active)"
+            "absent"
         }
     );
     println!(
@@ -560,6 +694,43 @@ fn parse_root_arg(args: &[String]) -> Result<PathBuf> {
     }
 }
 
+fn parse_root_host_args(args: &[String]) -> Result<(PathBuf, String)> {
+    let mut root = None;
+    let mut host = None;
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--root" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--root 缺少路径");
+                };
+                root = Some(PathBuf::from(value));
+                idx += 2;
+            }
+            "--host" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--host 缺少主机名");
+                };
+                host = Some(value.to_string());
+                idx += 2;
+            }
+            other => bail!("不支持的参数：{other}"),
+        }
+    }
+
+    let root = if let Some(root) = root {
+        root
+    } else {
+        find_repo_root()?
+    };
+
+    let host = host
+        .or_else(current_host_name)
+        .or_else(|| infer_only_repo_host(&root))
+        .ok_or_else(|| anyhow::anyhow!("无法推断主机名；请显式传入 --host"))?;
+    Ok((root, host))
+}
+
 fn has_help_flag(args: &[String]) -> bool {
     args.iter().any(|arg| arg == "-h" || arg == "--help")
 }
@@ -723,9 +894,35 @@ fn current_host_name() -> Option<String> {
         })
 }
 
+fn infer_only_repo_host(root: &Path) -> Option<String> {
+    let mut hosts = fs::read_dir(root.join("hosts"))
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.path().is_dir())
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().to_string();
+            (!matches!(name.as_str(), "_support" | "profiles" | "templates")).then_some(name)
+        })
+        .collect::<Vec<_>>();
+    hosts.sort();
+    (hosts.len() == 1).then(|| hosts.remove(0))
+}
+
 fn chrono_like_millis() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or(0)
+}
+
+fn default_release_bundle_version() -> String {
+    std::env::var("GITHUB_REF_NAME")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            run_capture_allow_fail("git", &["describe", "--tags", "--abbrev=0"])
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| "dev".to_string())
 }

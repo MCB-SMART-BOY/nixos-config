@@ -156,7 +156,26 @@ impl App {
         if !st.success() {
             bail!("gh release create 失败");
         }
-        self.success(&format!("Release 已发布：{version}"));
+
+        let workflow = "release-mcbctl.yml";
+        let st = Command::new("gh")
+            .args([
+                "workflow",
+                "run",
+                workflow,
+                "--ref",
+                &self.branch,
+                "-f",
+                &format!("tag={version}"),
+            ])
+            .status()?;
+        if !st.success() {
+            bail!("gh workflow run {} 失败", workflow);
+        }
+
+        self.success(&format!(
+            "Release 已发布：{version}；已触发跨平台预编译产物构建。"
+        ));
         Ok(())
     }
 }

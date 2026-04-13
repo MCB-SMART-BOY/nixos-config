@@ -31,8 +31,10 @@
 真实主机目录：
 
 - `hosts/<host>/default.nix`
+- `hosts/<host>/hardware-configuration.nix`
 - `hosts/<host>/system.nix`
 - `hosts/<host>/managed/`
+- `hosts/<host>/local.auto.nix`
 - `hosts/<host>/local.nix`
 - `hosts/_support/hardware-configuration-eval.nix`
 
@@ -50,7 +52,7 @@
 
 人工长期逻辑不要写进这些分片；应写到 `default.nix` 或 `local.nix`。
 
-`hosts/<host>/default.nix` 和模板入口当前会优先导入仓库根目录的真实 `hardware-configuration.nix`；缺失时只在评估场景导入 `_support/hardware-configuration-eval.nix`。
+`hosts/<host>/default.nix` 和模板入口当前会优先导入各自主机目录内的 `hardware-configuration.nix`；缺失时只在评估场景导入 `_support/hardware-configuration-eval.nix`。
 
 ## `modules/`
 
@@ -72,6 +74,7 @@
 - `home/users/<user>/default.nix`
 - `home/users/<user>/packages.nix`
 - `home/users/<user>/managed/`
+- `home/users/<user>/local.auto.nix`
 - `home/users/<user>/config/`
 - `home/templates/users/`
 - `home/modules/`
@@ -138,6 +141,7 @@
 
 - 新写入文件带 `mcbctl-managed` 标记和校验摘要
 - `mcbctl migrate-managed` 负责显式升级可识别的旧受管文件
+- `mcbctl extract-managed` 负责把残留手写模块移出 `managed/`
 - `repo-integrity` / `lint-repo` 会检查受管文件的 marker、kind 和校验摘要
 - 如果文件内容不再像受管文件，`mcbctl` 会拒绝覆盖
 

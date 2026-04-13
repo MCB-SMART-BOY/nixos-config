@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
 pub mod domain;
+pub mod release_bundle;
 pub mod repo;
 pub mod store;
 pub mod tui;
@@ -228,14 +229,14 @@ pub fn write_managed_file(
     path: &Path,
     kind: &str,
     body: &str,
-    legacy_prefixes: &[&str],
+    _legacy_prefixes: &[&str],
 ) -> Result<()> {
     let rendered = render_managed_file(kind, body);
     if let Ok(existing) = fs::read_to_string(path) {
         if existing == rendered {
             return Ok(());
         }
-        if !managed_content_is_safe_to_replace(&existing, kind, body, legacy_prefixes) {
+        if !managed_content_is_safe_to_replace(&existing, kind) {
             return Err(anyhow!(
                 "refusing to overwrite {}: existing content is not a recognized {kind} managed file",
                 path.display()
@@ -246,22 +247,7 @@ pub fn write_managed_file(
     write_file_atomic(path, &rendered)
 }
 
-fn managed_content_is_safe_to_replace(
-    existing: &str,
-    kind: &str,
-    body: &str,
-    legacy_prefixes: &[&str],
-) -> bool {
-    if existing == body {
-        return true;
-    }
-    if legacy_prefixes
-        .iter()
-        .any(|prefix| existing.trim_start().starts_with(prefix))
-    {
-        return true;
-    }
-
+fn managed_content_is_safe_to_replace(existing: &str, kind: &str) -> bool {
     parse_managed_file(existing).is_some_and(|(existing_kind, checksum, existing_body)| {
         existing_kind == kind && checksum == managed_checksum(existing_body)
     })
@@ -369,19 +355,33 @@ mod tests {
         fs::create_dir_all(&dir)?;
         let path = dir.join("network.nix");
 
-        let legacy = "# 机器管理的网络/TUN 分片。\n\n{ ... }:\n\n{ }\n";
-        fs::write(&path, legacy)?;
-        write_managed_file(
-            &path,
-            "host-network",
-            "# next\n{ }\n",
-            &["# 机器管理的网络/TUN 分片。"],
-        )?;
+        fs::write(&path, render_managed_file("host-network", "# next\n{ }\n"))?;
 
         let tampered = fs::read_to_string(&path)?.replace("{ }\n", "{ a = 1; }\n");
         fs::write(&path, tampered)?;
         let err = write_managed_file(&path, "host-network", "# final\n{ }\n", &[])
             .expect_err("tampered managed file should be rejected");
+        assert!(err.to_string().contains("refusing to overwrite"));
+
+        fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn write_managed_file_rejects_legacy_unmarked_content() -> Result<()> {
+        let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
+        let dir = std::env::temp_dir().join(format!("mcbctl-managed-legacy-{unique}"));
+        fs::create_dir_all(&dir)?;
+        let path = dir.join("network.nix");
+
+        fs::write(&path, "# 机器管理的网络/TUN 分片。\n\n{ ... }:\n\n{ }\n")?;
+        let err = write_managed_file(
+            &path,
+            "host-network",
+            "# final\n{ }\n",
+            &["# 机器管理的网络/TUN 分片。"],
+        )
+        .expect_err("legacy unmarked file should require explicit migration");
         assert!(err.to_string().contains("refusing to overwrite"));
 
         fs::remove_dir_all(&dir)?;

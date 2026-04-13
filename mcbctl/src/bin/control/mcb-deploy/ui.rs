@@ -62,7 +62,8 @@ impl App {
   所有配置项（部署模式、来源、覆盖策略、用户、权限、GPU、TUN 等）
   均在执行过程中通过菜单选择。
 
-  release 模式用于发布新版本：创建 tag，并发布 GitHub Release。"
+  release 模式用于发布新版本：创建 tag、发布 GitHub Release，
+  并触发跨平台预编译产物上传流程。"
         );
     }
 

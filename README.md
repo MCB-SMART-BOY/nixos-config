@@ -26,6 +26,8 @@ nix run .#mcb-deploy
 ```bash
 nix run .#mcbctl -- repo-integrity
 nix run .#mcbctl -- migrate-managed
+nix run .#mcbctl -- extract-managed
+nix run .#mcbctl -- migrate-hardware-config --host <host>
 nix run .#mcbctl -- lint-repo
 nix run .#mcbctl -- doctor
 nix run .#update-upstream-apps -- --check
@@ -59,15 +61,20 @@ nix run .#mcbctl -- build-host --dry-run
 
 - 新写入文件会带 `mcbctl-managed` 标记和校验摘要
 - `mcbctl migrate-managed` 会把仓库里可识别的旧受管文件显式升级到新协议
+- `mcbctl extract-managed` 会把残留在 `managed/` 里的手写模块抽到 `local.auto.nix` + `local-extracted/*.nix`
 - `repo-integrity` / `lint-repo` 会把旧格式或错误 kind 的受管文件直接报出来
 - TUI 只覆盖自己确认受管、且未被手改破坏的文件
 - 遇到陌生内容、损坏内容或 `managed/packages/` 中的非受管陈旧组文件，会直接拒绝覆盖或删除
 
+运行时已经不再自动兼容旧 managed 格式；迁移只能通过显式命令完成。
+
 手写长期逻辑应放在这些位置：
 
 - `hosts/<host>/default.nix`
+- `hosts/<host>/local.auto.nix` 仅用于 `extract-managed` 自动救援，不是长期手写入口
 - `hosts/<host>/local.nix`
 - `home/users/<user>/default.nix`
+- `home/users/<user>/local.auto.nix` 仅用于 `extract-managed` 自动救援，不是长期手写入口
 - `home/users/<user>/packages.nix`
 - `home/users/<user>/local.nix`
 
@@ -104,6 +111,10 @@ nix run .#update-upstream-apps -- --check
 ```
 
 `flake check` 现在会自动导入 [hardware-configuration-eval.nix](/home/mcbgaruda/projects/nixos-config/hosts/_support/hardware-configuration-eval.nix) 作为评估回退模块，所以仓库 / CI 没有真实 `hardware-configuration.nix` 也能安静评估；但 `switch` / `test` / `boot` 仍要求真实硬件配置文件存在。
+
+真实硬件配置现在固定落在 `hosts/<host>/hardware-configuration.nix`；仓库根目录的 `hardware-configuration.nix` 已被视为旧路径，可用 `mcbctl migrate-hardware-config` 迁走。
+
+发布主线现在会在创建 GitHub Release 后主动触发 [.github/workflows/release-mcbctl.yml](/home/mcbgaruda/projects/nixos-config/.github/workflows/release-mcbctl.yml)，由各平台 runner 构建并上传 `mcbctl` 的预编译资产。
 
 ## 文档
 

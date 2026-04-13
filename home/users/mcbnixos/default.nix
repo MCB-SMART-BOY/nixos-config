@@ -15,6 +15,7 @@ in
     ./files.nix
   ]
   ++ lib.optional (builtins.pathExists ./managed/default.nix) ./managed/default.nix
+  ++ lib.optional (builtins.pathExists ./local.auto.nix) ./local.auto.nix
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   # Home Manager 基本信息

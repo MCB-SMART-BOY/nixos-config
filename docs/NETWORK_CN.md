@@ -110,7 +110,7 @@ nix run .#mcbctl -- doctor
 nix run .#noctalia-proxy-status
 ```
 
-`doctor` 现在也会显示仓库根目录是否存在真实 `hardware-configuration.nix`，方便区分“网络问题”和“当前只是评估 fallback”。
+`doctor` 现在会显示当前 repo host 对应的 `hosts/<host>/hardware-configuration.nix` 是否存在，也会提示是否还残留旧的仓库根目录硬件文件。
 
 ## 7. 推荐顺序
 

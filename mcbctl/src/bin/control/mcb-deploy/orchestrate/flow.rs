@@ -69,7 +69,7 @@ impl App {
                 }
                 self.write_local_override(&tmp_dir)?;
             }
-            self.ensure_root_hardware_config()?;
+            self.ensure_target_hardware_config()?;
             self.progress_step("收集配置");
             self.confirm_continue("确认以上配置并继续同步？")?;
 

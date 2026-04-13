@@ -9,8 +9,8 @@
 
 let
   hardwareModule =
-    if builtins.pathExists ../../hardware-configuration.nix then
-      ../../hardware-configuration.nix
+    if builtins.pathExists ./hardware-configuration.nix then
+      ./hardware-configuration.nix
     else
       ../_support/hardware-configuration-eval.nix;
 in
@@ -20,6 +20,7 @@ in
     hardwareModule
   ]
   ++ lib.optional (builtins.pathExists ./managed/default.nix) ./managed/default.nix
+  ++ lib.optional (builtins.pathExists ./local.auto.nix) ./local.auto.nix
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   mcb = {

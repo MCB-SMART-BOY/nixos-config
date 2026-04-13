@@ -1,0 +1,45 @@
+name: release-mcbctl
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: release tag to upload assets for
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    env:
+      RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build Rust command suite
+        run: cargo build --manifest-path mcbctl/Cargo.toml --release
+
+      - name: Package release bundle
+        run: cargo run --manifest-path mcbctl/Cargo.toml --release --bin mcbctl -- release-bundle --target ${{ matrix.target }} --bin-dir mcbctl/target/release --out-dir dist --version ${{ env.RELEASE_TAG }}
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          files: dist/*

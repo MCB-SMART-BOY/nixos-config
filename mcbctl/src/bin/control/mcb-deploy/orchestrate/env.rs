@@ -113,9 +113,7 @@ impl App {
             }
         }
 
-        if self.should_require_hardware_config() {
-            self.ensure_root_hardware_config()?;
-        } else {
+        if !self.should_require_hardware_config() {
             self.note("rootless + build 模式：跳过硬件配置强制检查（仅构建/评估）。");
         }
         Ok(())
@@ -125,20 +123,23 @@ impl App {
         !(self.rootless && self.mode == "build")
     }
 
-    pub(crate) fn root_hardware_config_path(&self) -> PathBuf {
-        self.etc_dir.join("hardware-configuration.nix")
+    pub(crate) fn target_hardware_config_path(&self) -> Result<PathBuf> {
+        if self.target_name.trim().is_empty() {
+            bail!("目标主机尚未确定，无法定位 hosts/<host>/hardware-configuration.nix");
+        }
+        Ok(host_hardware_config_path(&self.etc_dir, &self.target_name))
     }
 
-    pub(crate) fn ensure_root_hardware_config(&self) -> Result<()> {
+    pub(crate) fn ensure_target_hardware_config(&self) -> Result<()> {
         if !self.should_require_hardware_config() {
             return Ok(());
         }
-        let target = self.root_hardware_config_path();
+        let target = self.target_hardware_config_path()?;
         if target.is_file() {
             return Ok(());
         }
         self.warn(&format!("未发现 {}，将自动生成。", target.display()));
-        ensure_root_hardware_config(&self.etc_dir, self.sudo_cmd.is_some())?;
+        ensure_host_hardware_config(&self.etc_dir, &self.target_name, self.sudo_cmd.is_some())?;
         self.log(&format!("已生成 {}", target.display()));
         Ok(())
     }

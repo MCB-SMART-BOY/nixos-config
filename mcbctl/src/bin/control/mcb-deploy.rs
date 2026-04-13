@@ -3,7 +3,8 @@ use mcbctl::domain::deploy::DeployPlan;
 use mcbctl::domain::tui::{DeployAction, DeploySource, DeployTask};
 use mcbctl::repo::preferred_remote_branch;
 use mcbctl::store::deploy::{
-    NixosRebuildPlan, RepoSyncPlan, ensure_root_hardware_config, run_nixos_rebuild, run_repo_sync,
+    NixosRebuildPlan, RepoSyncPlan, ensure_host_hardware_config, host_hardware_config_path,
+    run_nixos_rebuild, run_repo_sync,
 };
 use mcbctl::{command_exists, find_repo_root, run_capture_allow_fail};
 use std::collections::{BTreeMap, BTreeSet};

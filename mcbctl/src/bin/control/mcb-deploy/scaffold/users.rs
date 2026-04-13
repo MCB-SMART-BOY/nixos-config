@@ -193,7 +193,9 @@ in
 {{
   imports = [
 {}
-  ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
+  ]
+  ++ lib.optional (builtins.pathExists ./local.auto.nix) ./local.auto.nix
+  ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 
   home.username = user;
   home.homeDirectory = "/home/${{user}}";

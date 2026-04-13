@@ -9,7 +9,8 @@
 - `noctalia-*`：桌面状态和 GPU 模式命令
 - `lock-screen`、`niri-run`、`flatpak-setup`：桌面命令
 - `update-*`：上游 pin 检查和刷新
-- `repo-integrity` / `migrate-managed` / `lint-repo` / `doctor`：仓库检查与受管协议维护
+- `repo-integrity` / `migrate-managed` / `extract-managed` / `migrate-hardware-config` / `lint-repo` / `doctor`：仓库检查与迁移
+- `release-bundle`：生成 release 预编译资产
 
 ## 分层
 
@@ -54,6 +55,7 @@
 
 - 新写入文件带 `mcbctl-managed` 标记和校验摘要
 - `migrate-managed` 负责显式升级可识别的旧占位和旧受管格式
+- `extract-managed` 负责把残留在 `managed/` 里的手写内容抽到 `local.auto.nix` + `local-extracted/*.nix`
 - `repo-integrity` / `lint-repo` 会检查 kind、marker 和校验摘要
 - 被手改破坏的受管文件会被拒绝覆盖
 - `managed/packages/` 中的非受管陈旧文件不会被自动删除
@@ -91,6 +93,14 @@ cargo test
 NIX_CONFIG='experimental-features = nix-command flakes' nix flake check --option eval-cache false
 nix run .#mcbctl -- repo-integrity
 nix run .#mcbctl -- migrate-managed
+nix run .#mcbctl -- extract-managed
+nix run .#mcbctl -- migrate-hardware-config --host <host>
+```
+
+发布资产：
+
+```bash
+cargo run --manifest-path mcbctl/Cargo.toml --release --bin mcbctl -- release-bundle --target x86_64-unknown-linux-gnu --bin-dir mcbctl/target/release --out-dir dist --version vX.Y.Z
 ```
 
 ## 修改建议

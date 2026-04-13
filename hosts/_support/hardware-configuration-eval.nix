@@ -1,5 +1,5 @@
 # 仅用于仓库 / CI 评估的硬件回退模块。
-# 真实部署应由仓库根目录或 /etc/nixos 提供真实 hardware-configuration.nix。
+# 真实部署应由 hosts/<host>/hardware-configuration.nix 提供真实硬件配置。
 
 { lib, ... }:
 

@@ -94,15 +94,18 @@ impl App {
         }
 
         let preserve = create_temp_dir("mcbctl-preserve")?;
-        let etc_hw = self.etc_dir.join("hardware-configuration.nix");
+        let etc_hw = host_hardware_config_path(&self.etc_dir, &self.target_name);
         if etc_hw.is_file() {
-            fs::create_dir_all(&preserve)?;
+            let Some(parent) = preserved_hardware_parent(&preserve, &self.target_name) else {
+                bail!("目标主机尚未确定，无法保留硬件配置");
+            };
+            fs::create_dir_all(&parent)?;
             self.run_as_root_ok(
                 "cp",
                 &[
                     "-a".to_string(),
                     etc_hw.display().to_string(),
-                    preserve.display().to_string(),
+                    parent.display().to_string(),
                 ],
             )?;
         }
@@ -122,14 +125,20 @@ impl App {
             ],
         )?;
 
-        let preserved_root = preserve.join("hardware-configuration.nix");
+        let preserved_root = preserve
+            .join("hosts")
+            .join(&self.target_name)
+            .join("hardware-configuration.nix");
         if preserved_root.is_file() {
+            if let Some(parent) = etc_hw.parent() {
+                self.run_as_root_ok("mkdir", &["-p".to_string(), parent.display().to_string()])?;
+            }
             self.run_as_root_ok(
                 "cp",
                 &[
                     "-a".to_string(),
                     preserved_root.display().to_string(),
-                    self.etc_dir.display().to_string(),
+                    etc_hw.display().to_string(),
                 ],
             )?;
         }
@@ -179,5 +188,13 @@ impl App {
             self.warn("系统重建失败");
             Ok(false)
         }
+    }
+}
+
+fn preserved_hardware_parent(root: &Path, host: &str) -> Option<PathBuf> {
+    if host.trim().is_empty() {
+        None
+    } else {
+        Some(root.join("hosts").join(host))
     }
 }

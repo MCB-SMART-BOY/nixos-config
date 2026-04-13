@@ -75,6 +75,29 @@ impl App {
         } else {
             self.note("仅更新模式：未发现现有 hosts/<host>/local.nix，将按仓库默认配置更新。");
         }
+
+        let src_hw = host_hardware_config_path(&self.etc_dir, &self.target_name);
+        let dst_hw = host_hardware_config_path(repo_dir, &self.target_name);
+        if src_hw.is_file() {
+            if let Some(parent) = dst_hw.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&src_hw, &dst_hw).with_context(|| {
+                format!(
+                    "仅更新模式：复制现有 hardware-configuration.nix 失败：{} -> {}",
+                    src_hw.display(),
+                    dst_hw.display()
+                )
+            })?;
+            self.note(&format!(
+                "仅更新模式：已保留现有 hosts/{}/hardware-configuration.nix",
+                self.target_name
+            ));
+        } else {
+            self.note(
+                "仅更新模式：未发现现有 hosts/<host>/hardware-configuration.nix，将使用仓库内已有文件或评估 fallback。",
+            );
+        }
         Ok(())
     }
 

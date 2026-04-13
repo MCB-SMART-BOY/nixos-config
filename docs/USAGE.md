@@ -45,12 +45,15 @@ nix run .#mcb-deploy -- --help
 
 ```bash
 nix run .#mcbctl -- migrate-managed
+nix run .#mcbctl -- extract-managed
+nix run .#mcbctl -- migrate-hardware-config --host <host>
 ```
 
 如果你遇到“refusing to overwrite”或“refusing to remove stale unmanaged package file”：
 
 - 把手写内容移出 `managed/`
-- 改到 `default.nix`、`packages.nix`、`local.nix`
+- 优先折叠进 `default.nix`、`packages.nix`、`local.nix`
+- `extract-managed` 的自动落点是 `local.auto.nix` + `local-extracted/*.nix`
 - 再重新保存
 
 ## 4. 部署
@@ -66,7 +69,7 @@ nix run .#mcbctl -- build-host --dry-run
 
 说明：
 
-- `rebuild switch|test|boot` 现在要求 flake 根目录里有真实 `hardware-configuration.nix`
+- `rebuild switch|test|boot` 现在要求 `hosts/<host>/hardware-configuration.nix` 存在
 - `build-host` 和 `rebuild build` 允许只走评估 fallback，适合 CI / 本地检查
 
 完整向导：
@@ -89,6 +92,8 @@ nix run .#mcbctl -- deploy
 ```bash
 nix run .#mcbctl -- repo-integrity
 nix run .#mcbctl -- migrate-managed
+nix run .#mcbctl -- extract-managed
+nix run .#mcbctl -- migrate-hardware-config --host <host>
 nix run .#mcbctl -- lint-repo
 nix run .#mcbctl -- doctor
 nix run .#update-upstream-apps -- --check
@@ -121,12 +126,14 @@ nix run .#noctalia-proxy-status
 主机：
 
 - `hosts/<host>/default.nix`
+- `hosts/<host>/local.auto.nix` 只给 `extract-managed` 自动救援使用
 - `hosts/<host>/local.nix`
 
 用户：
 
 - `home/users/<user>/default.nix`
 - `home/users/<user>/packages.nix`
+- `home/users/<user>/local.auto.nix` 只给 `extract-managed` 自动救援使用
 - `home/users/<user>/local.nix`
 
 模板：
@@ -145,6 +152,8 @@ cargo test --manifest-path mcbctl/Cargo.toml
 NIX_CONFIG='experimental-features = nix-command flakes' nix flake check --option eval-cache false
 nix run .#mcbctl -- --help
 nix run .#mcbctl -- migrate-managed --help
+nix run .#mcbctl -- extract-managed --help
+nix run .#mcbctl -- migrate-hardware-config --help
 nix run .#mcbctl -- deploy --help
 nix run .#mcb-deploy -- --help
 nix run .#update-upstream-apps -- --check

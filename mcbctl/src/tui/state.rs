@@ -10,8 +10,8 @@ use crate::store::context::{
     list_users,
 };
 use crate::store::deploy::{
-    NixosRebuildPlan, RepoSyncPlan, ensure_root_hardware_config, merged_nix_config,
-    run_nixos_rebuild, run_repo_sync, run_root_command_ok,
+    NixosRebuildPlan, RepoSyncPlan, ensure_host_hardware_config, host_hardware_config_path,
+    merged_nix_config, run_nixos_rebuild, run_repo_sync, run_root_command_ok,
 };
 use crate::store::home::{
     ensure_managed_settings_layout, load_home_user_settings, managed_home_desktop_path,

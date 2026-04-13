@@ -90,9 +90,17 @@ impl AppState {
         fs::create_dir_all(&preserve)
             .with_context(|| format!("failed to create {}", preserve.display()))?;
 
-        let etc_hw = self.context.etc_root.join("hardware-configuration.nix");
+        let etc_hw = host_hardware_config_path(&self.context.etc_root, &self.context.current_host);
         if etc_hw.is_file() {
-            fs::copy(&etc_hw, preserve.join("hardware-configuration.nix"))
+            let preserved = preserve
+                .join("hosts")
+                .join(&self.context.current_host)
+                .join("hardware-configuration.nix");
+            if let Some(parent) = preserved.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create {}", parent.display()))?;
+            }
+            fs::copy(&etc_hw, &preserved)
                 .with_context(|| format!("failed to preserve {}", etc_hw.display()))?;
         }
 
@@ -101,8 +109,7 @@ impl AppState {
         {
             let entry = entry?;
             let path = entry.path();
-            let is_hw = path.file_name().and_then(|name| name.to_str())
-                == Some("hardware-configuration.nix");
+            let is_hw = path == etc_hw;
             if is_hw {
                 continue;
             }
@@ -115,8 +122,15 @@ impl AppState {
             }
         }
 
-        let preserved_root = preserve.join("hardware-configuration.nix");
+        let preserved_root = preserve
+            .join("hosts")
+            .join(&self.context.current_host)
+            .join("hardware-configuration.nix");
         if preserved_root.is_file() {
+            if let Some(parent) = etc_hw.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create {}", parent.display()))?;
+            }
             fs::copy(&preserved_root, &etc_hw)
                 .with_context(|| format!("failed to restore {}", etc_hw.display()))?;
         }

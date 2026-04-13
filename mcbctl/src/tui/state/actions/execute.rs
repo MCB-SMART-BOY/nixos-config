@@ -101,7 +101,11 @@ impl AppState {
                     DeployAction::Switch
                 };
                 if action != DeployAction::Build {
-                    ensure_root_hardware_config(&self.context.etc_root, use_sudo)?;
+                    ensure_host_hardware_config(
+                        &self.context.etc_root,
+                        &self.context.current_host,
+                        use_sudo,
+                    )?;
                 }
                 let plan = NixosRebuildPlan {
                     action,

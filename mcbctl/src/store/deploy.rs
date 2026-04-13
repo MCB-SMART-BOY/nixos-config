@@ -99,6 +99,12 @@ impl RepoSyncPlan {
     }
 }
 
+pub fn host_hardware_config_path(root: &Path, host: &str) -> PathBuf {
+    root.join("hosts")
+        .join(host)
+        .join("hardware-configuration.nix")
+}
+
 pub fn merged_nix_config() -> String {
     let mut nix_config = "experimental-features = nix-command flakes".to_string();
     if let Ok(extra) = std::env::var("NIX_CONFIG")
@@ -144,14 +150,14 @@ fn ensure_real_hardware_config_for_rebuild(plan: &NixosRebuildPlan) -> Result<()
         return Ok(());
     }
 
-    let hardware_file = plan.flake_root.join("hardware-configuration.nix");
+    let hardware_file = host_hardware_config_path(&plan.flake_root, &plan.target_host);
     if hardware_file.is_file() {
         return Ok(());
     }
 
     bail!(
         "{} 缺少真实 hardware-configuration.nix；`switch` / `test` / `boot` 不能使用评估 fallback。若只是做评估，请改用 `mcbctl build-host` 或 `mcbctl rebuild build`。",
-        plan.flake_root.display()
+        hardware_file.display()
     )
 }
 
@@ -192,8 +198,12 @@ pub fn run_root_command_ok(cmd: &str, args: &[String], use_sudo: bool) -> Result
     }
 }
 
-pub fn ensure_root_hardware_config(etc_root: &Path, use_sudo: bool) -> Result<()> {
-    let target = etc_root.join("hardware-configuration.nix");
+pub fn ensure_host_hardware_config(etc_root: &Path, host: &str, use_sudo: bool) -> Result<()> {
+    if host.trim().is_empty() {
+        bail!("未指定目标主机，无法生成 hosts/<host>/hardware-configuration.nix");
+    }
+
+    let target = host_hardware_config_path(etc_root, host);
     if target.is_file() {
         return Ok(());
     }
@@ -207,7 +217,13 @@ pub fn ensure_root_hardware_config(etc_root: &Path, use_sudo: bool) -> Result<()
 
     run_root_command_ok(
         "mkdir",
-        &["-p".to_string(), etc_root.display().to_string()],
+        &[
+            "-p".to_string(),
+            target
+                .parent()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| etc_root.display().to_string()),
+        ],
         use_sudo,
     )?;
     let output = Command::new("nixos-generate-config")

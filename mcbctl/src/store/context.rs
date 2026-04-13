@@ -84,7 +84,7 @@ pub fn detect_nix_system() -> String {
 
 pub fn list_hosts(repo_root: &Path) -> Vec<String> {
     list_child_dirs(repo_root.join("hosts"), |name| {
-        name != "profiles" && name != "templates"
+        name != "_support" && name != "profiles" && name != "templates"
     })
 }
 

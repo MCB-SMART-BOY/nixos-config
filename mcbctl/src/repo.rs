@@ -2,9 +2,9 @@ use crate::{
     managed_file_is_valid, managed_file_kind, render_managed_file, run_capture_allow_fail,
     write_file_atomic,
 };
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use walkdir::{DirEntry, WalkDir};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -23,6 +23,19 @@ pub struct IntegrityReport {
 pub struct ManagedMigrationReport {
     pub migrated: Vec<String>,
     pub skipped: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ManagedExtractionReport {
+    pub extracted: Vec<String>,
+    pub skipped_valid: Vec<String>,
+    pub skipped_legacy: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct HardwareConfigMigrationReport {
+    pub destination: String,
+    pub moved: bool,
 }
 
 impl IntegrityReport {
@@ -128,6 +141,156 @@ pub fn migrate_managed_files(root: &Path) -> Result<ManagedMigrationReport> {
     Ok(report)
 }
 
+pub fn extract_manual_managed_files(root: &Path) -> Result<ManagedExtractionReport> {
+    let mut report = ManagedExtractionReport::default();
+
+    for entry in WalkDir::new(root)
+        .into_iter()
+        .filter_entry(|entry| !should_skip_entry(entry))
+        .flatten()
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let rel = relative_path(root, entry.path());
+        let Some(kind) = expected_managed_kind(&rel) else {
+            continue;
+        };
+
+        let content = fs::read_to_string(entry.path())?;
+        if managed_file_kind(&content) == Some(kind.as_str()) && managed_file_is_valid(&content) {
+            report.skipped_valid.push(rel);
+            continue;
+        }
+
+        if is_recognized_legacy_managed_content(&rel, &content) {
+            report.skipped_legacy.push(rel);
+            continue;
+        }
+
+        let plan = extraction_plan(&rel)?;
+        let extracted_path = root.join(&plan.extracted_rel);
+        if let Some(parent) = extracted_path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("failed to create {}", parent.display()))?;
+        }
+        let extracted_body = render_extracted_manual_module(&plan.source_tail, &content);
+        if extracted_path.is_file() {
+            let existing = fs::read_to_string(&extracted_path)
+                .with_context(|| format!("failed to read {}", extracted_path.display()))?;
+            if existing != extracted_body {
+                bail!(
+                    "refusing to overwrite extracted manual file {}; review and merge it manually first",
+                    extracted_path.display()
+                );
+            }
+        } else {
+            write_file_atomic(&extracted_path, &extracted_body)?;
+        }
+
+        let local_auto_path = root.join(&plan.local_auto_rel);
+        let local_auto_body = render_local_auto_file();
+        if let Ok(existing) = fs::read_to_string(&local_auto_path) {
+            if existing != local_auto_body {
+                bail!(
+                    "refusing to overwrite {}: local.auto.nix is not in mcbctl-generated form",
+                    local_auto_path.display()
+                );
+            }
+        } else {
+            if let Some(parent) = local_auto_path.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create {}", parent.display()))?;
+            }
+            write_file_atomic(&local_auto_path, &local_auto_body)?;
+        }
+
+        let replacement = replacement_managed_body(&rel, &kind)
+            .with_context(|| format!("failed to resolve replacement body for {}", rel))?;
+        write_file_atomic(entry.path(), &render_managed_file(&kind, &replacement))?;
+        report.extracted.push(rel);
+    }
+
+    report.extracted.sort();
+    report.skipped_valid.sort();
+    report.skipped_legacy.sort();
+    Ok(report)
+}
+
+pub fn migrate_root_hardware_config(
+    root: &Path,
+    host: &str,
+) -> Result<HardwareConfigMigrationReport> {
+    if host.trim().is_empty() {
+        bail!("未指定目标主机，无法迁移 hardware-configuration.nix");
+    }
+
+    let source = root.join("hardware-configuration.nix");
+    let destination = root
+        .join("hosts")
+        .join(host)
+        .join("hardware-configuration.nix");
+
+    if !source.exists() {
+        if destination.is_file() {
+            return Ok(HardwareConfigMigrationReport {
+                destination: relative_path(root, &destination),
+                moved: false,
+            });
+        }
+        bail!(
+            "未发现 {}；也未发现 {}",
+            source.display(),
+            destination.display()
+        );
+    }
+
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    if destination.is_file() {
+        let source_content = fs::read_to_string(&source)
+            .with_context(|| format!("failed to read {}", source.display()))?;
+        let destination_content = fs::read_to_string(&destination)
+            .with_context(|| format!("failed to read {}", destination.display()))?;
+        if source_content != destination_content {
+            bail!(
+                "目标 {} 已存在且内容不同；请先手工确认再迁移",
+                destination.display()
+            );
+        }
+        fs::remove_file(&source)
+            .with_context(|| format!("failed to remove {}", source.display()))?;
+        return Ok(HardwareConfigMigrationReport {
+            destination: relative_path(root, &destination),
+            moved: true,
+        });
+    }
+
+    fs::rename(&source, &destination).or_else(|_| {
+        fs::copy(&source, &destination)
+            .with_context(|| {
+                format!(
+                    "failed to copy {} -> {}",
+                    source.display(),
+                    destination.display()
+                )
+            })
+            .and_then(|_| {
+                fs::remove_file(&source)
+                    .with_context(|| format!("failed to remove {}", source.display()))
+            })
+    })?;
+
+    Ok(HardwareConfigMigrationReport {
+        destination: relative_path(root, &destination),
+        moved: true,
+    })
+}
+
 pub fn audit_repository(root: &Path) -> Result<IntegrityReport> {
     let mut report = IntegrityReport::default();
 
@@ -230,6 +393,14 @@ fn check_forbidden_path(report: &mut IntegrityReport, rel: &str, entry: &DirEntr
             rel.to_string(),
             "legacy-path",
             "script directories are not allowed in the converged branch",
+        );
+    }
+
+    if rel == "hardware-configuration.nix" {
+        report.push(
+            rel.to_string(),
+            "legacy-hardware-path",
+            "repository root hardware-configuration.nix is obsolete; move it to hosts/<host>/hardware-configuration.nix via `mcbctl migrate-hardware-config`",
         );
     }
 }
@@ -463,6 +634,149 @@ fn expected_managed_kind(rel: &str) -> Option<String> {
     }
 
     None
+}
+
+struct ExtractionPlan {
+    source_tail: String,
+    local_auto_rel: PathBuf,
+    extracted_rel: PathBuf,
+}
+
+fn extraction_plan(rel: &str) -> Result<ExtractionPlan> {
+    let parts = rel.split('/').collect::<Vec<_>>();
+    let (owner_parts, managed_idx) = match parts.as_slice() {
+        ["hosts", host, "managed", ..] => (vec!["hosts", host], 2usize),
+        ["hosts", "templates", template, "managed", ..] => {
+            (vec!["hosts", "templates", template], 3usize)
+        }
+        ["home", "users", user, "managed", ..] => (vec!["home", "users", user], 3usize),
+        ["home", "templates", "users", template, "managed", ..] => {
+            (vec!["home", "templates", "users", template], 4usize)
+        }
+        _ => bail!("{} is not a supported managed path", rel),
+    };
+
+    let tail = &parts[managed_idx + 1..];
+    if tail.is_empty() {
+        bail!("{} is missing the managed file tail", rel);
+    }
+
+    let owner_rel = owner_parts.iter().collect::<PathBuf>();
+    let source_tail = tail.join("/");
+    let extracted_name = format!(
+        "managed-{}.nix",
+        tail.iter()
+            .map(|part| part.trim_end_matches(".nix"))
+            .collect::<Vec<_>>()
+            .join("-")
+    );
+
+    Ok(ExtractionPlan {
+        source_tail,
+        local_auto_rel: owner_rel.join("local.auto.nix"),
+        extracted_rel: owner_rel.join("local-extracted").join(extracted_name),
+    })
+}
+
+fn render_local_auto_file() -> String {
+    [
+        "# mcbctl-local-auto",
+        "# 这个文件由 mcbctl 维护，用于导入从 managed/ 中抽离出的手写模块。",
+        "# 不要在这里放长期手写逻辑；请在确认后手动折叠到 local.nix。",
+        "",
+        "{ lib, ... }:",
+        "",
+        "let",
+        "  extractedDir = ./local-extracted;",
+        "  extractedImports =",
+        "    if builtins.pathExists extractedDir then",
+        "      builtins.map (name: extractedDir + \"/${name}\") (",
+        "        lib.sort lib.lessThan (",
+        "          lib.filter (name: lib.hasSuffix \".nix\" name) (builtins.attrNames (builtins.readDir extractedDir))",
+        "        )",
+        "      )",
+        "    else",
+        "      [ ];",
+        "in",
+        "{",
+        "  imports = extractedImports;",
+        "}",
+        "",
+    ]
+    .join("\n")
+}
+
+fn render_extracted_manual_module(source_tail: &str, content: &str) -> String {
+    format!(
+        "# mcbctl-extracted-from: managed/{source_tail}\n# review and fold this module into local.nix when convenient\n\n{}",
+        content.trim_end()
+    ) + "\n"
+}
+
+fn replacement_managed_body(rel: &str, kind: &str) -> Option<String> {
+    match kind {
+        "host-managed-default" => {
+            if rel.starts_with("hosts/templates/") {
+                Some(legacy_host_default_body_template())
+            } else {
+                Some(legacy_host_default_body())
+            }
+        }
+        "host-users" => Some(legacy_host_placeholder_body(
+            "用户结构",
+            "mcbctl 的 Users 页保存时",
+        )),
+        "host-network" => Some(legacy_host_placeholder_body(
+            "网络/TUN",
+            "mcbctl 的 Hosts 页保存网络相关设置时",
+        )),
+        "host-gpu" => Some(legacy_host_placeholder_body(
+            "GPU",
+            "mcbctl 的 Hosts 页保存 GPU 相关设置时",
+        )),
+        "host-virtualization" => Some(legacy_host_placeholder_body(
+            "虚拟化",
+            "mcbctl 的 Hosts 页保存 Docker / Libvirt 设置时",
+        )),
+        "home-managed-default" => {
+            if rel.starts_with("home/templates/users/") {
+                Some(legacy_home_default_body_template())
+            } else {
+                Some(legacy_home_default_body_user())
+            }
+        }
+        "home-packages-aggregator" => Some(legacy_home_packages_body()),
+        "home-settings-default" => Some(legacy_home_settings_default_body()),
+        "home-settings-desktop" => Some(legacy_home_settings_placeholder_body(
+            "桌面",
+            Some("mcbctl 的 Home 页保存桌面结构化设置时"),
+        )),
+        "home-settings-session" => Some(legacy_home_settings_placeholder_body(
+            "session",
+            Some("mcbctl 后续接入 session 相关结构化设置时"),
+        )),
+        "home-settings-mime" => Some(legacy_home_settings_placeholder_body(
+            "MIME",
+            Some("mcbctl 后续接入 MIME 相关结构化设置时"),
+        )),
+        _ if kind.starts_with("package-group:") => Some(render_empty_package_group_file(
+            kind.trim_start_matches("package-group:"),
+        )),
+        _ => None,
+    }
+}
+
+fn render_empty_package_group_file(group: &str) -> String {
+    [
+        format!("# 机器管理的软件组：{group}（由 mcbctl 维护）。"),
+        "# 当前为空；若曾有手写逻辑，已抽离到 ../local-extracted/。".to_string(),
+        "".to_string(),
+        "{ ... }:".to_string(),
+        "".to_string(),
+        "{ }".to_string(),
+        "".to_string(),
+    ]
+    .join("\n")
 }
 
 fn is_recognized_legacy_managed_content(rel: &str, content: &str) -> bool {
@@ -902,6 +1216,65 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("does not match a recognized legacy managed file")
+        );
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn extract_manual_managed_files_moves_content_out_of_managed() -> Result<()> {
+        let root = create_temp_repo()?;
+        let source = root.join("hosts/demo/managed/network.nix");
+        fs::create_dir_all(source.parent().expect("managed dir"))?;
+        fs::write(
+            &source,
+            "{ lib, ... }: { networking.useDHCP = lib.mkForce false; }\n",
+        )?;
+
+        let report = extract_manual_managed_files(&root)?;
+        assert_eq!(report.extracted, vec!["hosts/demo/managed/network.nix"]);
+
+        let extracted = root.join("hosts/demo/local-extracted/managed-network.nix");
+        assert!(extracted.is_file());
+        let local_auto = root.join("hosts/demo/local.auto.nix");
+        assert_eq!(fs::read_to_string(local_auto)?, render_local_auto_file());
+
+        let replacement = fs::read_to_string(&source)?;
+        assert_eq!(managed_file_kind(&replacement), Some("host-network"));
+        assert!(managed_file_is_valid(&replacement));
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_root_hardware_config_moves_into_host_directory() -> Result<()> {
+        let root = create_temp_repo()?;
+        let source = root.join("hardware-configuration.nix");
+        fs::create_dir_all(root.join("hosts/demo"))?;
+        fs::write(&source, "{ ... }: { }\n")?;
+
+        let report = migrate_root_hardware_config(&root, "demo")?;
+        assert!(report.moved);
+        assert!(!source.exists());
+        assert!(root.join("hosts/demo/hardware-configuration.nix").is_file());
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn flags_legacy_root_hardware_configuration_path() -> Result<()> {
+        let root = create_temp_repo()?;
+        fs::write(root.join("hardware-configuration.nix"), "{ ... }: { }\n")?;
+
+        let report = audit_repository(&root)?;
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|finding| finding.rule == "legacy-hardware-path")
         );
 
         fs::remove_dir_all(root)?;

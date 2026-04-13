@@ -83,7 +83,7 @@ impl AppState {
         let needs_root_hw = !(self.context.privilege_mode == "rootless"
             && self.deploy_action == DeployAction::Build);
         if needs_root_hw {
-            ensure_root_hardware_config(&self.context.etc_root, use_sudo)?;
+            ensure_host_hardware_config(&self.context.etc_root, &self.target_host, use_sudo)?;
         }
 
         let sync_plan = self.deploy_sync_plan_for_execution();
