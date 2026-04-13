@@ -1,5 +1,5 @@
 use crate::domain::tui::{HomeManagedSettings, ManagedBarProfile, ManagedToggle};
-use crate::write_file_atomic;
+use crate::write_managed_file;
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::fs;
@@ -41,9 +41,11 @@ pub fn ensure_managed_settings_layout(managed_dir: &Path) -> Result<()> {
     fs::create_dir_all(&settings_dir)
         .with_context(|| format!("failed to create {}", settings_dir.display()))?;
 
-    write_file_atomic(
+    write_managed_file(
         &settings_dir.join("default.nix"),
+        "home-settings-default",
         &render_settings_default_file(),
+        &["# 机器管理的用户设置聚合入口"],
     )?;
 
     for (name, content) in [
@@ -53,7 +55,12 @@ pub fn ensure_managed_settings_layout(managed_dir: &Path) -> Result<()> {
     ] {
         let path = settings_dir.join(name);
         if !path.exists() {
-            write_file_atomic(&path, &content)?;
+            write_managed_file(
+                &path,
+                &format!("home-settings-placeholder:{name}"),
+                &content,
+                &["# 机器管理的"],
+            )?;
         }
     }
 
@@ -138,12 +145,7 @@ fn render_settings_default_file() -> String {
 }
 
 fn render_settings_placeholder_file(kind: &str) -> String {
-    let title = match kind {
-        "desktop" => "desktop",
-        "session" => "session",
-        "mime" => "mime",
-        other => other,
-    };
+    let title = kind;
 
     [
         format!("# 机器管理的 {title} 设置分片。"),

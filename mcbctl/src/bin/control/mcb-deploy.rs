@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, bail};
 use mcbctl::domain::deploy::DeployPlan;
 use mcbctl::domain::tui::{DeployAction, DeploySource, DeployTask};
+use mcbctl::repo::preferred_remote_branch;
 use mcbctl::store::deploy::{
     NixosRebuildPlan, RepoSyncPlan, ensure_root_hardware_config, run_nixos_rebuild, run_repo_sync,
 };
@@ -193,6 +194,7 @@ struct App {
 impl App {
     fn new() -> Result<Self> {
         let repo_dir = detect_repo_dir()?;
+        let branch = preferred_remote_branch(&repo_dir);
         let git_clone_timeout_sec = std::env::var("GIT_CLONE_TIMEOUT_SEC")
             .ok()
             .and_then(|v| v.parse::<u64>().ok())
@@ -205,7 +207,7 @@ impl App {
                 "https://gitee.com/MCB-SMART-BOY/nixos-config.git".to_string(),
                 "https://github.com/MCB-SMART-BOY/nixos-config.git".to_string(),
             ],
-            branch: "master".to_string(),
+            branch,
             source_ref: String::new(),
             allow_remote_head: false,
             source_commit: String::new(),

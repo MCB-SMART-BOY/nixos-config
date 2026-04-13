@@ -42,7 +42,7 @@ pub fn load_managed_package_entries(
 
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.is_file() || !path.extension().is_some_and(|ext| ext == "nix") {
+            if !path.is_file() || path.extension().is_none_or(|ext| ext != "nix") {
                 continue;
             }
             let Some(group) = path.file_stem().and_then(|stem| stem.to_str()) else {

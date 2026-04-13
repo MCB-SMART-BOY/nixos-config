@@ -4,7 +4,7 @@
 { config, lib, osConfig ? { }, ... }:
 
 let
-  scriptBin = "${config.home.homeDirectory}/.local/bin";
+  scriptBin = "${config.home.homeDirectory}/.nix-profile/bin";
   userNoctaliaSettings = import ./config/noctalia/settings.nix {
     inherit scriptBin osConfig lib;
   };

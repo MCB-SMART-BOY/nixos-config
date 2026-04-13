@@ -145,43 +145,58 @@
             inherit program;
             meta.description = "Rust script entry for this NixOS configuration";
           };
+          commandApps = [
+            "mcbctl"
+            "mcb-deploy"
+            "deploy"
+            "clash-verge-prestart"
+            "mcb-tun-route"
+            "lock-screen"
+            "niri-run"
+            "steam-gamescope"
+            "wallpaper-random"
+            "electron-auto-gpu"
+            "zed-auto-gpu"
+            "flatpak-setup"
+            "musicfox-wrapper"
+            "noctalia-bluetooth"
+            "noctalia-cpu"
+            "noctalia-disk"
+            "noctalia-flake-updates"
+            "noctalia-gpu-current"
+            "noctalia-gpu-mode"
+            "noctalia-memory"
+            "noctalia-net-speed"
+            "noctalia-net-status"
+            "noctalia-power"
+            "noctalia-proxy-status"
+            "noctalia-temperature"
+            "update-zed-source"
+            "update-yesplaymusic-source"
+            "update-upstream-apps"
+          ];
         in
-        {
-          default = mkApp "${mcbctlPkg}/bin/mcbctl";
-          mcbctl = mkApp "${mcbctlPkg}/bin/mcbctl";
-          mcb-deploy = mkApp "${mcbctlPkg}/bin/mcb-deploy";
-          deploy = mkApp "${mcbctlPkg}/bin/deploy";
-          update-zed-source = mkApp "${mcbctlPkg}/bin/update-zed-source";
-          update-yesplaymusic-source = mkApp "${mcbctlPkg}/bin/update-yesplaymusic-source";
-          update-upstream-apps = mkApp "${mcbctlPkg}/bin/update-upstream-apps";
-        };
+        builtins.listToAttrs (
+          [
+            {
+              name = "default";
+              value = mkApp "${mcbctlPkg}/bin/mcbctl";
+            }
+          ]
+          ++ map (name: {
+            inherit name;
+            value = mkApp "${mcbctlPkg}/bin/${name}";
+          }) commandApps
+        );
 
       checks.${defaultSystem} = {
         rust-repo-integrity =
           pkgsForDefault.runCommand "rust-repo-integrity"
             {
-              nativeBuildInputs = with pkgsForDefault; [
-                coreutils
-                findutils
-                gnugrep
-              ];
+              nativeBuildInputs = [ mcbctlPkg ];
             }
             ''
-              set -euo pipefail
-              cd ${self}
-              if find . -type f \( -name '*.sh' -o -path './home/users/*/scripts/*' \) | grep -q .; then
-                echo "Legacy shell files remain in repository:" >&2
-                find . -type f \( -name '*.sh' -o -path './home/users/*/scripts/*' \) | sort >&2
-                exit 1
-              fi
-
-              if grep -R -n --exclude-dir=.git -E 'writeShell(Application|Script|ScriptBin)' .; then
-                echo "Legacy writeShell* definitions remain in repository." >&2
-                exit 1
-              fi
-
-              ${mcbctlPkg}/bin/mcbctl --help >/dev/null
-              ${mcbctlPkg}/bin/mcb-deploy --help >/dev/null
+              ${mcbctlPkg}/bin/mcbctl lint-repo --root ${self}
               touch "$out"
             '';
 

@@ -6,6 +6,14 @@ impl AppState {
         vec![
             ("主机".to_string(), self.target_host.clone()),
             ("缓存策略".to_string(), settings.cache_profile),
+            (
+                "自定义 substituters".to_string(),
+                format_string_list(&settings.custom_substituters),
+            ),
+            (
+                "自定义 trusted keys".to_string(),
+                format_string_list(&settings.custom_trusted_public_keys),
+            ),
             ("代理模式".to_string(), settings.proxy_mode),
             ("代理 URL".to_string(), nonempty_label(&settings.proxy_url)),
             (
@@ -13,8 +21,32 @@ impl AppState {
                 nonempty_label(&settings.tun_interface),
             ),
             (
+                "额外 TUN 接口".to_string(),
+                format_string_list(&settings.tun_interfaces),
+            ),
+            (
+                "全局代理 DNS".to_string(),
+                bool_label(settings.enable_proxy_dns).to_string(),
+            ),
+            (
+                "代理 DNS 地址".to_string(),
+                nonempty_label(&settings.proxy_dns_addr),
+            ),
+            (
+                "代理 DNS 端口".to_string(),
+                settings.proxy_dns_port.to_string(),
+            ),
+            (
                 "Per-user TUN".to_string(),
                 bool_label(settings.per_user_tun_enable).to_string(),
+            ),
+            (
+                "兼容全局服务 Socket".to_string(),
+                bool_label(settings.per_user_tun_compat_global_service_socket).to_string(),
+            ),
+            (
+                "Per-user DNS 重定向".to_string(),
+                bool_label(settings.per_user_tun_redirect_dns).to_string(),
             ),
             (
                 "用户接口映射".to_string(),
@@ -23,6 +55,14 @@ impl AppState {
             (
                 "用户 DNS 端口".to_string(),
                 format_u16_map(&settings.per_user_tun_dns_ports),
+            ),
+            (
+                "路由表基值".to_string(),
+                settings.per_user_tun_table_base.to_string(),
+            ),
+            (
+                "规则优先级基值".to_string(),
+                settings.per_user_tun_priority_base.to_string(),
             ),
             ("GPU 模式".to_string(), settings.gpu_mode),
             ("iGPU 厂商".to_string(), settings.gpu_igpu_vendor),
@@ -95,6 +135,10 @@ impl AppState {
         lines.push("- 这里只写 network.nix / gpu.nix / virtualization.nix".to_string());
         lines.push("- 不会直接改手写 hosts/<host>/default.nix".to_string());
         lines.push("- 文本字段用 Enter 编辑，枚举/布尔用 h/l 或 Space 调整".to_string());
+        lines.push(
+            "- 这里的校验会尽量对齐 modules/networking.nix 和 modules/hardware/gpu.nix 的关键断言"
+                .to_string(),
+        );
         lines
     }
 }

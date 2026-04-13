@@ -28,10 +28,17 @@ pub enum UsersTextMode {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HostsTextMode {
+    CustomSubstituters,
+    CustomTrustedPublicKeys,
     ProxyUrl,
     TunInterface,
+    TunInterfaces,
+    ProxyDnsAddr,
+    ProxyDnsPort,
     PerUserTunInterfaces,
     PerUserTunDnsPorts,
+    PerUserTunTableBase,
+    PerUserTunPriorityBase,
     IntelBusId,
     AmdBusId,
     NvidiaBusId,

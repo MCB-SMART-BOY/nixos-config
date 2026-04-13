@@ -1,19 +1,18 @@
 # 主机模板
 
-这里放的是“复制源”，不是 flake 会直接部署的真实主机。
+这里放的是脚手架来源，不是会被 flake 直接部署的真实主机。
 
-约定：
+可用模板：
 
 - `hosts/templates/laptop/`
-  桌面 / 笔记本方向的完整主机样板
 - `hosts/templates/server/`
-  服务器方向的主机样板
 
 使用方式：
 
-1. 复制一个模板目录到 `hosts/<hostname>/`
-2. 修改 `default.nix` 里的 `networking.hostName`、`mcb.user`、`mcb.users`
-3. 生成并放入仓库根目录的 `hardware-configuration.nix`
-4. 再让 `flake.nix` 自动把它当成真实主机扫描
+1. 复制模板到 `hosts/<hostname>/`
+2. 修改 `default.nix` 中的主机名、主用户、用户列表等基础信息
+3. 生成根目录 `hardware-configuration.nix`
+4. 让 `flake.nix` 自动把它识别成真实主机
 
-这些模板目录本身不会被 flake 扫描，也不应该直接作为部署目标。
+模板里自带的 `managed/` 目录只代表初始受管结构。
+真正运行时写回仍由 `mcbctl` 接管，手写长期逻辑应放到 `default.nix` 或 `local.nix`。

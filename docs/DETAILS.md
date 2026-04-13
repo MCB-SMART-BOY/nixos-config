@@ -1,295 +1,103 @@
-# 项目细节与联动关系
+# 细节与联动
 
-`docs/STRUCTURE.md` 解决的是“去哪里改”，这页解决的是“为什么这样拆、改了以后会牵到哪里”。
+这份文档解释当前主线的关键联动点：TUI 怎么落盘、部署怎么执行、检查怎么兜底。
 
-如果你准备碰这些主题，这页最有价值：
+## 1. TUI 写回链
 
-- 多用户
-- 用户包与系统包的边界
-- GPU 配置与 specialisation
-- Noctalia 和用户命令
-- Rust 脚本如何接进整个仓库
+当前写回路径：
 
-## 快速定位
+- `Packages` -> `home/users/<user>/managed/packages/*.nix`
+- `Home` -> `home/users/<user>/managed/settings/desktop.nix`
+- `Users` -> `hosts/<host>/managed/users.nix`
+- `Hosts` -> `hosts/<host>/managed/network.nix` / `gpu.nix` / `virtualization.nix`
 
-- 改默认用户、多用户、管理员：`hosts/<hostname>/default.nix` 与 `modules/users.nix`
-- 改系统共享包组：`hosts/profiles/*.nix` 与 `modules/packages.nix`
-- 改某个用户的软件：`home/users/<user>/packages.nix`
-- 改用户界面配置：`home/users/<user>/config/`
-- 改用户命令接线：`pkgs/mcbctl/default.nix` 与 `home/modules/desktop.nix` / `home/modules/desktop/`
-- 改 TUI 机器管理区：`home/users/<user>/managed/` 与 `hosts/<host>/managed/`
-- 改新用户模板：`home/templates/users/`
-- 改主机模板：`hosts/templates/`
-- 改控制台入口：`mcbctl/src/bin/mcbctl.rs`
-- 改部署流程：`mcbctl/src/bin/control/mcb-deploy.rs`
-- 改 Rust 公共逻辑：`mcbctl/src/lib.rs`
+保存前规则：
 
-## 1. Home Manager 这一层，负责“人”
+- `Users` 和 `Hosts` 页都先做整机级校验，不再只校验当前页字段
+- `Packages` 页删除陈旧组文件前，先确认它们属于受管文件
+- `Home` / `Hosts` / `Packages` 写回都走统一的受管文件保护
 
-`home/` 这一层回答的是：
+## 2. 受管文件保护
 
-“某个用户登录之后，他看到的终端、编辑器、桌面栏、应用清单，应该是什么样？”
+`mcbctl` 现在不会再无条件覆盖 `managed/*.nix`。
 
-关键入口：
+当前规则：
 
-- `home/users/<user>/default.nix`
-- `home/profiles/full.nix`
-- `home/profiles/minimal.nix`
-- `home/modules/*.nix`
+1. 新写入文件带 `mcbctl-managed` 标记和校验摘要
+2. 旧占位文件或旧受管格式允许迁移
+3. 已带标记但内容被手改破坏的文件会被拒绝覆盖
+4. `managed/packages/` 里混入非受管文件时，TUI 不会偷偷删掉它们
 
-如果某个用户的软件已经多到单个 `packages.nix` 很难维护，推荐继续在该用户目录里拆成：
+这意味着：
 
-- `home/users/<user>/packages.nix`
-- `home/users/<user>/packages/*.nix`
+- 受管分片是 Rust 独占写回区域
+- 手写逻辑应搬到 `default.nix`、`packages.nix` 或 `local.nix`
 
-也就是说，拆分发生在“这个用户自己的目录内部”，而不是再回到全局共享包模块。对于像 `mcbnixos` 这样的大用户目录，推荐直接做到“一个软件组一个文件”。
+## 3. Host 配置校验
 
-它最关键的设计点是：
+`Hosts` 页当前已经覆盖这几类校验：
 
-- 每个用户都有自己的入口目录
-- 每个用户都可以独立声明 `home.packages`
-- 用户之间不再共享一份大而含混的软件清单
+- 缓存策略：`cacheProfile`、`customSubstituters`、`customTrustedPublicKeys`
+- 代理模式：`proxyMode`、`proxyUrl`
+- TUN / DNS：`tunInterface`、`tunInterfaces`、`enableProxyDns`、`proxyDns*`
+- per-user TUN：接口映射、DNS 端口映射、基值、全局 DNS 冲突
+- GPU：`mode`、`igpuVendor`、`prime.mode`、specialisation 模式合法性
+- hybrid / GPU specialisation 的 PRIME Bus ID 前置条件
+- 虚拟化：当前是结构化开关写回，复杂能力仍由 Nix 模块声明
 
-这就是为什么现在新增管理员用户、服务器用户、笔记本用户时，都应该给他们自己的 `home/users/<user>/packages.nix`。
+这些校验尽量对齐：
 
-## 2. 用户软件为什么要放 `home/users/<user>/packages.nix`
-
-这不是风格问题，而是边界问题。
-
-如果把 GUI 应用、聊天软件、办公软件、个人开发工具都继续扔进系统层，后面一定会出现这些问题：
-
-- 多用户主机上，所有人都被同一份桌面软件清单绑住
-- 很难看出哪些软件是机器共享的，哪些只是某个用户自己要的
-- 删软件时不敢动，因为不知道会不会影响别人
-
-现在这套仓库推荐的分工是：
-
-- 系统层保留共享能力
-- 用户层负责个人软件清单
-
-Nix store 仍然会共享构建产物，区别只在于：
-
-- 这个包是否出现在某个用户的 profile 里
-
-## 3. 系统层，负责“机器”
-
-系统层最核心的入口有三个：
-
-- `hosts/<hostname>/default.nix`
-- `hosts/profiles/*.nix`
-- `modules/*.nix`
-
-如果你改的是 `mcb.*` 选项本身，而不是消费这些选项的模块，
-现在优先看 `modules/options/`；[options.nix](/home/mcbgaruda/projects/nixos-config/modules/options.nix) 已经降成聚合入口。
-
-职责大致是：
-
-- `hosts/<hostname>/default.nix`
-  这台机器自己的决定，例如主机名、用户列表、管理员用户、主机私有覆盖
-- `hosts/profiles/*.nix`
-  某类机器默认该长什么样，例如桌面主机和服务器主机
-- `modules/*.nix`
-  跨主机复用的能力模块，例如用户、网络、GPU、服务、包组
-
-## 4. 多用户模型真正靠哪几处起作用
-
-关键字段主要在主机配置里：
-
-- `mcb.user`
-- `mcb.users`
-- `mcb.adminUsers`
-
-大体规则可以这样记：
-
-- `mcb.user`
-  主用户，很多默认路径和兼容行为会以它为中心
-- `mcb.users`
-  参与 Home Manager 管理的用户列表
-- `mcb.adminUsers`
-  具有管理员权限的用户列表
-
-真正负责把这些用户落成系统用户、用户组和授权的，是：
-
-- `modules/users.nix`
-
-所以“加用户”不能只在 `home/users/` 里新建目录。
-用户目录决定的是这个用户怎么用系统，不决定系统里有没有这个用户。
-
-## 5. GPU 这块，仓库的假设是什么
-
-GPU 配置集中在：
-
+- `modules/nix.nix`
+- `modules/networking.nix`
 - `modules/hardware/gpu.nix`
 
-关键字段包括：
+## 4. 部署执行链
 
-- `mcb.hardware.gpu.mode`
-- `mcb.hardware.gpu.igpuVendor`
-- `mcb.hardware.gpu.prime.mode`
-- `mcb.hardware.gpu.prime.intelBusId`
-- `mcb.hardware.gpu.prime.amdgpuBusId`
-- `mcb.hardware.gpu.prime.nvidiaBusId`
-- `mcb.hardware.gpu.nvidia.open`
-- `mcb.hardware.gpu.specialisations.*`
+部署主入口是 `mcb-deploy`，`mcbctl deploy` 只是转发。
 
-仓库当前不是单纯切一个布尔开关，而是明确支持：
+Rust 侧负责：
 
-- `igpu`
-- `hybrid`
-- `dgpu`
+1. 环境检查
+2. 仓库完整性检查
+3. 来源选择
+4. 本地源准备或远端镜像重试
+5. host / user / admin 选择
+6. 结构化写回
+7. `/etc/nixos` 备份与同步
+8. `nixos-rebuild` 计划生成与执行
+9. release 说明与发布
 
-现在这块还有一个明确的部署期约束：
+`Deploy` 页只在简单组合下直接执行；复杂来源或高级路径退回完整向导。
 
-- `mcb-deploy` 会先识别当前主机属于单集显、多显卡还是独显主机
-- 新建桌面主机时，不再依赖模板里硬编码的 GPU busId
-- 真正机器相关的 GPU 参数会写进 `hosts/<hostname>/local.nix`
+## 5. 桌面命令与 Noctalia
 
-其中最容易踩坑的是 `hybrid`：
+桌面命令现在都来自 Rust 二进制：
 
-- 需要正确的 busId
-- 需要 BIOS / MUX 支持
-- 需要理解当前机器是不是已经被锁成 `dGPU-only`
+- `lock-screen`
+- `niri-run`
+- `noctalia-*`
+- `electron-auto-gpu`
+- `zed-auto-gpu`
+- `flatpak-setup`
+- `mcbctl terminal-action ...`
+- `mcbctl screenshot-edit ...`
 
-`mcb-deploy` 在向导里会优先尝试自动探测 busId，探测不到才回退到主机现有配置。
+Noctalia / Niri 配置文件现在只保留静态命令字符串，不承载业务逻辑。
 
-## 6. Noctalia 与用户命令，现在是怎么接起来的
+## 6. 仓库完整性
 
-这一块以前最容易被误解成“几个零碎脚本”，现在其实已经很清楚了：
+仓库检查统一走 Rust：
 
-- Rust 命令实现放在 `mcbctl/src/bin/*.rs`
-- Nix 打包入口在 `pkgs/mcbctl/default.nix`
-- 桌面用户通过 `home/modules/desktop.nix` 与 `home/modules/desktop/` 把 `mcbctl` 包放进自己的环境
+- `mcbctl repo-integrity`
+- `mcbctl lint-repo`
+- `mcbctl doctor`
 
-同时，仓库现在新增了机器管理区：
+主要检查项：
 
-- `home/users/<user>/managed/`
-- `hosts/<host>/managed/`
+- 禁止 `.sh` / `.bash` / `.py`
+- 禁止旧脚本目录和旧桥接层
+- 禁止 `writeShell*`
+- 禁止显式 `sh -c` / `bash -c` / `python -c` / `fish -c`
+- 检查主线目录是否仍然完整
 
-原则是：
-
-- 手写配置继续留在你自己的文件里
-- TUI / 自动化工具只写 `managed/`
-
-当前已经接入的第一块就是：
-
-- `mcbctl` 的 `Packages` 页面现在以 `nix search` 结果为主，`catalog/packages/*.toml` 只保留本地覆盖层和仓库内自维护包元数据
-- 然后把勾选结果按组写入 `home/users/<user>/managed/packages/*.nix`
-- 文件里会带 `managed-id` 标记，方便 TUI 下次直接读回
-
-也就是说，当前状态已经不是：
-
-- 某个用户目录里堆一堆原始 Shell 脚本
-
-而是：
-
-- 仓库统一维护一套 Rust 二进制
-- 用户侧决定要不要把哪些命令链接进自己的环境
-
-这也是为什么你现在去找 `home/users/<user>/scripts/`，已经不应该再找到真实实现了。
-
-## 7. 部署流程现在怎么理解
-
-部署流程的主入口现在是：
-
-- `mcbctl/src/bin/control/mcb-deploy.rs`
-
-它负责的事情包括：
-
-- 环境检查
-- 源码准备
-- 仓库自检
-- 目标主机与用户收集
-- `/etc/nixos` 同步
-- `nixos-rebuild` 重建
-- release 发布
-
-它内部现在也开始按职责继续拆：
-
-- `mcbctl/src/bin/control/mcb-deploy/plan.rs`
-  部署摘要、计划对象生成和同步/重建命令预览
-- `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
-  交互式部署向导的步骤流转与回退
-- `mcbctl/src/bin/control/mcb-deploy/execute.rs`
-  `/etc/nixos` 备份、同步与 `nixos-rebuild` 执行
-- `mcbctl/src/bin/control/mcb-deploy/selection.rs`
-  主机/用户/管理员选择、模板解析和基础校验
-- `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
-  运行时配置聚合入口
-- `mcbctl/src/bin/control/mcb-deploy/runtime/`
-  per-user TUN、GPU、服务器运行时能力配置分拆层
-- `mcbctl/src/store/hosts/`
-  主机 managed 存储分拆层；`eval.rs`、`layout.rs`、`render.rs` 分别负责评估读取、目录布局和 Nix 分片渲染写入
-- `mcbctl/src/tui/state/model.rs`
-  `AppContext` / `AppState` 模型定义与基础状态构造
-- `mcbctl/src/bin/control/mcb-deploy/ui.rs`
-  基础交互输出、菜单和确认提示
-- `mcbctl/src/bin/control/mcb-deploy/orchestrate.rs`
-  部署编排聚合入口
-- `mcbctl/src/bin/control/mcb-deploy/orchestrate/`
-  环境检查、仓库自检、临时 DNS、部署编排与总执行入口分拆层
-- `mcbctl/src/bin/control/mcb-deploy/utils.rs`
-  仓库探测、临时路径、复制与校验等通用工具函数
-- `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
-  新 host / 新用户目录脚手架与 `local.nix` 生成
-- `mcbctl/src/bin/control/mcb-deploy/source.rs`
-  配置来源层聚合入口
-- `mcbctl/src/bin/control/mcb-deploy/source/`
-  来源准备分拆层；来源选择、本地源准备和远端仓库拉取/镜像重试分别下沉到独立模块
-- `mcbctl/src/bin/control/mcb-deploy/release.rs`
-  release 版本解析、说明生成与发布
-
-这里有一个很重要的变化：
-
-- 仓库不再依赖 `run.sh` 和那套分层 Shell 脚本
-- 部署与 release 逻辑现在都统一在 Rust 里维护
-
-## 8. Zed 和 YesPlayMusic 为什么仍然单独打包
-
-它们现在仍然走自定义包目录：
-
-- `pkgs/zed/`
-- `pkgs/yesplaymusic/`
-
-目的不是为了复杂化，而是为了控制两个东西：
-
-- 上游版本
-- 固定 hash
-
-相关更新入口现在也已经统一成 Rust 工具：
-
-- `update-zed-source`
-- `update-yesplaymusic-source`
-- `update-upstream-apps`
-
-在仓库根目录里，推荐直接这样跑：
-
-```bash
-nix run .#update-upstream-apps
-```
-
-## 9. 图形运行时补丁为什么存在
-
-桌面环境里总会碰到一类程序：
-
-- 不是从 nixpkgs 来的二进制
-- 或者是上游自己打包的应用
-- 或者是 AppImage / 官网 tarball / 语言工具链自行下载的程序
-
-它们常见的问题是：
-
-- Vulkan ICD 找不到
-- 图形栈依赖继承不稳定
-- `LD_LIBRARY_PATH` 或运行时环境不完整
-
-这套仓库把相关补丁集中放在桌面模块里收口，而不是让每个上游程序都各自打一套补丁。
-
-## 10. 维护时最值得坚持的习惯
-
-如果你想让这套仓库长期还能舒服维护，最值钱的不是多会写 Nix，而是下面这几个习惯：
-
-- 改系统层之前，先确认这是不是用户层问题
-- 改用户软件之前，先确认这是不是系统共享能力
-- 改脚本逻辑时，先看 `mcbctl/src/lib.rs` 里有没有现成复用函数
-- 改 Noctalia / 桌面按钮时，不要只看配置文件，也要看命令入口是不是已经接好
-
-这几个习惯会直接决定仓库是越来越清楚，还是越改越粘。
+`flake check` 只负责调用这些 Rust 检查器和 Rust 构建，不再在 Nix builder 里承载项目脚本逻辑。

@@ -172,7 +172,12 @@ impl AppState {
             .cloned()
             .unwrap_or_default();
         let path = managed_dir.join("settings/desktop.nix");
-        write_file_atomic(&path, &render_managed_desktop_file(&settings))?;
+        write_managed_file(
+            &path,
+            "home-settings-desktop",
+            &render_managed_desktop_file(&settings),
+            &["# 机器管理的桌面设置分片"],
+        )?;
         self.home_dirty_users.remove(&user);
         self.status = format!("已写入 {}", path.display());
         Ok(())

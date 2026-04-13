@@ -1,4 +1,4 @@
-use crate::write_file_atomic;
+use crate::{write_file_atomic, write_managed_file};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,7 +16,12 @@ pub fn ensure_managed_packages_layout(managed_dir: &Path) -> Result<()> {
         .with_context(|| format!("failed to create {}", managed_dir.display()))?;
 
     let aggregator = managed_dir.join("packages.nix");
-    write_file_atomic(&aggregator, &render_managed_packages_aggregator_file())?;
+    write_managed_file(
+        &aggregator,
+        "home-packages-aggregator",
+        &render_managed_packages_aggregator_file(),
+        &["# 机器管理的用户软件入口"],
+    )?;
 
     let grouped_dir = managed_dir.join("packages");
     fs::create_dir_all(&grouped_dir)

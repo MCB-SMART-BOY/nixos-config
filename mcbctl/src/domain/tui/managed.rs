@@ -71,7 +71,7 @@ pub struct HomeManagedSettings {
     pub enable_yesplaymusic_entry: ManagedToggle,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct HostManagedSettings {
     pub primary_user: String,
     pub users: Vec<String>,
@@ -79,12 +79,22 @@ pub struct HostManagedSettings {
     pub host_role: String,
     pub user_linger: bool,
     pub cache_profile: String,
+    pub custom_substituters: Vec<String>,
+    pub custom_trusted_public_keys: Vec<String>,
     pub proxy_mode: String,
     pub proxy_url: String,
     pub tun_interface: String,
+    pub tun_interfaces: Vec<String>,
+    pub enable_proxy_dns: bool,
+    pub proxy_dns_addr: String,
+    pub proxy_dns_port: u16,
     pub per_user_tun_enable: bool,
+    pub per_user_tun_compat_global_service_socket: bool,
+    pub per_user_tun_redirect_dns: bool,
     pub per_user_tun_interfaces: BTreeMap<String, String>,
     pub per_user_tun_dns_ports: BTreeMap<String, u16>,
+    pub per_user_tun_table_base: i64,
+    pub per_user_tun_priority_base: i64,
     pub gpu_mode: String,
     pub gpu_igpu_vendor: String,
     pub gpu_prime_mode: String,
@@ -96,4 +106,44 @@ pub struct HostManagedSettings {
     pub gpu_specialisation_modes: Vec<String>,
     pub docker_enable: bool,
     pub libvirtd_enable: bool,
+}
+
+impl Default for HostManagedSettings {
+    fn default() -> Self {
+        Self {
+            primary_user: String::new(),
+            users: Vec::new(),
+            admin_users: Vec::new(),
+            host_role: "desktop".to_string(),
+            user_linger: false,
+            cache_profile: "cn".to_string(),
+            custom_substituters: Vec::new(),
+            custom_trusted_public_keys: Vec::new(),
+            proxy_mode: "off".to_string(),
+            proxy_url: String::new(),
+            tun_interface: String::new(),
+            tun_interfaces: Vec::new(),
+            enable_proxy_dns: true,
+            proxy_dns_addr: "127.0.0.1".to_string(),
+            proxy_dns_port: 53,
+            per_user_tun_enable: false,
+            per_user_tun_compat_global_service_socket: true,
+            per_user_tun_redirect_dns: false,
+            per_user_tun_interfaces: BTreeMap::new(),
+            per_user_tun_dns_ports: BTreeMap::new(),
+            per_user_tun_table_base: 1000,
+            per_user_tun_priority_base: 10000,
+            gpu_mode: "igpu".to_string(),
+            gpu_igpu_vendor: "intel".to_string(),
+            gpu_prime_mode: "offload".to_string(),
+            gpu_intel_bus: None,
+            gpu_amd_bus: None,
+            gpu_nvidia_bus: None,
+            gpu_nvidia_open: false,
+            gpu_specialisations_enable: false,
+            gpu_specialisation_modes: Vec::new(),
+            docker_enable: false,
+            libvirtd_enable: false,
+        }
+    }
 }

@@ -156,7 +156,7 @@ impl AppState {
         if let Ok(entries) = fs::read_dir(hand_written_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if !path.is_file() || !path.extension().is_some_and(|ext| ext == "nix") {
+                if !path.is_file() || path.extension().is_none_or(|ext| ext != "nix") {
                     continue;
                 }
                 if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
@@ -174,7 +174,7 @@ impl AppState {
         if let Ok(entries) = fs::read_dir(managed_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
-                if !path.is_file() || !path.extension().is_some_and(|ext| ext == "nix") {
+                if !path.is_file() || path.extension().is_none_or(|ext| ext != "nix") {
                     continue;
                 }
                 if let Some(stem) = path.file_stem().and_then(|stem| stem.to_str()) {
@@ -200,7 +200,7 @@ impl AppState {
             .catalog_entries
             .iter()
             .find(|entry| entry.id == entry_id)
-            .is_some_and(|entry| is_local_overlay_entry(entry))
+            .is_some_and(is_local_overlay_entry)
             || self.package_id_selected_anywhere(entry_id);
 
         let changed = if keep_local {

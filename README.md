@@ -1,180 +1,109 @@
-# NixOS 配置，目标是长期可维护
+# NixOS 配置，`mcbctl` 主线
 
-这套仓库不是把一台机器先堆起来再说，而是尽量把边界讲清楚：
+这个分支的主线已经固定：仓库的部署、发布、追新、桌面命令、TUI/CLI、managed 写回和仓库检查，只由 `mcbctl/` 里的 Rust 二进制加 Nix 声明完成。
 
-- 哪些东西属于整台机器
-- 哪些东西只属于某个用户
-- 哪些能力应该放系统层
-- 哪些行为应该交给用户层
+仓库边界：
 
-如果你第一次打开这个仓库，先记住三件事：
+- `hosts/`：真实主机与主机模板
+- `modules/`：系统层选项和能力声明
+- `home/`：真实用户、用户模板、静态程序配置
+- `catalog/`：Packages / Home 页元数据
+- `pkgs/`：仓库自维护包和 Rust 打包
+- `mcbctl/`：唯一业务逻辑实现层
 
-- 控制台入口现在是 `nix run .#mcbctl`
-- 同一个入口也可以直接转发部署：`nix run .#mcbctl -- deploy`
-- 如果你要直接进部署向导，使用 `nix run .#mcb-deploy`
-- 某个用户自己的软件，去写 `home/users/<user>/packages.nix`
-- 如果你想用 TUI 勾选软件并写入用户机器管理层，落点是 `home/users/<user>/managed/packages/*.nix`（由 `managed/packages.nix` 聚合）
-- 用户命令不再靠用户目录里的脚本桥接，而是由 `mcbctl/` 编译并通过 `pkgs/mcbctl/` 进入环境
+不再存在 Shell / Python 业务主线，也不再保留旧脚本目录、旧入口脚本或 shell 包装流程。
 
-## 这套仓库适合什么场景
-
-- 你有多台 NixOS 主机，想统一维护
-- 同一台机器上有多用户需求，不想所有人共用一份桌面软件清单
-- 你想把系统层和用户层彻底分开
-- 你确实会用到 GPU specialisation、代理、per-user TUN、Noctalia 这些东西
-
-## 如果你现在就想部署
-
-先把仓库拉下来，然后在仓库根目录运行：
+## 主入口
 
 ```bash
-git clone https://github.com/MCB-SMART-BOY/nixos-config.git
-cd nixos-config
 nix run .#mcbctl
-```
-
-`mcbctl` 现在默认进入 TUI 控制台。你可以在里面继续走部署、用户、软件、Home 设置和维护动作。
-
-当前 TUI 里已经能直接做两件关键事：
-
-- `Deploy` 页不再只是预览；本地仓库 / `/etc/nixos` 这类常见路径现在可以直接执行，同步和 `nixos-rebuild` 走共享执行层
-- `Actions` 页已经能直接运行 `flake check`、`flake update`、上游 pin 检查/刷新、同步到 `/etc/nixos`、重建当前主机、退回完整部署向导
-
-如果你就是想直接进入旧式的交互式部署向导，可以运行：
-
-```bash
+nix run .#mcbctl -- deploy
 nix run .#mcb-deploy
 ```
 
-`mcb-deploy` 会帮你处理：
-
-- 部署模式选择
-- 本地仓库 / 远端固定版本 / 远端最新版本
-- 主机选择
-- 用户与管理员用户
-- per-user TUN
-- GPU 覆盖
-- 服务器预设
-
-如果你已经很熟悉这套仓库，也可以直接：
+常用检查：
 
 ```bash
-sudo nixos-rebuild switch --flake .#<hostname>
+nix run .#mcbctl -- repo-integrity
+nix run .#mcbctl -- lint-repo
+nix run .#mcbctl -- doctor
+nix run .#update-upstream-apps -- --check
 ```
 
-## 这套仓库最重要的约定
+常用构建：
 
-系统共享的能力放系统层，例如：
+```bash
+nix run .#mcbctl -- rebuild switch
+nix run .#mcbctl -- rebuild test
+nix run .#mcbctl -- rebuild boot
+nix run .#mcbctl -- build-host --dry-run
+```
 
-- 基础运行时
-- 网络与代理服务
-- Wayland / 桌面运行时
-- GPU、虚拟化、系统工具
+## TUI 边界
 
-只属于某个用户的软件和界面放用户层，例如：
+- `Packages`：写 `home/users/<user>/managed/packages/*.nix`
+- `Home`：写 `home/users/<user>/managed/settings/desktop.nix`
+- `Users`：写 `hosts/<host>/managed/users.nix`
+- `Hosts`：写 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`
+- `Deploy`：处理仓库同步与 `nixos-rebuild`
+- `Actions`：处理 flake 检查、追新、同步、重建和向导跳转
 
-- Zed
-- YesPlayMusic
-- 浏览器、聊天、办公软件
-- 某个用户自己的开发工具
-- Noctalia / Niri / 终端 / 编辑器配置
+这些页面保持当前职责边界，不通过 shell 函数补业务逻辑。
 
-所以你以后要给某个用户加软件，优先改的是：
+## Managed 写回规则
 
-- `home/users/<user>/packages.nix`
+`mcbctl` 只写 `managed/` 分片，不直接改手写主体文件。
 
-而不是继续把所有东西塞进 `environment.systemPackages`。
+现在所有受管 `.nix` 文件都走统一的 Rust 写入协议：
 
-## 先记住这些入口就够了
+- 新写入文件会带 `mcbctl-managed` 标记和校验摘要
+- TUI 只覆盖自己确认受管、且未被手改破坏的文件
+- 遇到陌生内容、损坏内容或 `managed/packages/` 中的非受管陈旧组文件，会直接拒绝覆盖或删除
 
-系统层：
+手写长期逻辑应放在这些位置：
 
-- `hosts/<hostname>/default.nix`
-- `hosts/profiles/desktop.nix`
-- `hosts/profiles/server.nix`
-- `hosts/templates/`
-- `modules/`
-- `modules/options/`（`mcb.*` 选项定义已按领域拆到这里，`modules/options.nix` 只做聚合）
-
-用户层：
-
+- `hosts/<host>/default.nix`
+- `hosts/<host>/local.nix`
 - `home/users/<user>/default.nix`
 - `home/users/<user>/packages.nix`
-- `home/users/<user>/packages/`（复杂用户可继续拆成“一个软件组一个文件”）
-- `home/users/<user>/config/`
-- `home/users/<user>/managed/`
-- `home/templates/users/`
+- `home/users/<user>/local.nix`
 
-脚本与打包：
+不要把手写逻辑放进 `managed/`。
 
-- `mcbctl/`
-- `pkgs/mcbctl/`
-- `pkgs/zed/`
-- `pkgs/yesplaymusic/`
+## 当前已保留能力
 
-机器管理区：
+- `nix run .#mcbctl`
+- `nix run .#mcbctl -- deploy`
+- `nix run .#mcb-deploy`
+- `Packages / Home / Users / Deploy / Actions`
+- `hosts/templates/` 与 `home/templates/users/`
+- `mcb.hardware.gpu = igpu | hybrid | dgpu`
+- `mcb.proxyMode = "tun" | "http" | "off"` 与 per-user TUN
+- `lock-screen`
+- `niri-run`
+- 全部 `noctalia-*`
+- `update-zed-source`
+- `update-yesplaymusic-source`
+- `update-upstream-apps`
 
-- `hosts/<host>/managed/`
-- `home/users/<user>/managed/`
-- `catalog/packages/`（本地覆盖层 / 仓库内自维护包元数据，不再作为主软件源）
-- `catalog/groups.toml`
-- `catalog/home-options.toml`
+## 验证
 
-模板区：
+```bash
+cargo fmt --check --manifest-path mcbctl/Cargo.toml
+cargo clippy --manifest-path mcbctl/Cargo.toml --all-targets --all-features -- -D warnings
+cargo test --manifest-path mcbctl/Cargo.toml
+NIX_CONFIG='experimental-features = nix-command flakes' nix flake check --option eval-cache false
+nix run .#mcbctl -- --help
+nix run .#mcbctl -- deploy --help
+nix run .#mcb-deploy -- --help
+nix run .#update-upstream-apps -- --check
+```
 
-- `hosts/templates/`
-- `home/templates/users/`
-
-## 这次仓库已经变了什么
-
-现在仓库里的脚本路线已经统一到 Rust：
-
-- 控制台入口：`mcbctl`
-- 直接部署 / release：`mcb-deploy`
-- Noctalia / 用户命令：`mcbctl/src/bin/*.rs`
-- 官网应用追新：`update-zed-source`、`update-yesplaymusic-source`、`update-upstream-apps`
-- 系统服务里的包装逻辑：也已经改成调用 Rust 二进制
-
-换句话说，仓库里不再保留 `run.sh` 和那套分层 Shell 脚本作为主实现。
-
-同时，模板也已经从真实配置命名空间里分离出来：
-
-- `hosts/` 只放真实主机
-- `home/users/` 只放真实启用用户
-- 模板统一放进 `hosts/templates/` 和 `home/templates/users/`
-
-## 你大概率会改到哪里
-
-- 改主机名、默认用户、管理员用户：`hosts/<hostname>/default.nix`
-- 改系统共享包组：`hosts/profiles/*.nix` 和 `modules/packages.nix`
-- 改某个用户的软件：`home/users/<user>/packages.nix`
-- 改用户界面配置：`home/users/<user>/config/`
-- 改 Noctalia / 桌面行为：`home/modules/desktop.nix`、`home/modules/desktop/`、`pkgs/mcbctl/default.nix`
-- 改代理 / TUN / 路由：`modules/networking.nix` 与 `modules/services/core.nix`
-- 改 GPU specialisation：`modules/hardware/gpu.nix`
-- 改脚本工具本身：`mcbctl/src/bin/*.rs` 与 `mcbctl/src/lib.rs`
-
-## 文档索引
+## 文档
 
 - [docs/USAGE.md](/home/mcbgaruda/projects/nixos-config/docs/USAGE.md)
-  日常部署、更新、加用户、追新
 - [docs/STRUCTURE.md](/home/mcbgaruda/projects/nixos-config/docs/STRUCTURE.md)
-  目录分工与改动入口
 - [docs/DETAILS.md](/home/mcbgaruda/projects/nixos-config/docs/DETAILS.md)
-  多用户、GPU、Noctalia、脚本接线这些联动关系
 - [docs/NETWORK_CN.md](/home/mcbgaruda/projects/nixos-config/docs/NETWORK_CN.md)
-  国内网络环境下的下载、DNS、代理与 TUN 排障
+- [docs/SHELL_CN.md](/home/mcbgaruda/projects/nixos-config/docs/SHELL_CN.md)
 - [mcbctl/README.md](/home/mcbgaruda/projects/nixos-config/mcbctl/README.md)
-  Rust 脚本集合怎么构建、怎么接进整个仓库
-
-## 最后一个建议
-
-不要试图第一次就把所有目录都看懂。
-
-更有效的节奏通常是：
-
-1. 先把系统跑起来。
-2. 只追眼前这个问题。
-3. 每次只把一层边界看明白。
-
-这套仓库就是按这种维护方式设计的。

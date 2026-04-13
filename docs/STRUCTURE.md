@@ -1,38 +1,12 @@
-# 项目结构说明
+# 项目结构
 
-如果你打开仓库后的第一反应是“我到底该改哪一层”，这页就是给这个时刻准备的。
+这份文档只描述当前分支的真实主线，不讨论已经删除的旧脚本路线。
 
-这套仓库现在的组织原则很简单：
-
-- `hosts/` 和 `modules/` 管机器
-- `home/users/` 管人
-- `mcbctl/` 管脚本逻辑
-- `pkgs/` 管仓库自己维护的包
-
-## 一眼先记住这些入口
-
-- 主机入口：`hosts/<hostname>/default.nix`
-- 主机模板：`hosts/templates/`
-- 系统模块：`modules/`
-- 用户入口：`home/users/<user>/default.nix`
-- 用户软件：`home/users/<user>/packages.nix`
-- 用户模板：`home/templates/users/`
-- 用户命令打包：`pkgs/mcbctl/default.nix`
-- 用户机器管理区：`home/users/<user>/managed/`
-- Rust 脚本集合：`mcbctl/`
-- Rust 脚本打包：`pkgs/mcbctl/`
-- 软件目录本地覆盖层：`catalog/packages/*.toml`
-- 软件组元数据：`catalog/groups.toml`
-- Home 结构化选项元数据：`catalog/home-options.toml`
-
-如果你只记住这些位置，已经足够处理大部分维护工作。
-
-## 顶层目录怎么理解
+## 顶层目录
 
 ```text
 .
 ├── flake.nix
-├── flake.lock
 ├── configuration.nix
 ├── mcbctl/
 ├── hosts/
@@ -40,303 +14,127 @@
 ├── home/
 ├── catalog/
 ├── pkgs/
-├── docs/
-└── README.md
+└── docs/
 ```
 
-### `hosts/`
+边界固定如下：
 
-这里回答的是：“这台机器是谁？”
+- `mcbctl/`：唯一业务逻辑实现层
+- `hosts/`：真实主机、主机模板、主机 managed 分片
+- `modules/`：NixOS 模块、`mcb.*` 选项和系统能力
+- `home/`：真实用户、用户模板、静态程序配置、Home Manager 模块
+- `catalog/`：TUI 元数据
+- `pkgs/`：Rust 包和其他仓库内包的打包层
 
-常见内容：
+## `hosts/`
 
-- `hosts/<hostname>/default.nix`
-  主机入口，决定这台机器导入哪个 profile、默认用户是谁、有哪些主机级覆盖
-- `hosts/<hostname>/managed/`
-  给 `mcbctl` / 自动化工具写入的主机管理区；现在按 `users.nix`、`network.nix`、`gpu.nix`、`virtualization.nix` 分片
-- `hosts/<hostname>/system.nix`
-  机器架构，例如 `"x86_64-linux"`
-- `hosts/<hostname>/local.nix`
-  主机私有覆盖
+真实主机目录：
 
-硬件配置文件不再放在 `hosts/<hostname>/` 里，而是统一使用仓库根目录的 `hardware-configuration.nix`。
-实际部署到机器上时，它对应 `/etc/nixos/hardware-configuration.nix`，和 `/etc/nixos/configuration.nix` 同级。
+- `hosts/<host>/default.nix`
+- `hosts/<host>/system.nix`
+- `hosts/<host>/managed/`
+- `hosts/<host>/local.nix`
 
-### `hosts/profiles/`
+模板目录：
 
-这里回答的是：“这台机器大体属于哪类角色？”
+- `hosts/templates/laptop/`
+- `hosts/templates/server/`
 
-例如：
+`hosts/<host>/managed/` 由 `mcbctl` 接管，当前固定分片为：
 
-- `hosts/profiles/desktop.nix`
-- `hosts/profiles/server.nix`
+- `users.nix`
+- `network.nix`
+- `gpu.nix`
+- `virtualization.nix`
 
-它们是组合好的主机模板，不是某一台具体机器。
+人工长期逻辑不要写进这些分片；应写到 `default.nix` 或 `local.nix`。
 
-### `hosts/templates/`
+## `modules/`
 
-这里放“拿来复制”的主机模板。
+`modules/` 只负责声明能力，不负责项目流程编排。
 
-这些目录不会被 flake 当成真实主机扫描，也不应该直接拿来部署。
-它们的作用是：
+主要区域：
 
-- 作为新主机目录的起点
-- 保存桌面 / 服务器这类较完整的主机样板
-- 避免示例主机继续污染真实 `nixosConfigurations`
+- `modules/options/`：`mcb.*` 选项
+- `modules/hardware/`：GPU 等硬件能力
+- `modules/services/`：系统服务、代理服务、桌面辅助服务
+- `modules/packages/`：系统共享包
 
-### `modules/`
+这里允许 Nix 表达声明，不允许把项目逻辑藏进 shell 片段。
 
-这里放系统层公共能力。
+## `home/`
 
-例如：
+`home/` 负责用户会话结构：
 
-- 用户与权限
-- 网络与代理
-- GPU
-- 服务
-- 系统共享包组
-
-其中 `mcb.*` 选项定义现在已经进一步拆到 `modules/options/`，
-而 [options.nix](/home/mcbgaruda/projects/nixos-config/modules/options.nix) 只保留聚合入口。
-
-如果一个改动应该影响一整类主机，而不是某个具体用户，通常就在这里。
-
-### `home/`
-
-这里放 Home Manager，也就是“某个用户登录后会看到什么”。
-
-常见子目录：
-
-- `home/profiles/`
-  用户配置组合，例如完整桌面用户、最小服务器用户
-- `home/modules/`
-  用户层公共模块
-- `home/users/<user>/`
-  某个具体用户自己的入口目录
+- `home/users/<user>/default.nix`
+- `home/users/<user>/packages.nix`
+- `home/users/<user>/managed/`
+- `home/users/<user>/config/`
 - `home/templates/users/`
-  新用户模板，给 `mcb-deploy` 或手工复制使用
+- `home/modules/`
 
-### `home/users/<user>/`
+`home/users/<user>/managed/` 当前主要落点：
 
-这是你最常改的地方之一。
-
-常见文件：
-
-- `default.nix`
-  用户入口
 - `packages.nix`
-  这个用户的软件声明
-- `packages/`
-  当某个用户的软件清单过大时，可继续在用户目录内拆成“一个软件组一个文件”
-- `managed/`
-  机器管理区，保留给 TUI / 自动化工具写入
-  现在用户设置会进一步拆到 `managed/settings/desktop.nix`、`session.nix`、`mime.nix`
-- `local.nix`
-  不想进仓库的私有覆盖
-- `local.nix.example`
-  起步示例
-- `config/`
-  会被链接到 `~/.config`
-  其中 shell 通用模块继续拆在 `home/modules/shell/*.nix`，fish 交互层按 `config/fish/conf.d/*.fish` 拆分；函数层也继续按 `core` / `navigation` / `nixos` / `file` 分开，不再把所有逻辑塞进单个文件
-- `assets/`
-  这个用户自己的资源文件
+- `packages/*.nix`
+- `settings/default.nix`
+- `settings/desktop.nix`
 
-这里最重要的变化是：
+`config/` 里可以保留静态程序配置；项目业务逻辑不应继续从这里生长。
 
-- 用户命令现在不再从 `home/users/<user>/scripts/` 读取原始 Shell 脚本
-- 而是通过 `mcbctl` 编译出来的二进制、再由 `pkgs/mcbctl/` 暴露到环境里
-- 用户软件现在也可以通过 `managed/packages/*.nix` 由 `mcbctl` 的 `Packages` 页面写入，`managed/packages.nix` 只做聚合导入
+## `catalog/`
 
-### `home/templates/users/`
-
-这里放用户模板，而不是实际启用的用户。
-
-目前的使用方式是：
-
-- `mcb-deploy` 会按主机类型优先从这里挑模板
-- 找不到模板时会退回最小用户结构，不会再回退真实用户目录
-- 模板主要提供 `packages.nix` 这类默认内容
-- 真正生效的用户入口仍然应该落在 `home/users/<user>/`
-
-### `mcbctl/`
-
-这里放 Rust 写的脚本实现。
-
-常见内容：
-
-- `mcbctl/src/bin/*.rs`
-  现在按领域归类到子目录里：
-  `control/`、`network/`、`desktop/`、`music/`、`noctalia/`、`update/`
-- `mcbctl/src/lib.rs`
-  公共函数和复用逻辑
-- `mcbctl/src/domain/`
-  TUI / 控制台共享的数据模型和枚举；`DeployPlan` 这类跨入口复用的部署计划对象也在这里，TUI 相关类型已经拆到 `domain/tui/` 下的导航、部署、managed、文本交互和 catalog 元数据分片
-- `mcbctl/src/store/`
-  读写 `catalog/`、`managed/`、主机探测这类存储与环境逻辑；`store/deploy.rs` 现在也承载共享的同步、硬件配置生成与 `nixos-rebuild` 执行
-- `mcbctl/src/store/hosts/`
-  主机 managed 存储分拆层；`eval.rs`、`layout.rs`、`render.rs` 分别负责评估读取、目录布局和 Nix 分片渲染写入
-- `mcbctl/src/store/packages/`
-  用户软件 managed 存储分拆层；`load.rs`、`layout.rs`、`render.rs` 分别负责读取、目录布局和按组渲染写入
-- `mcbctl/src/tui/views/`
-  TUI 渲染层；已按页面拆开，不再继续把所有渲染堆在一个 `mod.rs` 里
-- `mcbctl/src/tui/state.rs`
-  TUI 状态层聚合入口与模块装配
-- `mcbctl/src/tui/state/model.rs`
-  `AppContext` / `AppState` 模型定义与基础状态构造
-- `mcbctl/src/tui/state/`
-  页面级状态逻辑分拆层；`deploy.rs`、`packages.rs`、`home.rs`、`actions.rs`、`hosts.rs` 已经从主 `state.rs` 中拆出
-- `mcbctl/src/tui/state/actions/`
-  `Actions` 页进一步拆成 `display.rs`、`execute.rs`、`support.rs`，分别承载展示、执行和执行前辅助逻辑
-- `mcbctl/src/tui/state/helpers.rs`
-  TUI 状态层共享的列表格式化、解析、循环切换和 catalog 辅助函数
-- `mcbctl/src/tui/state/hosts/`
-  `Users` / `Hosts` 两页的进一步分拆层；用户结构编辑落到 `users.rs`，运行时配置继续拆到 `runtime/display.rs`、`edit.rs`、`persist.rs`、`validate.rs`
-- `mcbctl/src/tui/state/packages/`
-  `Packages` 页的进一步分拆层；浏览/汇总落到 `browse.rs`，内部 support/确认逻辑拆到 `support.rs`、`confirm.rs`，交互修改继续拆到 `mutate_navigation.rs`、`mutate_search.rs`、`mutate_groups.rs`、`mutate_save.rs`
-
-部署入口本身也开始按职责拆分：
-
-- `mcbctl/src/bin/control/mcb-deploy.rs`
-  部署向导主入口、类型定义与参数解析
-- `mcbctl/src/bin/control/mcb-deploy/ui.rs`
-  基础交互输出、菜单和确认提示
-- `mcbctl/src/bin/control/mcb-deploy/orchestrate.rs`
-  部署编排聚合入口
-- `mcbctl/src/bin/control/mcb-deploy/orchestrate/`
-  环境检查、仓库自检、临时 DNS、部署编排与总执行入口分拆层；`env.rs`、`dns.rs`、`flow.rs` 分别承载各自职责
-- `mcbctl/src/bin/control/mcb-deploy/utils.rs`
-  仓库探测、临时路径、复制与校验等通用工具函数
-- `mcbctl/src/bin/control/mcb-deploy/plan.rs`
-  部署摘要、`DeployPlan` 拼装和 `nixos-rebuild` / repo sync 计划对象生成
-- `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
-  交互式部署向导的步骤流转与回退逻辑
-- `mcbctl/src/bin/control/mcb-deploy/execute.rs`
-  `/etc/nixos` 备份、同步与重建执行
-- `mcbctl/src/bin/control/mcb-deploy/selection.rs`
-  主机/用户/管理员选择、模板解析与相关校验
-- `mcbctl/src/bin/control/mcb-deploy/selection/users/`
-  用户选择层继续拆到 `template.rs`、`targets.rs`、`prompt.rs`、`validate.rs`，分别负责模板来源、用户集合操作、交互提示和最终校验
-- `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
-  运行时配置聚合入口
-- `mcbctl/src/bin/control/mcb-deploy/runtime/`
-  per-user TUN、GPU、服务器运行时能力配置分拆层；`tun.rs`、`server.rs` 分别承载各自职责，GPU 侧继续拆到 `runtime/gpu/`
-- `mcbctl/src/bin/control/mcb-deploy/runtime/gpu/`
-  GPU 自动探测、Bus ID 解析和交互配置分拆层；`detect.rs`、`prompt.rs` 分别承载硬件探测与交互式配置
-- `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
-  新 host / 新用户目录脚手架与 `local.nix` 生成
-- `mcbctl/src/bin/control/mcb-deploy/source.rs`
-  来源准备聚合入口
-- `mcbctl/src/bin/control/mcb-deploy/source/`
-  来源准备分拆层；`prompt.rs`、`local.rs`、`remote.rs` 分别承载来源选择、本地仓库准备与远端拉取/镜像重试
-- `mcbctl/src/bin/control/mcb-deploy/release.rs`
-  release 版本解析、说明生成与发布流程
-- `mcbctl/src/bin/noctalia/noctalia-gpu-mode.rs`
-  Noctalia GPU 模式入口与参数分发
-- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/state.rs`
-  GPU 模式状态层聚合入口
-- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/state/`
-  GPU 拓扑探测、当前模式探测、specialisation 列表发现与状态输出分拆层
-- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/menu.rs`
-  GUI/CLI 菜单选择流程
-- `mcbctl/src/bin/noctalia/noctalia-gpu-mode/apply.rs`
-  切换命令拼装与终端执行
-
-这里现在不只是“备用路线”，而是仓库的正式脚本实现。
-
-### `catalog/`
-
-这里放给 `mcbctl` 使用的本地覆盖层与目录元数据，而不是实际安装结果。
-
-当前已经拆成三类：
+`catalog/` 只放 TUI 元数据：
 
 - `catalog/packages/*.toml`
-  仓库内自维护包与少量本地覆盖条目；`Packages` 页真正的大头来源已经转向 `nix search`
 - `catalog/groups.toml`
-  软件组标签、说明和排序，决定 `Packages` 页如何展示和排序组
 - `catalog/home-options.toml`
-  `Home` 页结构化选项的标签、说明和顺序
 
-后面如果 `Packages` / `Home` 页继续长功能，优先往这里补元数据，而不是先把文案硬编码进 TUI。
+它不承担写回逻辑、网络访问或状态计算。
 
-### `pkgs/`
+## `pkgs/`
 
-这里放仓库自己维护的包和包装逻辑。
-
-现在比较关键的是：
-
-- `pkgs/mcbctl/`
-- `pkgs/zed/`
-- `pkgs/yesplaymusic/`
-- `catalog/packages/`
-
-如果你想追官网稳定版，或者把仓库内部工具做成 Nix 包，这里就是核心位置。
-
-## 按“我要改什么”来定位
-
-### 我要改主机名、默认用户、管理员用户
-
-看：
-
-- `hosts/<hostname>/default.nix`
-
-### 我要改系统级共享软件或服务
-
-看：
-
-- `hosts/profiles/*.nix`
-- `modules/packages.nix`
-  其中系统包模块已经继续拆到 `modules/packages/options.nix`、`system.nix`、`group-defs.nix`、`suites.nix`
-- `modules/services/*.nix`
-- `modules/networking.nix`
-
-### 我要给某个用户加软件
-
-看：
-
-- `home/users/<user>/packages.nix`
-
-### 我要改 Niri / Noctalia / 终端 / 编辑器配置
-
-看：
-
-- `home/users/<user>/config/`
-
-### 我要改某个用户的命令入口
-
-看：
+`pkgs/` 只做打包和暴露：
 
 - `pkgs/mcbctl/default.nix`
-- `home/modules/desktop.nix`
-- `home/modules/desktop/`
+- 仓库自维护包如 `pkgs/zed/`、`pkgs/yesplaymusic/`、`pkgs/gridix/`
 
-### 我要改部署或追新工具
+项目特有业务逻辑不应藏在 `pkgs/`。
 
-看：
+## `mcbctl/`
 
-- `mcbctl/src/bin/mcbctl.rs`
-- `mcbctl/src/bin/control/mcb-deploy.rs`
-- `mcbctl/src/bin/control/mcb-deploy/ui.rs`
-- `mcbctl/src/bin/control/mcb-deploy/orchestrate.rs`
-- `mcbctl/src/bin/control/mcb-deploy/orchestrate/`
-- `mcbctl/src/bin/control/mcb-deploy/utils.rs`
-- `mcbctl/src/bin/control/mcb-deploy/plan.rs`
-- `mcbctl/src/bin/control/mcb-deploy/wizard.rs`
-- `mcbctl/src/bin/control/mcb-deploy/execute.rs`
-- `mcbctl/src/bin/control/mcb-deploy/selection.rs`
-- `mcbctl/src/bin/control/mcb-deploy/runtime.rs`
-- `mcbctl/src/bin/control/mcb-deploy/runtime/`
-- `mcbctl/src/bin/control/mcb-deploy/scaffold.rs`
-- `mcbctl/src/bin/control/mcb-deploy/source.rs`
-- `mcbctl/src/bin/control/mcb-deploy/source/`
-- `mcbctl/src/bin/control/mcb-deploy/release.rs`
-- `mcbctl/src/bin/update/`
+`mcbctl/` 的层次固定为：
 
-## 最值得坚持的边界
+- `src/bin/`：命令入口
+- `src/lib.rs`：共享底层工具和受管写入协议
+- `src/domain/`：领域模型
+- `src/store/`：I/O、渲染、持久化、环境探测
+- `src/tui/`：状态和视图
+- `src/repo.rs`：仓库完整性检查
 
-一句话总结：
+按领域拆分的入口：
 
-- 机器共享能力放系统层
-- 用户个性化声明放用户层
+- `src/bin/control/`：`mcbctl`、`mcb-deploy`
+- `src/bin/network/`：代理 / TUN 辅助命令
+- `src/bin/desktop/`：桌面命令
+- `src/bin/noctalia/`：Noctalia 状态与 GPU 模式命令
+- `src/bin/update/`：上游 pin 检查和刷新
 
-只要这个边界不乱，仓库再大也还能读。
-一旦这个边界开始混，后面每次改东西都会越来越累。
+## 模板与 managed
+
+两者用途不同：
+
+- 模板：脚手架来源，只在创建新 host / 新 user 时使用
+- managed：Rust/TUI 运行时写回落点
+
+不要把模板当运行时状态，也不要把 `managed/` 当人工长期组织目录。
+
+## 受管文件保护
+
+这一分支的 `managed/*.nix` 现在有统一约定：
+
+- 新写入文件带 `mcbctl-managed` 标记和校验摘要
+- 旧占位文件会在首次写回时迁移到新格式
+- 如果文件内容不再像受管文件，`mcbctl` 会拒绝覆盖
+
+这条规则同样适用于 `managed/packages/*.nix` 的陈旧组文件删除。

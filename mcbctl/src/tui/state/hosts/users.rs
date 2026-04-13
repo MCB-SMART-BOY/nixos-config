@@ -165,13 +165,16 @@ impl AppState {
     }
 
     pub fn save_current_host_users(&mut self) -> Result<()> {
-        let errors = self.current_host_user_validation_errors();
+        let host = self.target_host.clone();
+        let errors = self.host_configuration_validation_errors(&host);
         if !errors.is_empty() {
-            self.status = format!("当前主机的 users 分片未通过校验：{}", errors.join("；"));
+            self.status = format!(
+                "当前主机的整机配置未通过校验，users 分片未写入：{}",
+                errors.join("；")
+            );
             return Ok(());
         }
 
-        let host = self.target_host.clone();
         let Some(settings) = self.current_host_settings().cloned() else {
             self.status = "没有可保存的主机用户结构。".to_string();
             return Ok(());
@@ -229,28 +232,32 @@ impl AppState {
             return vec!["当前主机没有可用设置。".to_string()];
         };
 
-        let mut errors = Vec::new();
-        if settings.users.is_empty() {
-            errors.push("托管用户列表不能为空。".to_string());
-        }
-        if settings.primary_user.trim().is_empty() {
-            errors.push("主用户不能为空。".to_string());
-        } else if !settings.users.contains(&settings.primary_user) {
-            errors.push("主用户必须包含在托管用户列表中。".to_string());
-        }
-        if has_duplicates(&settings.users) {
-            errors.push("托管用户列表不能包含重复项。".to_string());
-        }
-        if has_duplicates(&settings.admin_users) {
-            errors.push("管理员列表不能包含重复项。".to_string());
-        }
-        if settings
-            .admin_users
-            .iter()
-            .any(|user| !settings.users.contains(user))
-        {
-            errors.push("管理员列表必须是托管用户列表的子集。".to_string());
-        }
-        errors
+        validate_host_user_settings(settings)
     }
+}
+
+pub(super) fn validate_host_user_settings(settings: &HostManagedSettings) -> Vec<String> {
+    let mut errors = Vec::new();
+    if settings.users.is_empty() {
+        errors.push("托管用户列表不能为空。".to_string());
+    }
+    if settings.primary_user.trim().is_empty() {
+        errors.push("主用户不能为空。".to_string());
+    } else if !settings.users.contains(&settings.primary_user) {
+        errors.push("主用户必须包含在托管用户列表中。".to_string());
+    }
+    if has_duplicates(&settings.users) {
+        errors.push("托管用户列表不能包含重复项。".to_string());
+    }
+    if has_duplicates(&settings.admin_users) {
+        errors.push("管理员列表不能包含重复项。".to_string());
+    }
+    if settings
+        .admin_users
+        .iter()
+        .any(|user| !settings.users.contains(user))
+    {
+        errors.push("管理员列表必须是托管用户列表的子集。".to_string());
+    }
+    errors
 }

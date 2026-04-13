@@ -51,10 +51,6 @@ fn select_self_command() -> String {
         .unwrap_or_else(|| "noctalia-gpu-mode".to_string())
 }
 
-fn quote_shell(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\"'\"'"))
-}
-
 pub(super) fn menu_flow() -> Result<()> {
     if state::host_topology() != state::HostGpuTopology::MultiGpu {
         let hint = multi_gpu_required_note();
@@ -101,8 +97,7 @@ pub(super) fn menu_flow() -> Result<()> {
         Ok(v) => v,
         Err(MenuPickError::NoMenuBackend) => {
             let cmd_path = select_self_command();
-            let shell_cmd = format!("{} --menu-cli", quote_shell(&cmd_path));
-            let cmd = vec!["bash".to_string(), "-lc".to_string(), shell_cmd];
+            let cmd = vec![cmd_path, "--menu-cli".to_string()];
             let _ = apply::launch_in_terminal(&cmd);
             return Ok(());
         }

@@ -57,14 +57,6 @@ appimageTools.wrapType2 {
 
         # Preserve upstream icon set for desktop environments.
         cp -r ${appimageContents}/usr/share/icons $out/share/
-
-        # Keep CLI behavior aligned with desktop entry.
-        mv $out/bin/yesplaymusic $out/bin/.yesplaymusic-wrapped
-        cat > $out/bin/yesplaymusic <<EOF
-    #!/usr/bin/env bash
-    exec $out/bin/.yesplaymusic-wrapped --no-sandbox "\$@"
-    EOF
-        chmod 0755 $out/bin/yesplaymusic
   '';
 
   meta = {

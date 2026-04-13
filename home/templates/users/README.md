@@ -1,20 +1,24 @@
 # 用户模板
 
-这里放的是新用户模板，不是实际启用的 Home Manager 用户目录。
+这里放的是新用户脚手架来源，不是已经启用的 Home Manager 用户目录。
 
-约定：
+可用模板：
 
 - `home/templates/users/laptop/`
-  桌面 / 笔记本用户的默认软件模板
 - `home/templates/users/server/`
-  服务器用户的默认软件模板
 
-当前 `mcb-deploy` 会按主机类型优先从这里读取模板内容。
+`mcb-deploy` 会按主机类型优先从这里读取模板。
 
-目前最重要的模板文件是：
+模板中最重要的部分：
 
 - `packages.nix`
+- `managed/`
 
-真正生效的用户入口仍然应该创建在：
+其中：
+
+- `packages.nix` 是手写长期软件结构的起点
+- `managed/` 只是给 `mcbctl` 预留的受管落点
+
+真正生效的用户入口仍然应该落在：
 
 - `home/users/<user>/`

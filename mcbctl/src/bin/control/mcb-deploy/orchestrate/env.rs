@@ -1,4 +1,5 @@
 use super::super::*;
+use mcbctl::repo::ensure_repository_integrity;
 
 impl App {
     pub(crate) fn command_output(cmd: &str, args: &[&str]) -> Option<Output> {
@@ -67,18 +68,17 @@ impl App {
             bail!("未找到 nixos-rebuild。");
         }
 
-        if self.sudo_cmd.is_some() {
-            if let Some(out) = Self::command_output("sudo", &["-n", "true"]) {
-                if !out.status.success() {
-                    let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
-                    if stderr.contains("no new privileges") {
-                        self.warn("sudo 无法提权（no new privileges），进入 rootless 模式。");
-                        self.sudo_cmd = None;
-                        self.rootless = true;
-                    } else {
-                        self.warn("sudo 需要交互输入密码，将在需要时提示。");
-                    }
-                }
+        if self.sudo_cmd.is_some()
+            && let Some(out) = Self::command_output("sudo", &["-n", "true"])
+            && !out.status.success()
+        {
+            let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
+            if stderr.contains("no new privileges") {
+                self.warn("sudo 无法提权（no new privileges），进入 rootless 模式。");
+                self.sudo_cmd = None;
+                self.rootless = true;
+            } else {
+                self.warn("sudo 需要交互输入密码，将在需要时提示。");
             }
         }
 
@@ -143,50 +143,9 @@ impl App {
         Ok(())
     }
 
-    fn is_legacy_shell_path(rel: &str) -> bool {
-        rel == "run.sh"
-            || rel.starts_with("scripts/run/")
-            || (rel.starts_with("pkgs/") && rel.contains("/scripts/") && rel.ends_with(".sh"))
-            || (rel.starts_with("home/users/") && rel.contains("/scripts/"))
-    }
-
     pub(crate) fn self_check_repo(&self, repo_dir: &Path) -> Result<()> {
         self.log("仓库自检...");
-
-        let mut legacy_shell_files = Vec::<String>::new();
-        for entry in WalkDir::new(repo_dir).into_iter().flatten() {
-            if !entry.file_type().is_file() {
-                continue;
-            }
-            let rel = entry
-                .path()
-                .strip_prefix(repo_dir)
-                .map(|p| p.to_string_lossy().replace('\\', "/"))
-                .unwrap_or_else(|_| entry.path().to_string_lossy().replace('\\', "/"));
-            if Self::is_legacy_shell_path(&rel) {
-                legacy_shell_files.push(rel);
-            }
-        }
-
-        legacy_shell_files.sort();
-        legacy_shell_files.dedup();
-        if !legacy_shell_files.is_empty() {
-            let sample = legacy_shell_files
-                .iter()
-                .take(12)
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ");
-            bail!(
-                "检测到遗留 Shell 脚本入口（需要完全迁移到 Rust）：{}{}",
-                sample,
-                if legacy_shell_files.len() > 12 {
-                    " ..."
-                } else {
-                    ""
-                }
-            );
-        }
+        ensure_repository_integrity(repo_dir)?;
 
         let cargo_toml = repo_dir.join("mcbctl/Cargo.toml");
         if cargo_toml.is_file() {

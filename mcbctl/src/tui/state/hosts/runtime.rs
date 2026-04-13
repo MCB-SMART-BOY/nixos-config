@@ -8,3 +8,5 @@ mod edit;
 mod persist;
 #[path = "runtime/validate.rs"]
 mod validate;
+
+pub(crate) use validate::validate_host_runtime_settings;

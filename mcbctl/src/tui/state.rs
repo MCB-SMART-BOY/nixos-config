@@ -27,7 +27,7 @@ use crate::store::packages::{
     managed_package_group_path, write_grouped_managed_packages,
 };
 use crate::store::search::search_catalog_entries;
-use crate::{resolve_sibling_binary, write_file_atomic};
+use crate::{resolve_sibling_binary, write_managed_file};
 use anyhow::{Context, Result};
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};

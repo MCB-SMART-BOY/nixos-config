@@ -1,11 +1,12 @@
 # NixOS 管理函数：围绕当前 flake 主机的常用构建与切换入口。
+# 当前主线改为调用 Rust 入口，而不是直接在 fish 中拼装系统级流程。
 
 function nrs
     set -l host (_mcb_flake_host)
     if test (count $argv) -ge 1
         set host $argv[1]
     end
-    sudo nixos-rebuild switch --flake /etc/nixos#$host --show-trace --upgrade-all
+    mcbctl rebuild switch $host --upgrade
 end
 
 function nrt
@@ -13,7 +14,7 @@ function nrt
     if test (count $argv) -ge 1
         set host $argv[1]
     end
-    sudo nixos-rebuild test --flake /etc/nixos#$host --show-trace
+    mcbctl rebuild test $host
 end
 
 function nrb
@@ -21,16 +22,15 @@ function nrb
     if test (count $argv) -ge 1
         set host $argv[1]
     end
-    sudo nixos-rebuild boot --flake /etc/nixos#$host --show-trace
+    mcbctl rebuild boot $host
 end
 
 function nrc
     set -l flake
     if test (count $argv) -ge 1
         set flake $argv[1]
+        mcbctl build-host --target $flake --dry-run
     else
-        set -l host (_mcb_flake_host)
-        set flake /etc/nixos#nixosConfigurations.$host.config.system.build.toplevel
+        mcbctl build-host --dry-run
     end
-    nix build $flake --dry-run --accept-flake-config
 end

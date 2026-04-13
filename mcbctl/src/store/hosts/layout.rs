@@ -1,4 +1,4 @@
-use crate::write_file_atomic;
+use crate::write_managed_file;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +8,12 @@ pub fn ensure_managed_host_layout(managed_dir: &Path) -> Result<()> {
         .with_context(|| format!("failed to create {}", managed_dir.display()))?;
 
     let default_path = managed_dir.join("default.nix");
-    write_file_atomic(&default_path, &render_managed_host_default_file())?;
+    write_managed_file(
+        &default_path,
+        "host-managed-default",
+        &render_managed_host_default_file(),
+        &["# TUI / 自动化工具专用主机入口。"],
+    )?;
 
     Ok(())
 }

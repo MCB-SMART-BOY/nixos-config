@@ -1,4 +1,5 @@
 use super::*;
+use crate::repo::ensure_repository_integrity;
 
 impl AppState {
     pub fn next_deploy_field(&mut self) {
@@ -55,6 +56,8 @@ impl AppState {
 
     pub fn execute_deploy(&mut self) -> Result<()> {
         self.ensure_no_unsaved_changes_for_execution()?;
+        ensure_repository_integrity(&self.context.repo_root)?;
+        self.ensure_host_configuration_is_valid(&self.target_host)?;
 
         if !self.can_execute_deploy_directly() {
             let mut args = Vec::new();

@@ -68,7 +68,7 @@ impl AppState {
 
     pub(crate) fn clean_etc_dir_keep_hardware(&self) -> Result<()> {
         if self.context.etc_root.as_os_str().is_empty()
-            || self.context.etc_root == PathBuf::from("/")
+            || self.context.etc_root.as_path() == std::path::Path::new("/")
         {
             anyhow::bail!(
                 "ETC_ROOT 无效，拒绝清理：{}",

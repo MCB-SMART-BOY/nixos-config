@@ -137,14 +137,34 @@ fn render_users_text_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
 fn render_hosts_text_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
     let popup = centered_rect(66, 34, area);
     let (title, hint) = match state.active_hosts_text_mode() {
+        Some(HostsTextMode::CustomSubstituters) => (
+            "Edit Custom Substituters",
+            "使用逗号分隔，例如 https://cache.example.org",
+        ),
+        Some(HostsTextMode::CustomTrustedPublicKeys) => (
+            "Edit Custom Trusted Keys",
+            "使用逗号分隔，每项为 trusted-public-keys 条目",
+        ),
         Some(HostsTextMode::ProxyUrl) => ("Edit Proxy URL", "直接输入代理 URL，可留空"),
         Some(HostsTextMode::TunInterface) => ("Edit Tun Interface", "输入主 TUN 接口名，可留空"),
+        Some(HostsTextMode::TunInterfaces) => (
+            "Edit Extra Tun Interfaces",
+            "使用逗号分隔，例如 Meta, Mihomo, clash0",
+        ),
+        Some(HostsTextMode::ProxyDnsAddr) => ("Edit Proxy DNS Address", "例如 127.0.0.1"),
+        Some(HostsTextMode::ProxyDnsPort) => ("Edit Proxy DNS Port", "输入 1-65535"),
         Some(HostsTextMode::PerUserTunInterfaces) => (
             "Edit Per-user Tun Interfaces",
             "格式: user=iface, other=iface2",
         ),
         Some(HostsTextMode::PerUserTunDnsPorts) => {
             ("Edit Per-user DNS Ports", "格式: user=1053, other=2053")
+        }
+        Some(HostsTextMode::PerUserTunTableBase) => {
+            ("Edit Per-user Table Base", "输入正整数，例如 1000")
+        }
+        Some(HostsTextMode::PerUserTunPriorityBase) => {
+            ("Edit Per-user Priority Base", "输入正整数，例如 10000")
         }
         Some(HostsTextMode::IntelBusId) => ("Edit Intel Bus ID", "例如 PCI:0:2:0，可留空"),
         Some(HostsTextMode::AmdBusId) => ("Edit AMD Bus ID", "例如 PCI:4:0:0，可留空"),

@@ -173,7 +173,7 @@ screenshot-path "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
 // niri-run 会补齐 PATH，避免找不到命令
 spawn-at-startup "niri-run" "noctalia-shell"
 spawn-at-startup "niri-run" "fcitx5" "-d" "-r" // -r 替换现有实例
-spawn-at-startup "niri-run" "swayidle" "-w" "timeout" "300" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || true" "timeout" "600" "niri" "msg" "action" "power-off-monitors" "before-sleep" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || true"
+spawn-at-startup "niri-run" "swayidle" "-w" "timeout" "300" "lock-screen" "timeout" "600" "niri" "msg" "action" "power-off-monitors" "before-sleep" "lock-screen"
 
 // ══════════════════════════════════════════════════════════════════
 // 🪟 窗口规则
@@ -201,7 +201,7 @@ window-rule {
 binds {
     // Mod 默认是 Super/Win 键（可在 niri 文档中调整）
     // ─── 应用启动 ───
-    Mod+Return { spawn "niri-run" "sh" "-c" "${TERMINAL:-foot}"; }
+    Mod+Return { spawn "niri-run" "alacritty"; }
     Mod+Space { spawn "niri-run" "noctalia-shell" "ipc" "call" "launcher" "toggle"; }
     Mod+E { spawn "niri-run" "nautilus"; }
     Mod+B { spawn "niri-run" "firefox"; }
@@ -318,9 +318,9 @@ binds {
     // ─── 截图（高级模式） ───
     // 依赖: grim, slurp, swappy (需在 systemPackages 中安装)
     // 截图全屏
-    Print { spawn "niri-run" "sh" "-c" "grim - | swappy -f -"; }
+    Print { spawn "niri-run" "mcbctl" "screenshot-edit" "full"; }
     // 截图选区 (推荐)
-    Shift+Print { spawn "niri-run" "sh" "-c" "grim -g \"$(slurp)\" - | swappy -f -"; }
+    Shift+Print { spawn "niri-run" "mcbctl" "screenshot-edit" "region"; }
     // 原生截图 (备用)
     Alt+Print { screenshot; }
 

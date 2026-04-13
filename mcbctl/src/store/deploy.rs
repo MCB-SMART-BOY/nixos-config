@@ -65,7 +65,7 @@ impl RepoSyncPlan {
         args
     }
 
-    pub fn tar_pack_args(&self, tar_file: &PathBuf) -> Vec<String> {
+    pub fn tar_pack_args(&self, tar_file: &Path) -> Vec<String> {
         vec![
             "-C".to_string(),
             self.source_dir.display().to_string(),
@@ -77,7 +77,7 @@ impl RepoSyncPlan {
         ]
     }
 
-    pub fn tar_extract_args(&self, tar_file: &PathBuf) -> Vec<String> {
+    pub fn tar_extract_args(&self, tar_file: &Path) -> Vec<String> {
         vec![
             "-C".to_string(),
             self.destination_dir.display().to_string(),
@@ -193,16 +193,36 @@ pub fn ensure_root_hardware_config(etc_root: &Path, use_sudo: bool) -> Result<()
         &["-p".to_string(), etc_root.display().to_string()],
         use_sudo,
     )?;
-    run_root_command_ok(
-        "env",
+    let output = Command::new("nixos-generate-config")
+        .arg("--show-hardware-config")
+        .output()
+        .context("failed to run nixos-generate-config --show-hardware-config")?;
+    if !output.status.success() {
+        bail!(
+            "nixos-generate-config failed with {}",
+            output.status.code().unwrap_or(1)
+        );
+    }
+
+    let temp_file = create_temp_path("mcbctl-hardware-config", "nix")?;
+    if let Err(err) = fs::write(&temp_file, &output.stdout)
+        .with_context(|| format!("failed to write {}", temp_file.display()))
+    {
+        fs::remove_file(&temp_file).ok();
+        return Err(err);
+    }
+
+    let install_result = run_root_command_ok(
+        "install",
         &[
-            format!("HW_FILE={}", target.display()),
-            "sh".to_string(),
-            "-c".to_string(),
-            "umask 022 && nixos-generate-config --show-hardware-config > \"$HW_FILE\"".to_string(),
+            "-Dm0644".to_string(),
+            temp_file.display().to_string(),
+            target.display().to_string(),
         ],
         use_sudo,
-    )?;
+    );
+    fs::remove_file(&temp_file).ok();
+    install_result?;
     Ok(())
 }
 

@@ -1,4 +1,8 @@
-{ lib, rustPlatform }:
+{
+  lib,
+  rustPlatform,
+  doCheck ? true,
+}:
 
 rustPlatform.buildRustPackage {
   pname = "mcbctl";
@@ -18,7 +22,7 @@ rustPlatform.buildRustPackage {
 
   CARGO_TARGET_DIR = "target";
 
-  doCheck = false;
+  inherit doCheck;
 
   postInstall = ''
     ln -s "$out/bin/mcb-deploy" "$out/bin/deploy"

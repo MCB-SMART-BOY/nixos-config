@@ -1,5 +1,5 @@
 use crate::domain::tui::CatalogEntry;
-use crate::write_file_atomic;
+use crate::{managed_file_is_valid, managed_file_kind, write_managed_file};
 use anyhow::{Context, Result};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -28,6 +28,7 @@ pub fn write_grouped_managed_packages(
 
     for path in stale_files {
         if !active_files.contains(&path) {
+            ensure_stale_package_file_is_managed(&path)?;
             fs::remove_file(&path)
                 .with_context(|| format!("failed to remove stale {}", path.display()))?;
         }
@@ -36,10 +37,31 @@ pub fn write_grouped_managed_packages(
     for (group, entries) in grouped_entries {
         let path = grouped_dir.join(format!("{group}.nix"));
         let content = render_managed_package_group_file(&group, &entries);
-        write_file_atomic(&path, &content)?;
+        write_managed_file(
+            &path,
+            &format!("package-group:{group}"),
+            &content,
+            &["# 机器管理的软件组："],
+        )?;
     }
 
     Ok(())
+}
+
+fn ensure_stale_package_file_is_managed(path: &Path) -> Result<()> {
+    let content =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let has_valid_marker = managed_file_kind(&content)
+        .is_some_and(|kind| kind.starts_with("package-group:") && managed_file_is_valid(&content));
+    let legacy_group_file = content.trim_start().starts_with("# 机器管理的软件组：");
+    if has_valid_marker || legacy_group_file {
+        return Ok(());
+    }
+
+    anyhow::bail!(
+        "refusing to remove stale unmanaged package file {}; move manual content out of managed/packages first",
+        path.display()
+    )
 }
 
 fn selected_entries_by_group<'a>(
@@ -118,4 +140,46 @@ fn render_managed_package_group_file(group: &str, entries: &[&CatalogEntry]) -> 
     lines.push("".to_string());
 
     lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+
+    #[test]
+    fn write_grouped_managed_packages_rejects_unmanaged_stale_files() -> Result<()> {
+        let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
+        let dir = std::env::temp_dir().join(format!("mcbctl-packages-{unique}"));
+        let managed_dir = dir.join("managed");
+        let grouped_dir = managed_dir.join("packages");
+        fs::create_dir_all(&grouped_dir)?;
+        fs::write(
+            grouped_dir.join("manual.nix"),
+            "{ pkgs, ... }: { home.packages = [ pkgs.hello ]; }\n",
+        )?;
+
+        let catalog = vec![CatalogEntry {
+            id: "hello".to_string(),
+            name: "Hello".to_string(),
+            category: "cli".to_string(),
+            group: Some("misc".to_string()),
+            expr: "pkgs.hello".to_string(),
+            description: None,
+            keywords: Vec::new(),
+            source: Some("nixpkgs".to_string()),
+            platforms: Vec::new(),
+            desktop_entry_flag: None,
+        }];
+
+        let err = write_grouped_managed_packages(&managed_dir, &catalog, &BTreeMap::new())
+            .expect_err("unmanaged stale file should block package save");
+        assert!(
+            err.to_string()
+                .contains("refusing to remove stale unmanaged package file")
+        );
+
+        fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
 }

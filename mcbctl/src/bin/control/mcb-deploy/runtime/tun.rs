@@ -13,7 +13,7 @@ impl App {
         self.section("Per-user TUN 配置");
         self.note("检测到当前主机已启用 per-user TUN。");
         self.note("请为每个用户指定独立 TUN 名称与 DNS 端口。");
-        loop {
+        'retry: loop {
             self.user_tun.clear();
             self.user_dns.clear();
             for (idx, user) in self.target_users.iter().enumerate() {
@@ -44,7 +44,7 @@ impl App {
                     self.warn("端口无效，请重新输入这一轮。");
                     self.user_tun.clear();
                     self.user_dns.clear();
-                    continue;
+                    continue 'retry;
                 };
                 self.user_dns.insert(user.clone(), port);
             }

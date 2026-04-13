@@ -3,6 +3,7 @@
 {
   imports = [
     ./shell/core.nix
+    ./shell/interaction.nix
     ./shell/replacements.nix
     ./shell/navigation.nix
     ./shell/prompt.nix

@@ -1,8 +1,10 @@
 use super::*;
+use crate::repo::ensure_repository_integrity;
 
 impl AppState {
     pub fn execute_current_action(&mut self) -> Result<()> {
         self.ensure_no_unsaved_changes_for_execution()?;
+        ensure_repository_integrity(&self.context.repo_root)?;
         let action = self.current_action_item();
         if !self.action_available(action) {
             anyhow::bail!("当前环境暂不适合直接执行动作：{}", action.label());
@@ -92,6 +94,7 @@ impl AppState {
                 self.status = "仓库已同步到 /etc/nixos。".to_string();
             }
             ActionItem::RebuildCurrentHost => {
+                self.ensure_host_configuration_is_valid(&self.context.current_host)?;
                 let action = if self.context.privilege_mode == "rootless" {
                     DeployAction::Build
                 } else {

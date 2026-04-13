@@ -1,6 +1,7 @@
 use super::*;
 use mcbctl::store::home::ensure_managed_settings_layout;
 use mcbctl::store::packages::ensure_managed_packages_layout;
+use mcbctl::write_managed_file;
 
 impl App {
     pub(crate) fn ensure_user_home_entries(&mut self, repo_dir: &Path) -> Result<()> {
@@ -49,12 +50,11 @@ impl App {
                         copy_recursively(&src, &dst)?;
                     }
                 }
-                for template_file in ["files.nix"] {
-                    let src = template_dir.join(template_file);
-                    let dst = user_dir.join(template_file);
-                    if src.is_file() && !dst.exists() {
-                        fs::copy(src, dst).ok();
-                    }
+                let template_file = "files.nix";
+                let src = template_dir.join(template_file);
+                let dst = user_dir.join(template_file);
+                if src.is_file() && !dst.exists() {
+                    fs::copy(src, dst).ok();
                 }
             }
 
@@ -145,8 +145,9 @@ impl App {
 
             let managed_default = managed_dir.join("default.nix");
             if !managed_default.is_file() {
-                fs::write(
+                write_managed_file(
                     &managed_default,
+                    "home-managed-default",
                     r#"# TUI / 自动化工具专用入口。
 { lib, ... }:
 
@@ -158,6 +159,7 @@ impl App {
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 }
 "#,
+                    &["# TUI / 自动化工具专用入口。"],
                 )?;
             }
 

@@ -5,6 +5,9 @@ if not status is-interactive
 end
 
 if command -q eza
+    alias ls='eza --icons --group-directories-first --git'
+    alias ll='eza -l --icons --group-directories-first --git --time-style=long-iso'
+    alias la='eza -la --icons --group-directories-first --git'
     alias tree='eza --tree --icons'
 end
 
@@ -65,3 +68,7 @@ alias oldgrep='command grep'
 alias oldman='command man'
 alias olddiff='command diff'
 alias oldwatch='command watch'
+
+if command -q fd
+    alias fdf='fd'
+end

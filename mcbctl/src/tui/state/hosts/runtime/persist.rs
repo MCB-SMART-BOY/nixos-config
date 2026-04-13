@@ -2,13 +2,16 @@ use super::*;
 
 impl AppState {
     pub fn save_current_host_runtime(&mut self) -> Result<()> {
-        let errors = self.current_host_runtime_validation_errors();
+        let host = self.target_host.clone();
+        let errors = self.host_configuration_validation_errors(&host);
         if !errors.is_empty() {
-            self.status = format!("当前主机的运行时分片未通过校验：{}", errors.join("；"));
+            self.status = format!(
+                "当前主机的整机配置未通过校验，运行时分片未写入：{}",
+                errors.join("；")
+            );
             return Ok(());
         }
 
-        let host = self.target_host.clone();
         let Some(settings) = self.current_host_settings().cloned() else {
             self.status = "没有可保存的主机运行时配置。".to_string();
             return Ok(());

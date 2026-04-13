@@ -2,12 +2,12 @@ use super::*;
 
 impl AppState {
     pub fn next_hosts_field(&mut self) {
-        self.hosts_focus = (self.hosts_focus + 1) % 19;
+        self.hosts_focus = (self.hosts_focus + 1) % 29;
     }
 
     pub fn previous_hosts_field(&mut self) {
         self.hosts_focus = if self.hosts_focus == 0 {
-            18
+            28
         } else {
             self.hosts_focus - 1
         };
@@ -27,13 +27,21 @@ impl AppState {
                     &mut settings.cache_profile
                 });
             }
-            2 => {
+            4 => {
                 let options = vec!["tun".to_string(), "http".to_string(), "off".to_string()];
                 self.adjust_current_host_string_field(delta, &options, |settings| {
                     &mut settings.proxy_mode
                 });
             }
-            5 => {
+            8 => {
+                if let Some(settings) = self.current_host_settings_mut() {
+                    settings.enable_proxy_dns = !settings.enable_proxy_dns;
+                }
+                self.host_dirty_runtime_hosts
+                    .insert(self.target_host.clone());
+                self.status = "全局代理 DNS 开关已切换。".to_string();
+            }
+            11 => {
                 if let Some(settings) = self.current_host_settings_mut() {
                     settings.per_user_tun_enable = !settings.per_user_tun_enable;
                 }
@@ -41,19 +49,36 @@ impl AppState {
                     .insert(self.target_host.clone());
                 self.status = "Per-user TUN 开关已切换。".to_string();
             }
-            8 => {
+            12 => {
+                if let Some(settings) = self.current_host_settings_mut() {
+                    settings.per_user_tun_compat_global_service_socket =
+                        !settings.per_user_tun_compat_global_service_socket;
+                }
+                self.host_dirty_runtime_hosts
+                    .insert(self.target_host.clone());
+                self.status = "兼容全局服务 Socket 开关已切换。".to_string();
+            }
+            13 => {
+                if let Some(settings) = self.current_host_settings_mut() {
+                    settings.per_user_tun_redirect_dns = !settings.per_user_tun_redirect_dns;
+                }
+                self.host_dirty_runtime_hosts
+                    .insert(self.target_host.clone());
+                self.status = "Per-user DNS 重定向开关已切换。".to_string();
+            }
+            18 => {
                 let options = vec!["igpu".to_string(), "hybrid".to_string(), "dgpu".to_string()];
                 self.adjust_current_host_string_field(delta, &options, |settings| {
                     &mut settings.gpu_mode
                 });
             }
-            9 => {
+            19 => {
                 let options = vec!["intel".to_string(), "amd".to_string()];
                 self.adjust_current_host_string_field(delta, &options, |settings| {
                     &mut settings.gpu_igpu_vendor
                 });
             }
-            10 => {
+            20 => {
                 let options = vec![
                     "offload".to_string(),
                     "sync".to_string(),
@@ -63,7 +88,7 @@ impl AppState {
                     &mut settings.gpu_prime_mode
                 });
             }
-            14 => {
+            24 => {
                 if let Some(settings) = self.current_host_settings_mut() {
                     settings.gpu_nvidia_open = !settings.gpu_nvidia_open;
                 }
@@ -71,7 +96,7 @@ impl AppState {
                     .insert(self.target_host.clone());
                 self.status = "NVIDIA Open 开关已切换。".to_string();
             }
-            15 => {
+            25 => {
                 if let Some(settings) = self.current_host_settings_mut() {
                     settings.gpu_specialisations_enable = !settings.gpu_specialisations_enable;
                 }
@@ -79,7 +104,7 @@ impl AppState {
                     .insert(self.target_host.clone());
                 self.status = "GPU 特化开关已切换。".to_string();
             }
-            17 => {
+            27 => {
                 if let Some(settings) = self.current_host_settings_mut() {
                     settings.docker_enable = !settings.docker_enable;
                 }
@@ -87,7 +112,7 @@ impl AppState {
                     .insert(self.target_host.clone());
                 self.status = "Docker 开关已切换。".to_string();
             }
-            18 => {
+            28 => {
                 if let Some(settings) = self.current_host_settings_mut() {
                     settings.libvirtd_enable = !settings.libvirtd_enable;
                 }
@@ -106,42 +131,77 @@ impl AppState {
         };
 
         let (mode, value, message) = match self.hosts_focus {
+            2 => (
+                Some(HostsTextMode::CustomSubstituters),
+                serialize_string_list(&settings.custom_substituters),
+                "开始编辑 custom substituters；使用逗号分隔。",
+            ),
             3 => (
+                Some(HostsTextMode::CustomTrustedPublicKeys),
+                serialize_string_list(&settings.custom_trusted_public_keys),
+                "开始编辑 custom trusted-public-keys；使用逗号分隔。",
+            ),
+            5 => (
                 Some(HostsTextMode::ProxyUrl),
                 settings.proxy_url.clone(),
                 "开始编辑代理 URL。",
             ),
-            4 => (
+            6 => (
                 Some(HostsTextMode::TunInterface),
                 settings.tun_interface.clone(),
                 "开始编辑主 TUN 接口。",
             ),
-            6 => (
+            7 => (
+                Some(HostsTextMode::TunInterfaces),
+                serialize_string_list(&settings.tun_interfaces),
+                "开始编辑额外 TUN 接口列表；使用逗号分隔。",
+            ),
+            9 => (
+                Some(HostsTextMode::ProxyDnsAddr),
+                settings.proxy_dns_addr.clone(),
+                "开始编辑代理 DNS 地址。",
+            ),
+            10 => (
+                Some(HostsTextMode::ProxyDnsPort),
+                settings.proxy_dns_port.to_string(),
+                "开始编辑代理 DNS 端口。",
+            ),
+            14 => (
                 Some(HostsTextMode::PerUserTunInterfaces),
                 serialize_string_map(&settings.per_user_tun_interfaces),
                 "开始编辑 per-user TUN 接口映射，格式为 user=iface。",
             ),
-            7 => (
+            15 => (
                 Some(HostsTextMode::PerUserTunDnsPorts),
                 serialize_u16_map(&settings.per_user_tun_dns_ports),
                 "开始编辑 per-user DNS 端口映射，格式为 user=1053。",
             ),
-            11 => (
+            16 => (
+                Some(HostsTextMode::PerUserTunTableBase),
+                settings.per_user_tun_table_base.to_string(),
+                "开始编辑 per-user 路由表基值。",
+            ),
+            17 => (
+                Some(HostsTextMode::PerUserTunPriorityBase),
+                settings.per_user_tun_priority_base.to_string(),
+                "开始编辑 per-user 规则优先级基值。",
+            ),
+            21 => (
                 Some(HostsTextMode::IntelBusId),
                 settings.gpu_intel_bus.clone().unwrap_or_default(),
                 "开始编辑 Intel Bus ID。",
             ),
-            12 => (
+            22 => (
                 Some(HostsTextMode::AmdBusId),
                 settings.gpu_amd_bus.clone().unwrap_or_default(),
                 "开始编辑 AMD Bus ID。",
             ),
-            13 => (
+            23 => (
                 Some(HostsTextMode::NvidiaBusId),
                 settings.gpu_nvidia_bus.clone().unwrap_or_default(),
                 "开始编辑 NVIDIA Bus ID。",
             ),
-            16 => (
+            26 => (
                 Some(HostsTextMode::SpecialisationModes),
                 serialize_string_list(&settings.gpu_specialisation_modes),
                 "开始编辑 GPU 特化模式列表；使用逗号分隔。",
@@ -208,6 +268,14 @@ impl AppState {
         };
 
         let result: Result<()> = match mode {
+            HostsTextMode::CustomSubstituters => {
+                settings.custom_substituters = parse_string_list(&raw);
+                Ok(())
+            }
+            HostsTextMode::CustomTrustedPublicKeys => {
+                settings.custom_trusted_public_keys = parse_string_list(&raw);
+                Ok(())
+            }
             HostsTextMode::ProxyUrl => {
                 settings.proxy_url = raw;
                 Ok(())
@@ -216,12 +284,38 @@ impl AppState {
                 settings.tun_interface = raw;
                 Ok(())
             }
+            HostsTextMode::TunInterfaces => {
+                settings.tun_interfaces = parse_string_list(&raw);
+                Ok(())
+            }
+            HostsTextMode::ProxyDnsAddr => {
+                settings.proxy_dns_addr = raw;
+                Ok(())
+            }
+            HostsTextMode::ProxyDnsPort => raw
+                .parse::<u16>()
+                .with_context(|| format!("无效端口：{raw}"))
+                .map(|value| {
+                    settings.proxy_dns_port = value;
+                }),
             HostsTextMode::PerUserTunInterfaces => parse_string_map(&raw).map(|value| {
                 settings.per_user_tun_interfaces = value;
             }),
             HostsTextMode::PerUserTunDnsPorts => parse_u16_map(&raw).map(|value| {
                 settings.per_user_tun_dns_ports = value;
             }),
+            HostsTextMode::PerUserTunTableBase => raw
+                .parse::<i64>()
+                .with_context(|| format!("无效整数：{raw}"))
+                .map(|value| {
+                    settings.per_user_tun_table_base = value;
+                }),
+            HostsTextMode::PerUserTunPriorityBase => raw
+                .parse::<i64>()
+                .with_context(|| format!("无效整数：{raw}"))
+                .map(|value| {
+                    settings.per_user_tun_priority_base = value;
+                }),
             HostsTextMode::IntelBusId => {
                 settings.gpu_intel_bus = empty_to_none(&raw);
                 Ok(())

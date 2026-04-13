@@ -1,13 +1,18 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
 pub mod domain;
+pub mod repo;
 pub mod store;
 pub mod tui;
+
+const MANAGED_KIND_PREFIX: &str = "# mcbctl-managed: ";
+const MANAGED_CHECKSUM_PREFIX: &str = "# mcbctl-checksum: ";
 
 pub fn emit_json(text: &str, tooltip: &str, class: &str) {
     println!(
@@ -202,6 +207,84 @@ pub fn write_file_atomic(path: &Path, content: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn render_managed_file(kind: &str, body: &str) -> String {
+    format!(
+        "{MANAGED_KIND_PREFIX}{kind}\n{MANAGED_CHECKSUM_PREFIX}{}\n{body}",
+        managed_checksum(body)
+    )
+}
+
+pub fn managed_file_kind(content: &str) -> Option<&str> {
+    let (kind, _, _) = parse_managed_file(content)?;
+    Some(kind)
+}
+
+pub fn managed_file_is_valid(content: &str) -> bool {
+    parse_managed_file(content)
+        .is_some_and(|(_, checksum, body)| checksum == managed_checksum(body))
+}
+
+pub fn write_managed_file(
+    path: &Path,
+    kind: &str,
+    body: &str,
+    legacy_prefixes: &[&str],
+) -> Result<()> {
+    let rendered = render_managed_file(kind, body);
+    if let Ok(existing) = fs::read_to_string(path) {
+        if existing == rendered {
+            return Ok(());
+        }
+        if !managed_content_is_safe_to_replace(&existing, kind, body, legacy_prefixes) {
+            return Err(anyhow!(
+                "refusing to overwrite {}: existing content is not a recognized {kind} managed file",
+                path.display()
+            ));
+        }
+    }
+
+    write_file_atomic(path, &rendered)
+}
+
+fn managed_content_is_safe_to_replace(
+    existing: &str,
+    kind: &str,
+    body: &str,
+    legacy_prefixes: &[&str],
+) -> bool {
+    if existing == body {
+        return true;
+    }
+    if legacy_prefixes
+        .iter()
+        .any(|prefix| existing.trim_start().starts_with(prefix))
+    {
+        return true;
+    }
+
+    parse_managed_file(existing).is_some_and(|(existing_kind, checksum, existing_body)| {
+        existing_kind == kind && checksum == managed_checksum(existing_body)
+    })
+}
+
+fn parse_managed_file(content: &str) -> Option<(&str, &str, &str)> {
+    let first_newline = content.find('\n')?;
+    let first_line = &content[..first_newline];
+    let rest = &content[first_newline + 1..];
+    let second_newline = rest.find('\n')?;
+    let second_line = &rest[..second_newline];
+    let body = &rest[second_newline + 1..];
+    let kind = first_line.strip_prefix(MANAGED_KIND_PREFIX)?.trim();
+    let checksum = second_line.strip_prefix(MANAGED_CHECKSUM_PREFIX)?.trim();
+    Some((kind, checksum, body))
+}
+
+fn managed_checksum(body: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(body.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
 pub fn exit_from_status(status: ExitStatus) -> ! {
     std::process::exit(status.code().unwrap_or(1))
 }
@@ -266,4 +349,42 @@ pub fn current_gpu_specialisation() -> String {
 
 pub fn current_gpu_mode_label() -> String {
     normalize_gpu_mode_label(&current_gpu_specialisation())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn managed_file_roundtrip_is_valid() {
+        let rendered = render_managed_file("host-network", "# body\n{ }\n");
+        assert_eq!(managed_file_kind(&rendered), Some("host-network"));
+        assert!(managed_file_is_valid(&rendered));
+    }
+
+    #[test]
+    fn write_managed_file_rejects_tampered_content() -> Result<()> {
+        let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
+        let dir = std::env::temp_dir().join(format!("mcbctl-managed-write-{unique}"));
+        fs::create_dir_all(&dir)?;
+        let path = dir.join("network.nix");
+
+        let legacy = "# 机器管理的网络/TUN 分片。\n\n{ ... }:\n\n{ }\n";
+        fs::write(&path, legacy)?;
+        write_managed_file(
+            &path,
+            "host-network",
+            "# next\n{ }\n",
+            &["# 机器管理的网络/TUN 分片。"],
+        )?;
+
+        let tampered = fs::read_to_string(&path)?.replace("{ }\n", "{ a = 1; }\n");
+        fs::write(&path, tampered)?;
+        let err = write_managed_file(&path, "host-network", "# final\n{ }\n", &[])
+            .expect_err("tampered managed file should be rejected");
+        assert!(err.to_string().contains("refusing to overwrite"));
+
+        fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
 }
