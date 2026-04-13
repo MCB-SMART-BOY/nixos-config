@@ -1,6 +1,27 @@
 use mcbctl::current_gpu_mode_label;
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::process::Command;
+
+fn exec_or_exit(mut cmd: Command, label: &str, code: i32) -> ! {
+    #[cfg(unix)]
+    {
+        let err = cmd.exec();
+        eprintln!("{label}: {err}");
+        std::process::exit(code);
+    }
+
+    #[cfg(not(unix))]
+    {
+        match cmd.status() {
+            Ok(status) => std::process::exit(status.code().unwrap_or(code)),
+            Err(err) => {
+                eprintln!("{label}: {err}");
+                std::process::exit(code);
+            }
+        }
+    }
+}
 
 fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
@@ -20,7 +41,9 @@ fn main() {
         cmd.env("OZONE_PLATFORM", "x11");
     }
 
-    let err = cmd.exec();
-    eprintln!("electron-auto-gpu: failed to exec {app}: {err}");
-    std::process::exit(127);
+    exec_or_exit(
+        cmd,
+        &format!("electron-auto-gpu: failed to exec {app}"),
+        127,
+    );
 }

@@ -7,6 +7,16 @@ use std::thread;
 use std::time::Duration;
 use walkdir::WalkDir;
 
+#[cfg(unix)]
+fn write_wallpaper_link(target: &Path, link: &Path) -> std::io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
+#[cfg(not(unix))]
+fn write_wallpaper_link(target: &Path, link: &Path) -> std::io::Result<()> {
+    fs::copy(target, link).map(|_| ())
+}
+
 fn wait_for_wayland() -> bool {
     let attempts = 50;
     for _ in 0..attempts {
@@ -129,8 +139,8 @@ fn main() {
 
     let _ = fs::remove_file(&lock_image);
     let _ = fs::remove_file(&current_image);
-    if std::os::unix::fs::symlink(&choice, &lock_image).is_err()
-        || std::os::unix::fs::symlink(&choice, &current_image).is_err()
+    if write_wallpaper_link(&choice, &lock_image).is_err()
+        || write_wallpaper_link(&choice, &current_image).is_err()
     {
         eprintln!(
             "wallpaper-random: failed to write symlink in {}",

@@ -1,6 +1,27 @@
 use mcbctl::current_gpu_mode_label;
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::process::Command;
+
+fn exec_or_exit(mut cmd: Command, label: &str) -> ! {
+    #[cfg(unix)]
+    {
+        let err = cmd.exec();
+        eprintln!("{label}: {err}");
+        std::process::exit(1);
+    }
+
+    #[cfg(not(unix))]
+    {
+        match cmd.status() {
+            Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+            Err(err) => {
+                eprintln!("{label}: {err}");
+                std::process::exit(1);
+            }
+        }
+    }
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -25,7 +46,5 @@ fn main() {
         cmd.env_remove("WGPU_BACKEND");
     }
 
-    let err = cmd.exec();
-    eprintln!("zed-auto-gpu: {err}");
-    std::process::exit(1);
+    exec_or_exit(cmd, "zed-auto-gpu");
 }

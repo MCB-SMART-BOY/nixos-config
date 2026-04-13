@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, anyhow, bail};
 use mcbctl::run_capture;
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -58,6 +57,15 @@ fn chown_recursive(owner: &str, paths: &[String]) {
         .status();
 }
 
+#[cfg(unix)]
+fn set_owner_only_permissions(path: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).ok();
+}
+
+#[cfg(not(unix))]
+fn set_owner_only_permissions(_path: &str) {}
+
 fn main() {
     let result = (|| -> Result<()> {
         let args = parse_args()?;
@@ -75,7 +83,7 @@ fn main() {
         ];
         for dir in &dirs {
             fs::create_dir_all(dir).with_context(|| format!("failed to create {dir}"))?;
-            fs::set_permissions(dir, fs::Permissions::from_mode(0o700)).ok();
+            set_owner_only_permissions(dir);
         }
         chown_recursive(&owner, &dirs);
 

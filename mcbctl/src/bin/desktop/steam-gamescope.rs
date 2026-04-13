@@ -1,7 +1,28 @@
 use mcbctl::{command_exists, home_dir, prepend_paths};
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
+
+fn exec_or_exit(mut cmd: Command, label: &str) -> ! {
+    #[cfg(unix)]
+    {
+        let err = cmd.exec();
+        eprintln!("{label}: {err}");
+        std::process::exit(1);
+    }
+
+    #[cfg(not(unix))]
+    {
+        match cmd.status() {
+            Ok(status) => std::process::exit(status.code().unwrap_or(1)),
+            Err(err) => {
+                eprintln!("{label}: {err}");
+                std::process::exit(1);
+            }
+        }
+    }
+}
 
 fn main() {
     let user = std::env::var("USER").unwrap_or_default();
@@ -34,7 +55,5 @@ fn main() {
     cmd.env_remove("VK_DRIVER_FILES");
     cmd.env_remove("VK_ICD_FILENAMES");
 
-    let err = cmd.exec();
-    eprintln!("steam-gamescope: {err}");
-    std::process::exit(1);
+    exec_or_exit(cmd, "steam-gamescope");
 }
