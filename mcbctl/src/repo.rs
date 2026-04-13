@@ -1,4 +1,7 @@
-use crate::run_capture_allow_fail;
+use crate::{
+    managed_file_is_valid, managed_file_kind, render_managed_file, run_capture_allow_fail,
+    write_file_atomic,
+};
 use anyhow::{Result, bail};
 use std::fs;
 use std::path::Path;
@@ -14,6 +17,12 @@ pub struct IntegrityFinding {
 #[derive(Clone, Debug, Default)]
 pub struct IntegrityReport {
     pub findings: Vec<IntegrityFinding>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ManagedMigrationReport {
+    pub migrated: Vec<String>,
+    pub skipped: Vec<String>,
 }
 
 impl IntegrityReport {
@@ -69,6 +78,54 @@ pub fn detect_current_branch(repo_root: &Path) -> Option<String> {
 
 pub fn preferred_remote_branch(repo_root: &Path) -> String {
     detect_current_branch(repo_root).unwrap_or_else(|| "rust脚本分支".to_string())
+}
+
+pub fn migrate_managed_files(root: &Path) -> Result<ManagedMigrationReport> {
+    let mut report = ManagedMigrationReport::default();
+
+    for entry in WalkDir::new(root)
+        .into_iter()
+        .filter_entry(|entry| !should_skip_entry(entry))
+        .flatten()
+    {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let rel = relative_path(root, entry.path());
+        let Some(kind) = expected_managed_kind(&rel) else {
+            continue;
+        };
+
+        let content = fs::read_to_string(entry.path())?;
+        if managed_file_kind(&content) == Some(kind.as_str()) && managed_file_is_valid(&content) {
+            report.skipped.push(rel);
+            continue;
+        }
+
+        if managed_file_kind(&content).is_some() {
+            bail!(
+                "refusing to migrate {}: existing managed marker is invalid or kind mismatches {}",
+                rel,
+                kind
+            );
+        }
+
+        if !is_recognized_legacy_managed_content(&rel, &content) {
+            bail!(
+                "refusing to migrate {}: content does not match a recognized legacy managed file for {}",
+                rel,
+                kind
+            );
+        }
+
+        write_file_atomic(entry.path(), &render_managed_file(&kind, &content))?;
+        report.migrated.push(rel);
+    }
+
+    report.migrated.sort();
+    report.skipped.sort();
+    Ok(report)
 }
 
 pub fn audit_repository(root: &Path) -> Result<IntegrityReport> {
@@ -317,6 +374,33 @@ fn check_forbidden_content(report: &mut IntegrityReport, path: &Path, rel: &str)
             report.push(rel.to_string(), rule, detail);
         }
     }
+
+    check_managed_file_protocol(report, rel, &content);
+}
+
+fn check_managed_file_protocol(report: &mut IntegrityReport, rel: &str, content: &str) {
+    let Some(expected_kind) = expected_managed_kind(rel) else {
+        return;
+    };
+
+    let valid_kind = managed_file_kind(content)
+        .filter(|kind| *kind == expected_kind.as_str() && managed_file_is_valid(content));
+    if valid_kind.is_some() {
+        return;
+    }
+
+    let detail = if let Some(existing_kind) = managed_file_kind(content) {
+        format!(
+            "managed file must use valid mcbctl marker kind {}; found {}",
+            expected_kind, existing_kind
+        )
+    } else {
+        format!(
+            "managed file must use valid mcbctl marker kind {}; run `mcbctl migrate-managed`",
+            expected_kind
+        )
+    };
+    report.push(rel.to_string(), "managed-protocol", detail);
 }
 
 fn nix_shell_helper(parts: &[&str]) -> String {
@@ -325,6 +409,369 @@ fn nix_shell_helper(parts: &[&str]) -> String {
 
 fn shell_flag_pattern(command: &str, flag: &str) -> String {
     [command, flag].join(" ")
+}
+
+fn expected_managed_kind(rel: &str) -> Option<String> {
+    let parts = rel.split('/').collect::<Vec<_>>();
+
+    if parts.len() == 4 && parts[0] == "hosts" && parts[2] == "managed" {
+        return match parts[3] {
+            "default.nix" => Some("host-managed-default".to_string()),
+            "users.nix" => Some("host-users".to_string()),
+            "network.nix" => Some("host-network".to_string()),
+            "gpu.nix" => Some("host-gpu".to_string()),
+            "virtualization.nix" => Some("host-virtualization".to_string()),
+            _ => None,
+        };
+    }
+
+    if parts.len() == 5 && parts[0] == "hosts" && parts[1] == "templates" && parts[3] == "managed" {
+        return match parts[4] {
+            "default.nix" => Some("host-managed-default".to_string()),
+            "users.nix" => Some("host-users".to_string()),
+            "network.nix" => Some("host-network".to_string()),
+            "gpu.nix" => Some("host-gpu".to_string()),
+            "virtualization.nix" => Some("host-virtualization".to_string()),
+            _ => None,
+        };
+    }
+
+    if parts.len() >= 5 && parts[0] == "home" {
+        let managed_idx = match parts[1] {
+            "users" if parts.len() >= 5 => Some(3usize),
+            "templates" if parts.len() >= 6 && parts[2] == "users" => Some(4usize),
+            _ => None,
+        }?;
+
+        if parts.get(managed_idx) != Some(&"managed") {
+            return None;
+        }
+
+        let tail = &parts[managed_idx + 1..];
+        return match tail {
+            ["default.nix"] => Some("home-managed-default".to_string()),
+            ["packages.nix"] => Some("home-packages-aggregator".to_string()),
+            ["settings", "default.nix"] => Some("home-settings-default".to_string()),
+            ["settings", "desktop.nix"] => Some("home-settings-desktop".to_string()),
+            ["settings", "session.nix"] => Some("home-settings-session".to_string()),
+            ["settings", "mime.nix"] => Some("home-settings-mime".to_string()),
+            ["packages", file] if file.ends_with(".nix") => {
+                Some(format!("package-group:{}", file.trim_end_matches(".nix")))
+            }
+            _ => None,
+        };
+    }
+
+    None
+}
+
+fn is_recognized_legacy_managed_content(rel: &str, content: &str) -> bool {
+    if content.trim().is_empty() {
+        return false;
+    }
+
+    let Some(kind) = expected_managed_kind(rel) else {
+        return false;
+    };
+
+    let recognized_placeholder = match kind.as_str() {
+        "host-users" => matches_legacy_placeholder_module(
+            content,
+            "# 机器管理的用户结构分片。",
+            &["# 当前为空；当 mcbctl 的 Users 页保存时，会写入这里。"],
+            false,
+        ),
+        "host-network" => matches_legacy_placeholder_module(
+            content,
+            "# 机器管理的网络/TUN 分片。",
+            &["# 当前为空；当 mcbctl 的 Hosts 页保存网络相关设置时，会写入这里。"],
+            false,
+        ),
+        "host-gpu" => matches_legacy_placeholder_module(
+            content,
+            "# 机器管理的 GPU 分片。",
+            &["# 当前为空；当 mcbctl 的 Hosts 页保存 GPU 相关设置时，会写入这里。"],
+            false,
+        ),
+        "host-virtualization" => matches_legacy_placeholder_module(
+            content,
+            "# 机器管理的虚拟化分片。",
+            &["# 当前为空；当 mcbctl 的 Hosts 页保存 Docker / Libvirt 设置时，会写入这里。"],
+            false,
+        ),
+        "home-settings-desktop" => matches_legacy_placeholder_module(
+            content,
+            "# 机器管理的桌面设置分片。",
+            &[
+                "# 当前为空；当 mcbctl 的 Home 页保存桌面结构化设置时，会写入这里。",
+                "# 当前为空；当 mcbctl 后续接入对应页面时，会写入这里。",
+            ],
+            true,
+        ),
+        "home-settings-session" => matches_legacy_placeholder_module(
+            content,
+            "# 机器管理的 session 设置分片。",
+            &[
+                "# 当前为空；当 mcbctl 后续接入 session 相关结构化设置时，会写入这里。",
+                "# 当前为空；当 mcbctl 后续接入对应页面时，会写入这里。",
+            ],
+            true,
+        ),
+        "home-settings-mime" => matches_legacy_placeholder_module(
+            content,
+            "# 机器管理的 MIME 设置分片。",
+            &[
+                "# 当前为空；当 mcbctl 后续接入 MIME 相关结构化设置时，会写入这里。",
+                "# 当前为空；当 mcbctl 后续接入对应页面时，会写入这里。",
+            ],
+            true,
+        ),
+        _ => false,
+    };
+    if recognized_placeholder {
+        return true;
+    }
+
+    let static_matches = legacy_static_variants(&kind)
+        .iter()
+        .any(|expected| trimmed_content_eq(content, expected));
+    if static_matches {
+        return true;
+    }
+
+    kind.starts_with("package-group:")
+        && content.trim_start().starts_with("# 机器管理的软件组：")
+        && content.contains("home.packages = [")
+        && content.contains("# managed-id:")
+}
+
+fn trimmed_content_eq(content: &str, expected: &str) -> bool {
+    content.trim_end() == expected.trim_end()
+}
+
+fn matches_legacy_placeholder_module(
+    content: &str,
+    title: &str,
+    details: &[&str],
+    allow_without_detail: bool,
+) -> bool {
+    if allow_without_detail
+        && trimmed_content_eq(content, &format!("{title}\n\n{{ ... }}:\n\n{{ }}\n"))
+    {
+        return true;
+    }
+
+    details.iter().any(|detail| {
+        trimmed_content_eq(
+            content,
+            &format!("{title}\n{detail}\n\n{{ ... }}:\n\n{{ }}\n"),
+        )
+    })
+}
+
+fn legacy_static_variants(kind: &str) -> Vec<String> {
+    match kind {
+        "host-managed-default" => vec![
+            legacy_host_default_body(),
+            legacy_host_default_body_template(),
+        ],
+        "host-users" => vec![legacy_host_placeholder_body(
+            "用户结构",
+            "mcbctl 的 Users 页保存时",
+        )],
+        "host-network" => vec![legacy_host_placeholder_body(
+            "网络/TUN",
+            "mcbctl 的 Hosts 页保存网络相关设置时",
+        )],
+        "host-gpu" => vec![legacy_host_placeholder_body(
+            "GPU",
+            "mcbctl 的 Hosts 页保存 GPU 相关设置时",
+        )],
+        "host-virtualization" => vec![legacy_host_placeholder_body(
+            "虚拟化",
+            "mcbctl 的 Hosts 页保存 Docker / Libvirt 设置时",
+        )],
+        "home-managed-default" => vec![
+            legacy_home_default_body_template(),
+            legacy_home_default_body_user(),
+        ],
+        "home-packages-aggregator" => vec![legacy_home_packages_body()],
+        "home-settings-default" => vec![legacy_home_settings_default_body()],
+        "home-settings-desktop" => vec![
+            legacy_home_settings_placeholder_body("桌面", None),
+            legacy_home_settings_placeholder_body(
+                "桌面",
+                Some("mcbctl 的 Home 页保存桌面结构化设置时"),
+            ),
+            legacy_home_settings_placeholder_body("桌面", Some("mcbctl 后续接入对应页面时")),
+        ],
+        "home-settings-session" => vec![
+            legacy_home_settings_placeholder_body("session", None),
+            legacy_home_settings_placeholder_body(
+                "session",
+                Some("mcbctl 后续接入 session 相关结构化设置时"),
+            ),
+            legacy_home_settings_placeholder_body("session", Some("mcbctl 后续接入对应页面时")),
+        ],
+        "home-settings-mime" => vec![
+            legacy_home_settings_placeholder_body("MIME", None),
+            legacy_home_settings_placeholder_body(
+                "MIME",
+                Some("mcbctl 后续接入 MIME 相关结构化设置时"),
+            ),
+            legacy_home_settings_placeholder_body("mime", Some("mcbctl 后续接入对应页面时")),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+fn legacy_host_default_body() -> String {
+    [
+        "# TUI / 自动化工具专用主机入口。",
+        "",
+        "{ lib, ... }:",
+        "",
+        "let",
+        "  splitImports = lib.concatLists [",
+        "    (lib.optional (builtins.pathExists ./users.nix) ./users.nix)",
+        "    (lib.optional (builtins.pathExists ./network.nix) ./network.nix)",
+        "    (lib.optional (builtins.pathExists ./gpu.nix) ./gpu.nix)",
+        "    (lib.optional (builtins.pathExists ./virtualization.nix) ./virtualization.nix)",
+        "  ];",
+        "in",
+        "{",
+        "  imports = splitImports ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;",
+        "}",
+        "",
+    ]
+    .join("\n")
+}
+
+fn legacy_host_default_body_template() -> String {
+    [
+        "# TUI / 自动化工具专用主机入口。",
+        "",
+        "{ lib, ... }:",
+        "",
+        "{",
+        "  imports = [ ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;",
+        "}",
+        "",
+    ]
+    .join("\n")
+}
+
+fn legacy_host_placeholder_body(title: &str, detail: &str) -> String {
+    [
+        format!("# 机器管理的 {title} 分片。"),
+        format!("# 当前为空；当 {detail}，会写入这里。"),
+        "".to_string(),
+        "{ ... }:".to_string(),
+        "".to_string(),
+        "{ }".to_string(),
+        "".to_string(),
+    ]
+    .join("\n")
+}
+
+fn legacy_home_default_body_template() -> String {
+    [
+        "# TUI / 自动化工具专用入口。",
+        "",
+        "{ lib, ... }:",
+        "",
+        "{",
+        "  imports = [",
+        "    ./packages.nix",
+        "  ]",
+        "  ++ lib.optional (builtins.pathExists ./settings/default.nix) ./settings/default.nix",
+        "  ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;",
+        "}",
+        "",
+    ]
+    .join("\n")
+}
+
+fn legacy_home_default_body_user() -> String {
+    [
+        "# TUI / 自动化工具专用入口。",
+        "# 约定：机器写入的用户级改动只落在 managed/，不要直接改手写 packages.nix / config/。",
+        "",
+        "{ lib, ... }:",
+        "",
+        "{",
+        "  imports = [",
+        "    ./packages.nix",
+        "  ]",
+        "  ++ lib.optional (builtins.pathExists ./settings/default.nix) ./settings/default.nix",
+        "  ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;",
+        "}",
+        "",
+    ]
+    .join("\n")
+}
+
+fn legacy_home_packages_body() -> String {
+    [
+        "# 机器管理的用户软件入口（由 mcbctl 维护）。",
+        "# 说明：真正的软件组会按文件写入 ./packages/*.nix，这里只负责聚合导入。",
+        "",
+        "{ lib, ... }:",
+        "",
+        "let",
+        "  packageDir = ./packages;",
+        "  packageImports =",
+        "    if builtins.pathExists packageDir then",
+        "      builtins.map (name: packageDir + \"/${name}\") (",
+        "        lib.sort lib.lessThan (",
+        "          lib.filter (name: lib.hasSuffix \".nix\" name) (builtins.attrNames (builtins.readDir packageDir))",
+        "        )",
+        "      )",
+        "    else",
+        "      [ ];",
+        "in",
+        "{",
+        "  imports = packageImports;",
+        "}",
+        "",
+    ]
+    .join("\n")
+}
+
+fn legacy_home_settings_default_body() -> String {
+    [
+        "# 机器管理的用户设置聚合入口。",
+        "",
+        "{ lib, ... }:",
+        "",
+        "let",
+        "  splitImports = lib.concatLists [",
+        "    (lib.optional (builtins.pathExists ./desktop.nix) ./desktop.nix)",
+        "    (lib.optional (builtins.pathExists ./session.nix) ./session.nix)",
+        "    (lib.optional (builtins.pathExists ./mime.nix) ./mime.nix)",
+        "  ];",
+        "in",
+        "{",
+        "  imports = splitImports;",
+        "}",
+        "",
+    ]
+    .join("\n")
+}
+
+fn legacy_home_settings_placeholder_body(title: &str, detail: Option<&str>) -> String {
+    let mut lines = vec![format!("# 机器管理的 {title} 设置分片。")];
+    if let Some(detail) = detail {
+        lines.push(format!("# 当前为空；当 {detail}，会写入这里。"));
+    }
+    lines.extend([
+        "".to_string(),
+        "{ ... }:".to_string(),
+        "".to_string(),
+        "{ }".to_string(),
+        "".to_string(),
+    ]);
+    lines.join("\n")
 }
 
 #[cfg(test)]
@@ -376,6 +823,87 @@ mod tests {
 
         let report = audit_repository(&root)?;
         assert!(report.is_clean());
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn flags_legacy_managed_files() -> Result<()> {
+        let root = create_temp_repo()?;
+        let path = root.join("hosts/demo/managed/network.nix");
+        fs::create_dir_all(path.parent().expect("managed dir"))?;
+        fs::write(
+            &path,
+            "# 机器管理的网络/TUN 分片。\n# 当前为空；当 mcbctl 的 Hosts 页保存网络相关设置时，会写入这里。\n\n{ ... }:\n\n{ }\n",
+        )?;
+
+        let report = audit_repository(&root)?;
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|finding| finding.rule == "managed-protocol"
+                    && finding.path == "hosts/demo/managed/network.nix")
+        );
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_managed_files_wraps_recognized_legacy_content() -> Result<()> {
+        let root = create_temp_repo()?;
+        let path = root.join("hosts/demo/managed/network.nix");
+        fs::create_dir_all(path.parent().expect("managed dir"))?;
+        let legacy = "# 机器管理的网络/TUN 分片。\n# 当前为空；当 mcbctl 的 Hosts 页保存网络相关设置时，会写入这里。\n\n{ ... }:\n\n{ }\n";
+        fs::write(&path, legacy)?;
+
+        let report = migrate_managed_files(&root)?;
+        assert_eq!(report.migrated, vec!["hosts/demo/managed/network.nix"]);
+        let content = fs::read_to_string(&path)?;
+        assert_eq!(managed_file_kind(&content), Some("host-network"));
+        assert!(managed_file_is_valid(&content));
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_managed_files_includes_host_templates() -> Result<()> {
+        let root = create_temp_repo()?;
+        let path = root.join("hosts/templates/laptop/managed/default.nix");
+        fs::create_dir_all(path.parent().expect("managed dir"))?;
+        fs::write(&path, legacy_host_default_body())?;
+
+        let report = migrate_managed_files(&root)?;
+        assert_eq!(
+            report.migrated,
+            vec!["hosts/templates/laptop/managed/default.nix"]
+        );
+        let content = fs::read_to_string(&path)?;
+        assert_eq!(managed_file_kind(&content), Some("host-managed-default"));
+        assert!(managed_file_is_valid(&content));
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn migrate_managed_files_rejects_unknown_content() -> Result<()> {
+        let root = create_temp_repo()?;
+        let path = root.join("home/users/demo/managed/settings/desktop.nix");
+        fs::create_dir_all(path.parent().expect("settings dir"))?;
+        fs::write(
+            &path,
+            "{ lib, ... }: { mcb.noctalia.barProfile = lib.mkForce \"default\"; }\n",
+        )?;
+
+        let err =
+            migrate_managed_files(&root).expect_err("manual content should not be auto-migrated");
+        assert!(
+            err.to_string()
+                .contains("does not match a recognized legacy managed file")
+        );
+
         fs::remove_dir_all(root)?;
         Ok(())
     }

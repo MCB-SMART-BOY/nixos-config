@@ -34,6 +34,7 @@
 - `hosts/<host>/system.nix`
 - `hosts/<host>/managed/`
 - `hosts/<host>/local.nix`
+- `hosts/_support/hardware-configuration-eval.nix`
 
 模板目录：
 
@@ -48,6 +49,8 @@
 - `virtualization.nix`
 
 人工长期逻辑不要写进这些分片；应写到 `default.nix` 或 `local.nix`。
+
+`hosts/<host>/default.nix` 和模板入口当前会优先导入仓库根目录的真实 `hardware-configuration.nix`；缺失时只在评估场景导入 `_support/hardware-configuration-eval.nix`。
 
 ## `modules/`
 
@@ -134,7 +137,8 @@
 这一分支的 `managed/*.nix` 现在有统一约定：
 
 - 新写入文件带 `mcbctl-managed` 标记和校验摘要
-- 旧占位文件会在首次写回时迁移到新格式
+- `mcbctl migrate-managed` 负责显式升级可识别的旧受管文件
+- `repo-integrity` / `lint-repo` 会检查受管文件的 marker、kind 和校验摘要
 - 如果文件内容不再像受管文件，`mcbctl` 会拒绝覆盖
 
 这条规则同样适用于 `managed/packages/*.nix` 的陈旧组文件删除。

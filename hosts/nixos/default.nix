@@ -8,31 +8,19 @@
 }:
 
 let
-  hardwareFile =
+  hardwareModule =
     if builtins.pathExists ../../hardware-configuration.nix then
       ../../hardware-configuration.nix
     else
-      null;
+      ../_support/hardware-configuration-eval.nix;
 in
 {
   imports = [
     ../profiles/desktop.nix
+    hardwareModule
   ]
-  ++ lib.optional (hardwareFile != null) hardwareFile
   ++ lib.optional (builtins.pathExists ./managed/default.nix) ./managed/default.nix
   ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
-
-  # 允许在仓库/CI 环境中评估 flake（此时通常没有根目录 hardware-configuration.nix）
-  fileSystems = lib.mkIf (hardwareFile == null) {
-    "/" = {
-      # 评估占位值：若用于真实部署会快速失败，避免误挂载错误磁盘。
-      device = "/dev/disk/by-label/__MISSING_HARDWARE_CONFIGURATION__";
-      fsType = "ext4";
-    };
-  };
-  warnings = lib.optional (hardwareFile == null) ''
-    /etc/nixos/hardware-configuration.nix 缺失；当前根文件系统为评估占位值，不可用于实际部署。
-  '';
 
   mcb = {
     # 主用户与用户列表（影响 Home Manager 与权限）

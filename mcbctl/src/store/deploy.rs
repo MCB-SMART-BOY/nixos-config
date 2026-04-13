@@ -110,6 +110,7 @@ pub fn merged_nix_config() -> String {
 }
 
 pub fn run_nixos_rebuild(plan: &NixosRebuildPlan, use_sudo: bool) -> Result<ExitStatus> {
+    ensure_real_hardware_config_for_rebuild(plan)?;
     let nix_config = merged_nix_config();
     let args = plan.args();
 
@@ -136,6 +137,22 @@ pub fn run_nixos_rebuild(plan: &NixosRebuildPlan, use_sudo: bool) -> Result<Exit
     };
 
     Ok(status)
+}
+
+fn ensure_real_hardware_config_for_rebuild(plan: &NixosRebuildPlan) -> Result<()> {
+    if matches!(plan.action, DeployAction::Build) {
+        return Ok(());
+    }
+
+    let hardware_file = plan.flake_root.join("hardware-configuration.nix");
+    if hardware_file.is_file() {
+        return Ok(());
+    }
+
+    bail!(
+        "{} 缺少真实 hardware-configuration.nix；`switch` / `test` / `boot` 不能使用评估 fallback。若只是做评估，请改用 `mcbctl build-host` 或 `mcbctl rebuild build`。",
+        plan.flake_root.display()
+    )
 }
 
 pub fn run_root_command(cmd: &str, args: &[String], use_sudo: bool) -> Result<ExitStatus> {

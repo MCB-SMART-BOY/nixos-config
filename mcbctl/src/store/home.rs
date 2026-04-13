@@ -55,12 +55,13 @@ pub fn ensure_managed_settings_layout(managed_dir: &Path) -> Result<()> {
     ] {
         let path = settings_dir.join(name);
         if !path.exists() {
-            write_managed_file(
-                &path,
-                &format!("home-settings-placeholder:{name}"),
-                &content,
-                &["# 机器管理的"],
-            )?;
+            let kind = match name {
+                "desktop.nix" => "home-settings-desktop",
+                "session.nix" => "home-settings-session",
+                "mime.nix" => "home-settings-mime",
+                _ => unreachable!("unexpected managed settings placeholder"),
+            };
+            write_managed_file(&path, kind, &content, &["# 机器管理的"])?;
         }
     }
 

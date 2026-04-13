@@ -1,3 +1,5 @@
+# mcbctl-managed: home-managed-default
+# mcbctl-checksum: bcdd50c77c36d75c05bcb6a538c5bb07ea42fc730ad0f80a28e421f40ee4242a
 # TUI / 自动化工具专用入口。
 # 约定：机器写入的用户级改动只落在 managed/，不要直接改手写 packages.nix / config/。
 

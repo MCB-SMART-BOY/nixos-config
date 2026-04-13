@@ -72,7 +72,7 @@
 
 - `hosts/<host>/managed/network.nix`
 
-如果这个文件被手改到不再像受管文件，TUI 会拒绝覆盖。
+如果这个文件被手改到不再像受管文件，TUI 会拒绝覆盖；如果仓库来自旧树，先用 `mcbctl migrate-managed` 把旧格式受管文件升级掉。
 
 ## 5. 服务链
 
@@ -109,6 +109,8 @@ resolvectl status
 nix run .#mcbctl -- doctor
 nix run .#noctalia-proxy-status
 ```
+
+`doctor` 现在也会显示仓库根目录是否存在真实 `hardware-configuration.nix`，方便区分“网络问题”和“当前只是评估 fallback”。
 
 ## 7. 推荐顺序
 

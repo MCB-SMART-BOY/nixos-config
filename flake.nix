@@ -59,6 +59,7 @@
         name:
         hostEntries.${name} == "directory"
         && !(builtins.elem name [
+          "_support"
           "profiles"
           "templates"
         ])

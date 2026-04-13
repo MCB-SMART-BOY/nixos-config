@@ -1,3 +1,5 @@
+# mcbctl-managed: host-managed-default
+# mcbctl-checksum: f9c88961636d7d8af40f745b7517dbf0388aa2ef04c03074be183bf8e48f0dd9
 # TUI / 自动化工具专用主机入口。
 
 { lib, ... }:

@@ -9,7 +9,7 @@
 - `noctalia-*`：桌面状态和 GPU 模式命令
 - `lock-screen`、`niri-run`、`flatpak-setup`：桌面命令
 - `update-*`：上游 pin 检查和刷新
-- `repo-integrity` / `lint-repo` / `doctor`：仓库检查
+- `repo-integrity` / `migrate-managed` / `lint-repo` / `doctor`：仓库检查与受管协议维护
 
 ## 分层
 
@@ -53,7 +53,8 @@
 当前写回协议：
 
 - 新写入文件带 `mcbctl-managed` 标记和校验摘要
-- 旧占位或旧受管格式可迁移
+- `migrate-managed` 负责显式升级可识别的旧占位和旧受管格式
+- `repo-integrity` / `lint-repo` 会检查 kind、marker 和校验摘要
 - 被手改破坏的受管文件会被拒绝覆盖
 - `managed/packages/` 中的非受管陈旧文件不会被自动删除
 
@@ -89,6 +90,7 @@ cargo test
 ```bash
 NIX_CONFIG='experimental-features = nix-command flakes' nix flake check --option eval-cache false
 nix run .#mcbctl -- repo-integrity
+nix run .#mcbctl -- migrate-managed
 ```
 
 ## 修改建议

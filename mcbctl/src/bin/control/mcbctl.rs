@@ -1,6 +1,8 @@
 use anyhow::{Context, Result, bail};
 use mcbctl::domain::tui::DeployAction;
-use mcbctl::repo::{audit_repository, ensure_repository_integrity, preferred_remote_branch};
+use mcbctl::repo::{
+    audit_repository, ensure_repository_integrity, migrate_managed_files, preferred_remote_branch,
+};
 use mcbctl::store::deploy::{NixosRebuildPlan, merged_nix_config, run_nixos_rebuild};
 use mcbctl::tui::state::{AppContext, AppState};
 use mcbctl::{
@@ -70,6 +72,9 @@ fn run() -> Result<()> {
         "repo-integrity" => {
             return run_repo_integrity(&args[1..]);
         }
+        "migrate-managed" => {
+            return run_migrate_managed(&args[1..]);
+        }
         "lint-repo" => {
             return run_lint_repo(&args[1..]);
         }
@@ -97,7 +102,7 @@ fn launch_tui() -> Result<()> {
 
 fn usage() {
     println!(
-        "用法:\n  mcbctl\n  mcbctl tui\n  mcbctl deploy [--help]\n  mcbctl release\n  mcbctl rebuild <switch|test|boot|build> [host] [--flake <path>] [--upgrade] [--sudo|--no-sudo]\n  mcbctl build-host [host] [--flake <path>] [--dry-run]\n  mcbctl repo-integrity [--root <path>]\n  mcbctl lint-repo [--root <path>]\n  mcbctl doctor [--root <path>]\n  mcbctl terminal-action <flake-status|flake-hint|sensors|memory|disk>\n  mcbctl screenshot-edit <full|region>\n\n说明:\n  默认进入 TUI 控制台。\n  `mcbctl deploy` 会转发到交互式部署向导。\n  `mcbctl release` 会转发到发布流程。\n  `rebuild` / `build-host` 是 fish 快捷入口背后的 Rust 主线命令。\n  `repo-integrity` / `lint-repo` / `doctor` 用于 Rust 主线下的仓库校验。"
+        "用法:\n  mcbctl\n  mcbctl tui\n  mcbctl deploy [--help]\n  mcbctl release\n  mcbctl rebuild <switch|test|boot|build> [host] [--flake <path>] [--upgrade] [--sudo|--no-sudo]\n  mcbctl build-host [host] [--flake <path>] [--dry-run]\n  mcbctl repo-integrity [--root <path>]\n  mcbctl migrate-managed [--root <path>]\n  mcbctl lint-repo [--root <path>]\n  mcbctl doctor [--root <path>]\n  mcbctl terminal-action <flake-status|flake-hint|sensors|memory|disk>\n  mcbctl screenshot-edit <full|region>\n\n说明:\n  默认进入 TUI 控制台。\n  `mcbctl deploy` 会转发到交互式部署向导。\n  `mcbctl release` 会转发到发布流程。\n  `rebuild` / `build-host` 是 fish 快捷入口背后的 Rust 主线命令。\n  `repo-integrity` / `migrate-managed` / `lint-repo` / `doctor` 用于 Rust 主线下的仓库校验与受管文件维护。"
     );
 }
 
@@ -118,6 +123,27 @@ fn run_repo_integrity(args: &[String]) -> Result<()> {
     let root = parse_root_arg(args)?;
     ensure_repository_integrity(&root)?;
     println!("repo-integrity: ok ({})", root.display());
+    Ok(())
+}
+
+fn run_migrate_managed(args: &[String]) -> Result<()> {
+    if has_help_flag(args) {
+        println!("用法:\n  mcbctl migrate-managed [--root <path>]");
+        return Ok(());
+    }
+
+    let root = parse_root_arg(args)?;
+    let report = migrate_managed_files(&root)?;
+    println!("migrate-managed");
+    println!("repo root: {}", root.display());
+    println!("migrated: {}", report.migrated.len());
+    for path in &report.migrated {
+        println!("  migrated {path}");
+    }
+    println!("skipped: {}", report.skipped.len());
+    for path in &report.skipped {
+        println!("  ok {path}");
+    }
     Ok(())
 }
 
@@ -313,6 +339,14 @@ fn run_doctor(args: &[String]) -> Result<()> {
             "ok"
         } else {
             "missing"
+        }
+    );
+    println!(
+        "repo hardware config: {}",
+        if root.join("hardware-configuration.nix").is_file() {
+            "present"
+        } else {
+            "missing (eval fallback active)"
         }
     );
     println!(

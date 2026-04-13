@@ -38,8 +38,14 @@ nix run .#mcb-deploy -- --help
 保存时会做这些事：
 
 1. 先跑当前页或整机级校验
-2. 再确认目标文件是受管文件、旧占位文件，或可安全迁移的旧格式
+2. 再确认目标文件是有效受管文件，或显式迁移后留下的受管文件
 3. 如果目标文件看起来被手改破坏，直接拒绝覆盖
+
+如果仓库来自旧树，先跑一次：
+
+```bash
+nix run .#mcbctl -- migrate-managed
+```
 
 如果你遇到“refusing to overwrite”或“refusing to remove stale unmanaged package file”：
 
@@ -57,6 +63,11 @@ nix run .#mcbctl -- rebuild test
 nix run .#mcbctl -- rebuild boot
 nix run .#mcbctl -- build-host --dry-run
 ```
+
+说明：
+
+- `rebuild switch|test|boot` 现在要求 flake 根目录里有真实 `hardware-configuration.nix`
+- `build-host` 和 `rebuild build` 允许只走评估 fallback，适合 CI / 本地检查
 
 完整向导：
 
@@ -77,6 +88,7 @@ nix run .#mcbctl -- deploy
 
 ```bash
 nix run .#mcbctl -- repo-integrity
+nix run .#mcbctl -- migrate-managed
 nix run .#mcbctl -- lint-repo
 nix run .#mcbctl -- doctor
 nix run .#update-upstream-apps -- --check
@@ -132,6 +144,7 @@ cargo clippy --manifest-path mcbctl/Cargo.toml --all-targets --all-features -- -
 cargo test --manifest-path mcbctl/Cargo.toml
 NIX_CONFIG='experimental-features = nix-command flakes' nix flake check --option eval-cache false
 nix run .#mcbctl -- --help
+nix run .#mcbctl -- migrate-managed --help
 nix run .#mcbctl -- deploy --help
 nix run .#mcb-deploy -- --help
 nix run .#update-upstream-apps -- --check

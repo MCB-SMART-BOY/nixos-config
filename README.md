@@ -25,6 +25,7 @@ nix run .#mcb-deploy
 
 ```bash
 nix run .#mcbctl -- repo-integrity
+nix run .#mcbctl -- migrate-managed
 nix run .#mcbctl -- lint-repo
 nix run .#mcbctl -- doctor
 nix run .#update-upstream-apps -- --check
@@ -57,6 +58,8 @@ nix run .#mcbctl -- build-host --dry-run
 现在所有受管 `.nix` 文件都走统一的 Rust 写入协议：
 
 - 新写入文件会带 `mcbctl-managed` 标记和校验摘要
+- `mcbctl migrate-managed` 会把仓库里可识别的旧受管文件显式升级到新协议
+- `repo-integrity` / `lint-repo` 会把旧格式或错误 kind 的受管文件直接报出来
 - TUI 只覆盖自己确认受管、且未被手改破坏的文件
 - 遇到陌生内容、损坏内容或 `managed/packages/` 中的非受管陈旧组文件，会直接拒绝覆盖或删除
 
@@ -94,10 +97,13 @@ cargo clippy --manifest-path mcbctl/Cargo.toml --all-targets --all-features -- -
 cargo test --manifest-path mcbctl/Cargo.toml
 NIX_CONFIG='experimental-features = nix-command flakes' nix flake check --option eval-cache false
 nix run .#mcbctl -- --help
+nix run .#mcbctl -- migrate-managed --help
 nix run .#mcbctl -- deploy --help
 nix run .#mcb-deploy -- --help
 nix run .#update-upstream-apps -- --check
 ```
+
+`flake check` 现在会自动导入 [hardware-configuration-eval.nix](/home/mcbgaruda/projects/nixos-config/hosts/_support/hardware-configuration-eval.nix) 作为评估回退模块，所以仓库 / CI 没有真实 `hardware-configuration.nix` 也能安静评估；但 `switch` / `test` / `boot` 仍要求真实硬件配置文件存在。
 
 ## 文档
 
