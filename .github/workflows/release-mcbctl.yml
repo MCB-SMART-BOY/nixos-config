@@ -7,12 +7,17 @@ on:
         description: release tag to upload assets for
         required: true
         type: string
+      target:
+        description: optional single target triple to build
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 jobs:
   bundle:
+    if: ${{ github.event.inputs.target == '' || github.event.inputs.target == matrix.target }}
     strategy:
       fail-fast: false
       matrix:

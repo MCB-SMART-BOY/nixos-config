@@ -30,18 +30,44 @@ pub fn command_exists(name: &str) -> bool {
     env::var_os("PATH")
         .map(|paths| {
             env::split_paths(&paths).any(|dir| {
-                let full = dir.join(name);
-                full.is_file() && is_executable(&full)
+                command_candidates(&dir, name)
+                    .into_iter()
+                    .any(|full| full.is_file() && is_executable(&full))
             })
         })
         .unwrap_or(false)
 }
 
+#[cfg(windows)]
+fn command_candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
+    let candidate = dir.join(name);
+    if candidate.extension().is_some() {
+        return vec![candidate];
+    }
+
+    let mut candidates = vec![candidate];
+    for ext in [".exe", ".cmd", ".bat", ".com"] {
+        candidates.push(dir.join(format!("{name}{ext}")));
+    }
+    candidates
+}
+
+#[cfg(not(windows))]
+fn command_candidates(dir: &Path, name: &str) -> Vec<PathBuf> {
+    vec![dir.join(name)]
+}
+
+#[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     fs::metadata(path)
         .map(|m| m.permissions().mode() & 0o111 != 0)
         .unwrap_or(false)
+}
+
+#[cfg(not(unix))]
+fn is_executable(path: &Path) -> bool {
+    path.is_file()
 }
 
 pub fn run_capture(cmd: &str, args: &[&str]) -> Result<String> {
