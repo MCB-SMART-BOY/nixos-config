@@ -17,7 +17,6 @@ permissions:
 
 jobs:
   bundle:
-    if: ${{ github.event.inputs.target == '' || github.event.inputs.target == matrix.target }}
     strategy:
       fail-fast: false
       matrix:
@@ -35,16 +34,21 @@ jobs:
       RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        if: ${{ github.event.inputs.target == '' || github.event.inputs.target == matrix.target }}
 
       - uses: dtolnay/rust-toolchain@stable
+        if: ${{ github.event.inputs.target == '' || github.event.inputs.target == matrix.target }}
 
       - name: Build Rust command suite
+        if: ${{ github.event.inputs.target == '' || github.event.inputs.target == matrix.target }}
         run: cargo build --manifest-path mcbctl/Cargo.toml --release
 
       - name: Package release bundle
+        if: ${{ github.event.inputs.target == '' || github.event.inputs.target == matrix.target }}
         run: cargo run --manifest-path mcbctl/Cargo.toml --release --bin mcbctl -- release-bundle --target ${{ matrix.target }} --bin-dir mcbctl/target/release --out-dir dist --version ${{ env.RELEASE_TAG }}
 
       - uses: softprops/action-gh-release@v2
+        if: ${{ github.event.inputs.target == '' || github.event.inputs.target == matrix.target }}
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           files: dist/*
