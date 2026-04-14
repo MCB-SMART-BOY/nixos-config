@@ -502,6 +502,35 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn select_host_tty_retries_invalid_menu_then_picks_default_existing_host() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-select-tty-default")?;
+        fs::create_dir_all(repo_dir.join("hosts").join("alpha"))?;
+        fs::create_dir_all(repo_dir.join("hosts").join("nixos"))?;
+        let mut app = test_app(repo_dir.clone());
+        let _ui = App::install_test_ui(true, &["9", "", ""]);
+
+        app.select_host(&repo_dir)?;
+
+        assert_eq!(app.target_name, "nixos");
+        assert_eq!(app.host_profile_kind, HostProfileKind::Unknown);
+        Ok(())
+    }
+
+    #[test]
+    fn select_host_tty_retries_reserved_and_existing_names_until_valid() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-select-tty-new")?;
+        fs::create_dir_all(repo_dir.join("hosts").join("nixos"))?;
+        let mut app = test_app(repo_dir.clone());
+        let _ui = App::install_test_ui(true, &["2", "_support", "nixos", "workstation"]);
+
+        app.select_host(&repo_dir)?;
+
+        assert_eq!(app.target_name, "workstation");
+        assert_eq!(app.host_profile_kind, HostProfileKind::Desktop);
+        Ok(())
+    }
+
     fn create_temp_repo_dir(prefix: &str) -> Result<PathBuf> {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)

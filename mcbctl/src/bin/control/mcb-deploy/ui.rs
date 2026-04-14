@@ -190,3 +190,109 @@ impl App {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn wizard_back_or_quit_maps_empty_back_and_quit_inputs() -> Result<()> {
+        let app = test_app();
+
+        let _ui = App::install_test_ui(true, &[""]);
+        assert_eq!(
+            app.wizard_back_or_quit("确认以上配置")?,
+            WizardAction::Continue
+        );
+        drop(_ui);
+
+        let _ui = App::install_test_ui(true, &["b"]);
+        assert_eq!(app.wizard_back_or_quit("确认以上配置")?, WizardAction::Back);
+        drop(_ui);
+
+        let _ui = App::install_test_ui(true, &["q"]);
+        let err = app
+            .wizard_back_or_quit("确认以上配置")
+            .expect_err("q should exit");
+        assert!(err.to_string().contains("已退出"));
+        Ok(())
+    }
+
+    #[test]
+    fn confirm_continue_respects_tty_confirmation_input() -> Result<()> {
+        let app = test_app();
+
+        let _ui = App::install_test_ui(true, &[""]);
+        app.confirm_continue("继续？")?;
+        drop(_ui);
+
+        let _ui = App::install_test_ui(true, &["n"]);
+        let err = app.confirm_continue("继续？").expect_err("n should abort");
+        assert!(err.to_string().contains("已退出"));
+        Ok(())
+    }
+
+    fn test_app() -> App {
+        App {
+            repo_dir: PathBuf::from("/tmp/repo"),
+            repo_urls: Vec::new(),
+            branch: "rust脚本分支".to_string(),
+            source_ref: String::new(),
+            allow_remote_head: false,
+            source_commit: String::new(),
+            source_choice_set: false,
+            target_name: String::new(),
+            target_users: Vec::new(),
+            target_admin_users: Vec::new(),
+            deploy_mode: DeployMode::ManageUsers,
+            deploy_mode_set: false,
+            force_remote_source: false,
+            overwrite_mode: OverwriteMode::Ask,
+            overwrite_mode_set: false,
+            per_user_tun_enabled: false,
+            host_profile_kind: HostProfileKind::Unknown,
+            user_tun: BTreeMap::new(),
+            user_dns: BTreeMap::new(),
+            server_overrides_enabled: false,
+            server_enable_network_cli: String::new(),
+            server_enable_network_gui: String::new(),
+            server_enable_shell_tools: String::new(),
+            server_enable_wayland_tools: String::new(),
+            server_enable_system_tools: String::new(),
+            server_enable_geek_tools: String::new(),
+            server_enable_gaming: String::new(),
+            server_enable_insecure_tools: String::new(),
+            server_enable_docker: String::new(),
+            server_enable_libvirtd: String::new(),
+            created_home_users: Vec::new(),
+            gpu_override: false,
+            gpu_override_from_detection: false,
+            gpu_mode: String::new(),
+            gpu_igpu_vendor: String::new(),
+            gpu_prime_mode: String::new(),
+            gpu_intel_bus: String::new(),
+            gpu_amd_bus: String::new(),
+            gpu_nvidia_bus: String::new(),
+            gpu_nvidia_open: String::new(),
+            gpu_specialisations_enabled: false,
+            gpu_specialisations_set: false,
+            gpu_specialisation_modes: Vec::new(),
+            detected_gpu: DetectedGpuProfile::default(),
+            mode: "switch".to_string(),
+            rebuild_upgrade: false,
+            etc_dir: PathBuf::from("/tmp/etc-nixos"),
+            dns_enabled: false,
+            temp_dns_backend: String::new(),
+            temp_dns_backup: None,
+            temp_dns_iface: String::new(),
+            tmp_dir: None,
+            sudo_cmd: None,
+            rootless: false,
+            run_action: RunAction::Deploy,
+            progress_total: 7,
+            progress_current: 0,
+            git_clone_timeout_sec: 90,
+        }
+    }
+}
