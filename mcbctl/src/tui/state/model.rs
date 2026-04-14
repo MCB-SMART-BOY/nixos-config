@@ -201,6 +201,12 @@ impl AppState {
         Page::ALL[self.active_page]
     }
 
+    pub(crate) fn set_page(&mut self, page: Page) {
+        if let Some(index) = Page::ALL.iter().position(|candidate| *candidate == page) {
+            self.active_page = index;
+        }
+    }
+
     pub fn next_page(&mut self) {
         self.active_page = (self.active_page + 1) % Page::ALL.len();
     }

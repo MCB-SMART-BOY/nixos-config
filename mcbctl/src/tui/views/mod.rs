@@ -240,7 +240,9 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
             "Hosts: ←/→ 切主机  j/k 字段  h/l 调整枚举  Enter 编辑文本/映射  s 保存  q 退出"
         }
         Page::Home => "Home: ←/→ 切用户  j/k 选项  h/l 或 Enter 调整  s 保存  q 退出",
-        Page::Actions => "Actions: j/k 选动作  Enter/Space/x 执行  Tab/Shift-Tab 切页  q 退出",
+        Page::Actions => {
+            "Actions: j/k 选动作  Enter/Space 打开归宿页  x 直接执行（过渡期）  Tab/Shift-Tab 切页  q 退出"
+        }
         _ => "Tab/Shift-Tab: 切页  q: 退出",
     };
     let help = Paragraph::new(footer).block(Block::default().borders(Borders::ALL).title("Help"));

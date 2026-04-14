@@ -1,4 +1,5 @@
 use super::*;
+use crate::domain::tui::ActionDestination;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ActionDisplayRow {
@@ -72,6 +73,34 @@ impl AppState {
         0
     }
 
+    pub(crate) fn open_current_action_destination(&mut self) {
+        let action = self.current_action_item();
+        match action.destination() {
+            ActionDestination::Inspect => {
+                self.set_page(Page::Dashboard);
+                self.status = format!(
+                    "{} 归属 Inspect；当前先跳到 Overview，直接执行入口仍暂留在 Actions 页（按 x）。",
+                    action.label()
+                );
+            }
+            ActionDestination::Apply => {
+                self.set_page(Page::Deploy);
+                self.status = format!(
+                    "{} 归属 Apply；已跳到 Deploy 页作为当前过渡入口。",
+                    action.label()
+                );
+            }
+            ActionDestination::Advanced => {
+                self.set_page(Page::Deploy);
+                self.show_advanced = true;
+                self.status = format!(
+                    "{} 归属 Advanced；当前先跳到 Deploy 页并打开高级模式，直接执行入口仍暂留在 Actions 页（按 x）。",
+                    action.label()
+                );
+            }
+        }
+    }
+
     pub fn actions_summary_lines(&self) -> Vec<String> {
         let action = self.current_action_item();
         let mut lines = vec![
@@ -101,6 +130,10 @@ impl AppState {
         } else {
             lines.push("状态：当前环境不适合直接执行；请改用 Deploy 页或切换权限".to_string());
         }
+        lines.push(format!(
+            "默认行为：Enter 打开 {} 区域；x 直接执行当前动作。",
+            action.destination().label()
+        ));
 
         lines.push(String::new());
         lines.push("当前页说明：".to_string());
@@ -114,7 +147,6 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::tui::ActionDestination;
     use std::collections::{BTreeMap, BTreeSet};
 
     #[test]
@@ -181,6 +213,33 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("分组：Repository Maintenance"))
         );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("默认行为：Enter 打开 Advanced 区域"))
+        );
+    }
+
+    #[test]
+    fn open_current_action_destination_routes_to_transition_pages() {
+        let mut inspect = test_state("sudo-available");
+        inspect.open_current_action_destination();
+        assert_eq!(inspect.page(), Page::Dashboard);
+        assert!(inspect.status.contains("Inspect"));
+
+        let mut apply = test_state("sudo-available");
+        apply.actions_focus = 2;
+        apply.open_current_action_destination();
+        assert_eq!(apply.page(), Page::Deploy);
+        assert!(!apply.show_advanced);
+        assert!(apply.status.contains("Apply"));
+
+        let mut advanced = test_state("sudo-available");
+        advanced.actions_focus = 4;
+        advanced.open_current_action_destination();
+        assert_eq!(advanced.page(), Page::Deploy);
+        assert!(advanced.show_advanced);
+        assert!(advanced.status.contains("Advanced"));
     }
 
     fn test_state(privilege_mode: &str) -> AppState {

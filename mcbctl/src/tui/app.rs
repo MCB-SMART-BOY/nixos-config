@@ -179,11 +179,10 @@ fn handle_page_key(
         Page::Actions => match code {
             KeyCode::Down | KeyCode::Char('j') => state.next_action_item(),
             KeyCode::Up | KeyCode::Char('k') => state.previous_action_item(),
-            KeyCode::Enter | KeyCode::Char(' ') | KeyCode::Char('x') => {
-                run_foreground_task(terminal, state, "Actions", |state| {
-                    state.execute_current_action()
-                })?
-            }
+            KeyCode::Enter | KeyCode::Char(' ') => state.open_current_action_destination(),
+            KeyCode::Char('x') => run_foreground_task(terminal, state, "Actions", |state| {
+                state.execute_current_action()
+            })?,
             _ => {}
         },
         _ => {}
