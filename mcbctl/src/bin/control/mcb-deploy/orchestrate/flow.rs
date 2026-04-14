@@ -8,10 +8,23 @@ fn summarize_cleanup_failures(context: &str, failures: &[String]) -> String {
     format!("{context}: {}", failures.join(" | "))
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SourcePrepareFailureAction {
+    Retry,
+    ReselectSource,
+    Exit,
+}
+
 trait DeployFlowRunner {
     fn check_env(&mut self, app: &mut App) -> Result<()>;
+    fn prompt_source_strategy(&mut self, app: &mut App) -> Result<()>;
     fn create_temp_dir(&mut self, prefix: &str) -> Result<PathBuf>;
     fn prepare_source_repo(&mut self, app: &mut App, tmp_dir: &Path) -> Result<()>;
+    fn handle_source_prepare_failure(
+        &mut self,
+        app: &mut App,
+        detail: &str,
+    ) -> Result<SourcePrepareFailureAction>;
     fn self_check_repo(&mut self, app: &App, repo_dir: &Path) -> Result<()>;
     fn collect_deploy_config(&mut self, app: &mut App, repo_dir: &Path) -> Result<()>;
     fn prepare_etc_dir(&mut self, app: &mut App) -> Result<()>;
@@ -29,12 +42,42 @@ impl DeployFlowRunner for RealDeployFlowRunner {
         app.check_env()
     }
 
+    fn prompt_source_strategy(&mut self, app: &mut App) -> Result<()> {
+        app.prompt_source_strategy()
+    }
+
     fn create_temp_dir(&mut self, prefix: &str) -> Result<PathBuf> {
         create_temp_dir(prefix)
     }
 
     fn prepare_source_repo(&mut self, app: &mut App, tmp_dir: &Path) -> Result<()> {
         app.prepare_source_repo(tmp_dir)
+    }
+
+    fn handle_source_prepare_failure(
+        &mut self,
+        app: &mut App,
+        detail: &str,
+    ) -> Result<SourcePrepareFailureAction> {
+        app.warn(&format!("准备源代码失败：{detail}"));
+        if !app.is_tty() {
+            bail!("准备源代码失败：{detail}");
+        }
+        let pick = app.menu_prompt(
+            "准备源代码失败，下一步",
+            1,
+            &[
+                "重试当前来源".to_string(),
+                "重新选择来源策略".to_string(),
+                "退出".to_string(),
+            ],
+        )?;
+        Ok(match pick {
+            1 => SourcePrepareFailureAction::Retry,
+            2 => SourcePrepareFailureAction::ReselectSource,
+            3 => SourcePrepareFailureAction::Exit,
+            _ => SourcePrepareFailureAction::Retry,
+        })
     }
 
     fn self_check_repo(&mut self, app: &App, repo_dir: &Path) -> Result<()> {
@@ -93,7 +136,7 @@ where
     app.validate_mode_conflicts()?;
     app.prompt_overwrite_mode()?;
     app.prompt_rebuild_upgrade()?;
-    app.prompt_source_strategy()?;
+    runner.prompt_source_strategy(app)?;
 
     if !app.source_ref.is_empty() && app.allow_remote_head {
         app.warn("检测到来源策略冲突，将优先使用固定版本。");
@@ -114,27 +157,13 @@ where
                 Ok(()) => break,
                 Err(err) => {
                     let detail = err.to_string();
-                    app.warn(&format!("准备源代码失败：{detail}"));
-                    if !app.is_tty() {
-                        bail!("准备源代码失败：{detail}");
-                    }
-                    let pick = app.menu_prompt(
-                        "准备源代码失败，下一步",
-                        1,
-                        &[
-                            "重试当前来源".to_string(),
-                            "重新选择来源策略".to_string(),
-                            "退出".to_string(),
-                        ],
-                    )?;
-                    match pick {
-                        1 => continue,
-                        2 => {
+                    match runner.handle_source_prepare_failure(app, &detail)? {
+                        SourcePrepareFailureAction::Retry => continue,
+                        SourcePrepareFailureAction::ReselectSource => {
                             app.source_choice_set = false;
-                            app.prompt_source_strategy()?;
+                            runner.prompt_source_strategy(app)?;
                         }
-                        3 => bail!("已退出"),
-                        _ => {}
+                        SourcePrepareFailureAction::Exit => bail!("已退出"),
                     }
                 }
             }
@@ -222,7 +251,9 @@ mod tests {
         tmp_dir: PathBuf,
         calls: Vec<&'static str>,
         check_env_result: Option<Result<()>>,
-        prepare_source_result: Option<Result<()>>,
+        prompt_source_strategy_results: VecDeque<Result<Option<(bool, bool, String)>>>,
+        prepare_source_results: VecDeque<Result<()>>,
+        source_failure_actions: VecDeque<Result<SourcePrepareFailureAction>>,
         self_check_result: Option<Result<()>>,
         collect_config_result: Option<Result<()>>,
         prepare_etc_result: Option<Result<()>>,
@@ -239,7 +270,9 @@ mod tests {
                 tmp_dir,
                 calls: Vec::new(),
                 check_env_result: Some(Ok(())),
-                prepare_source_result: Some(Ok(())),
+                prompt_source_strategy_results: VecDeque::from([Ok(None)]),
+                prepare_source_results: VecDeque::from([Ok(())]),
+                source_failure_actions: VecDeque::new(),
                 self_check_result: Some(Ok(())),
                 collect_config_result: Some(Ok(())),
                 prepare_etc_result: Some(Ok(())),
@@ -258,6 +291,21 @@ mod tests {
             self.check_env_result.take().unwrap_or_else(|| Ok(()))
         }
 
+        fn prompt_source_strategy(&mut self, app: &mut App) -> Result<()> {
+            self.calls.push("prompt_source_strategy");
+            let next = self
+                .prompt_source_strategy_results
+                .pop_front()
+                .unwrap_or_else(|| Ok(None))?;
+            if let Some((force_remote_source, allow_remote_head, source_ref)) = next {
+                app.force_remote_source = force_remote_source;
+                app.allow_remote_head = allow_remote_head;
+                app.source_ref = source_ref;
+            }
+            app.source_choice_set = true;
+            Ok(())
+        }
+
         fn create_temp_dir(&mut self, _prefix: &str) -> Result<PathBuf> {
             self.calls.push("create_temp_dir");
             Ok(self.tmp_dir.clone())
@@ -265,7 +313,20 @@ mod tests {
 
         fn prepare_source_repo(&mut self, _app: &mut App, _tmp_dir: &Path) -> Result<()> {
             self.calls.push("prepare_source_repo");
-            self.prepare_source_result.take().unwrap_or_else(|| Ok(()))
+            self.prepare_source_results
+                .pop_front()
+                .unwrap_or_else(|| Ok(()))
+        }
+
+        fn handle_source_prepare_failure(
+            &mut self,
+            _app: &mut App,
+            _detail: &str,
+        ) -> Result<SourcePrepareFailureAction> {
+            self.calls.push("handle_source_prepare_failure");
+            self.source_failure_actions
+                .pop_front()
+                .unwrap_or_else(|| Ok(SourcePrepareFailureAction::Retry))
         }
 
         fn self_check_repo(&mut self, _app: &App, _repo_dir: &Path) -> Result<()> {
@@ -340,6 +401,7 @@ mod tests {
         assert_eq!(
             runner.calls,
             vec![
+                "prompt_source_strategy",
                 "check_env",
                 "create_temp_dir",
                 "prepare_source_repo",
@@ -368,6 +430,7 @@ mod tests {
         assert_eq!(
             runner.calls,
             vec![
+                "prompt_source_strategy",
                 "check_env",
                 "create_temp_dir",
                 "prepare_source_repo",
@@ -396,6 +459,7 @@ mod tests {
         assert_eq!(
             runner.calls,
             vec![
+                "prompt_source_strategy",
                 "check_env",
                 "create_temp_dir",
                 "prepare_source_repo",
@@ -445,6 +509,109 @@ mod tests {
 
         assert!(err.to_string().contains("部署收尾清理失败"));
         assert!(err.to_string().contains("tmp cleanup failed"));
+        Ok(())
+    }
+
+    #[test]
+    fn deploy_flow_retries_current_source_after_prepare_failure() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-retry")?;
+        let mut app = test_app(tmp_dir.clone());
+        let mut runner = TestFlowRunner::new(tmp_dir);
+        runner.prepare_source_results =
+            VecDeque::from([Err(anyhow::anyhow!("clone failed")), Ok(())]);
+        runner.source_failure_actions = VecDeque::from([Ok(SourcePrepareFailureAction::Retry)]);
+
+        deploy_flow_with_runner(&mut app, &mut runner)?;
+
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prompt_source_strategy",
+                "check_env",
+                "create_temp_dir",
+                "prepare_source_repo",
+                "handle_source_prepare_failure",
+                "prepare_source_repo",
+                "self_check_repo",
+                "collect_deploy_config",
+                "prepare_etc_dir",
+                "sync_repo_to_etc",
+                "rebuild_system",
+                "temp_dns_disable",
+                "remove_dir_all",
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deploy_flow_reselects_source_strategy_after_prepare_failure() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-reselect")?;
+        let mut app = test_app(tmp_dir.clone());
+        let mut runner = TestFlowRunner::new(tmp_dir);
+        runner.prompt_source_strategy_results = VecDeque::from([
+            Ok(Some((true, false, "bad-pin".to_string()))),
+            Ok(Some((true, true, String::new()))),
+        ]);
+        runner.prepare_source_results =
+            VecDeque::from([Err(anyhow::anyhow!("checkout failed")), Ok(())]);
+        runner.source_failure_actions =
+            VecDeque::from([Ok(SourcePrepareFailureAction::ReselectSource)]);
+
+        deploy_flow_with_runner(&mut app, &mut runner)?;
+
+        assert!(app.force_remote_source);
+        assert!(app.allow_remote_head);
+        assert!(app.source_ref.is_empty());
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prompt_source_strategy",
+                "check_env",
+                "create_temp_dir",
+                "prepare_source_repo",
+                "handle_source_prepare_failure",
+                "prompt_source_strategy",
+                "prepare_source_repo",
+                "self_check_repo",
+                "collect_deploy_config",
+                "prepare_etc_dir",
+                "sync_repo_to_etc",
+                "rebuild_system",
+                "temp_dns_disable",
+                "remove_dir_all",
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deploy_flow_exits_after_prepare_failure_when_user_chooses_exit() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-exit")?;
+        let mut app = test_app(tmp_dir.clone());
+        let mut runner = TestFlowRunner::new(tmp_dir);
+        runner.prepare_source_results = VecDeque::from([Err(anyhow::anyhow!("clone failed"))]);
+        runner.source_failure_actions = VecDeque::from([Ok(SourcePrepareFailureAction::Exit)]);
+
+        let err = deploy_flow_with_runner(&mut app, &mut runner)
+            .expect_err("exit action should stop deploy flow");
+
+        assert!(err.to_string().contains("已退出"));
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prompt_source_strategy",
+                "check_env",
+                "create_temp_dir",
+                "prepare_source_repo",
+                "handle_source_prepare_failure",
+                "temp_dns_disable",
+                "remove_dir_all",
+            ]
+        );
         Ok(())
     }
 
