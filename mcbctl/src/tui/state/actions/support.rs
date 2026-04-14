@@ -202,3 +202,146 @@ impl AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    #[test]
+    fn should_use_sudo_only_for_sudo_capable_modes() {
+        assert!(test_state("sudo-session").should_use_sudo());
+        assert!(test_state("sudo-available").should_use_sudo());
+        assert!(!test_state("root").should_use_sudo());
+        assert!(!test_state("rootless").should_use_sudo());
+    }
+
+    #[test]
+    fn ensure_no_unsaved_changes_reports_all_dirty_sections() {
+        let mut state = test_state("sudo-available");
+        state.host_dirty_user_hosts.insert("demo".to_string());
+        state.host_dirty_runtime_hosts.insert("demo".to_string());
+        state.package_dirty_users.insert("alice".to_string());
+        state.home_dirty_users.insert("alice".to_string());
+
+        let err = state
+            .ensure_no_unsaved_changes_for_execution()
+            .expect_err("dirty state should block execution");
+        let text = err.to_string();
+        assert!(text.contains("Users: demo"));
+        assert!(text.contains("Hosts: demo"));
+        assert!(text.contains("Packages: alice"));
+        assert!(text.contains("Home: alice"));
+    }
+
+    #[test]
+    fn sync_action_availability_depends_on_repo_location_and_privilege() {
+        let state = test_state("sudo-available");
+        assert!(state.action_available(ActionItem::SyncRepoToEtc));
+
+        let rootless = test_state("rootless");
+        assert!(!rootless.action_available(ActionItem::SyncRepoToEtc));
+
+        let same_root = test_state_with_paths("sudo-available", "/repo", "/repo");
+        assert!(!same_root.action_available(ActionItem::SyncRepoToEtc));
+    }
+
+    #[test]
+    fn rebuild_current_host_preview_uses_build_for_rootless() {
+        let state = test_state("rootless");
+        let preview = state
+            .action_command_preview(ActionItem::RebuildCurrentHost)
+            .expect("preview should exist");
+
+        assert!(preview.contains("nixos-rebuild build"));
+        assert!(preview.contains("/etc/nixos#demo"));
+        assert!(!preview.starts_with("sudo "));
+    }
+
+    #[test]
+    fn rebuild_current_host_preview_uses_switch_and_sudo_when_available() {
+        let state = test_state("sudo-available");
+        let preview = state
+            .action_command_preview(ActionItem::RebuildCurrentHost)
+            .expect("preview should exist");
+
+        assert!(preview.contains("sudo -E env"));
+        assert!(preview.contains("nixos-rebuild switch"));
+        assert!(preview.contains("/etc/nixos#demo"));
+    }
+
+    #[test]
+    fn sync_action_preview_disappears_when_repo_is_already_etc() {
+        let state = test_state_with_paths("sudo-available", "/repo", "/repo");
+        assert!(
+            state
+                .action_command_preview(ActionItem::SyncRepoToEtc)
+                .is_none()
+        );
+    }
+
+    fn test_state(privilege_mode: &str) -> AppState {
+        test_state_with_paths(privilege_mode, "/repo", "/etc/nixos")
+    }
+
+    fn test_state_with_paths(privilege_mode: &str, repo_root: &str, etc_root: &str) -> AppState {
+        AppState {
+            context: AppContext {
+                repo_root: PathBuf::from(repo_root),
+                etc_root: PathBuf::from(etc_root),
+                current_host: "demo".to_string(),
+                current_system: "x86_64-linux".to_string(),
+                current_user: "alice".to_string(),
+                privilege_mode: privilege_mode.to_string(),
+                hosts: vec!["demo".to_string()],
+                users: vec!["alice".to_string()],
+                catalog_path: PathBuf::from("catalog/packages"),
+                catalog_groups_path: PathBuf::from("catalog/groups.toml"),
+                catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+                catalog_entries: Vec::new(),
+                catalog_groups: BTreeMap::new(),
+                catalog_home_options: Vec::new(),
+                catalog_categories: Vec::new(),
+                catalog_sources: Vec::new(),
+            },
+            active_page: 0,
+            deploy_focus: 0,
+            target_host: "demo".to_string(),
+            deploy_task: DeployTask::DirectDeploy,
+            deploy_source: DeploySource::CurrentRepo,
+            deploy_action: DeployAction::Switch,
+            flake_update: false,
+            show_advanced: false,
+            users_focus: 0,
+            hosts_focus: 0,
+            users_text_mode: None,
+            hosts_text_mode: None,
+            host_text_input: String::new(),
+            host_settings_by_name: BTreeMap::new(),
+            host_dirty_user_hosts: BTreeSet::new(),
+            host_dirty_runtime_hosts: BTreeSet::new(),
+            package_user_index: 0,
+            package_mode: PackageDataMode::Search,
+            package_cursor: 0,
+            package_category_index: 0,
+            package_group_filter: None,
+            package_source_filter: None,
+            package_search: String::new(),
+            package_search_result_indices: Vec::new(),
+            package_local_entry_ids: BTreeSet::new(),
+            package_search_mode: false,
+            package_group_create_mode: false,
+            package_group_rename_mode: false,
+            package_group_rename_source: String::new(),
+            package_group_input: String::new(),
+            package_user_selections: BTreeMap::new(),
+            package_dirty_users: BTreeSet::new(),
+            home_user_index: 0,
+            home_focus: 0,
+            home_settings_by_user: BTreeMap::new(),
+            home_dirty_users: BTreeSet::new(),
+            actions_focus: 0,
+            status: String::new(),
+        }
+    }
+}

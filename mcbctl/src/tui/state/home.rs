@@ -258,3 +258,196 @@ impl AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{managed_file_is_valid, managed_file_kind};
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::path::Path;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn home_rows_show_custom_noctalia_layout_as_locked() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-state")?;
+        let mut state = test_state(&root);
+        std::fs::write(root.join("home/users/alice/noctalia.nix"), "{ ... }: { }\n")?;
+        state.home_settings_by_user.insert(
+            "alice".to_string(),
+            HomeManagedSettings {
+                bar_profile: ManagedBarProfile::Default,
+                ..HomeManagedSettings::default()
+            },
+        );
+
+        let rows = state.home_rows();
+        assert_eq!(rows[0].1, "由自定义布局接管");
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn adjust_home_field_refuses_to_edit_noctalia_profile_when_custom_layout_exists() -> Result<()>
+    {
+        let root = create_temp_repo("mcbctl-home-lock")?;
+        std::fs::write(root.join("home/users/alice/noctalia.nix"), "{ ... }: { }\n")?;
+        let mut state = test_state(&root);
+
+        state.adjust_home_field(1);
+
+        assert!(state.status.contains("Home 页不会覆盖它"));
+        assert!(!state.home_dirty_users.contains("alice"));
+        assert_eq!(
+            state.home_settings_by_user["alice"].bar_profile,
+            ManagedBarProfile::Inherit
+        );
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn save_current_home_settings_for_custom_layout_forces_inherit() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-save")?;
+        std::fs::write(root.join("home/users/alice/noctalia.nix"), "{ ... }: { }\n")?;
+        let mut state = test_state(&root);
+        state.home_settings_by_user.insert(
+            "alice".to_string(),
+            HomeManagedSettings {
+                bar_profile: ManagedBarProfile::Default,
+                enable_zed_entry: ManagedToggle::Enabled,
+                enable_yesplaymusic_entry: ManagedToggle::Inherit,
+            },
+        );
+        state.home_dirty_users.insert("alice".to_string());
+
+        state.save_current_home_settings()?;
+
+        let desktop_path = managed_home_desktop_path(&root, "alice");
+        let content = std::fs::read_to_string(desktop_path)?;
+        assert_eq!(managed_file_kind(&content), Some("home-settings-desktop"));
+        assert!(managed_file_is_valid(&content));
+        assert!(content.contains("# managed-setting: noctalia.barProfile=inherit"));
+        assert!(!content.contains("mcb.noctalia.barProfile = \"default\";"));
+        assert!(content.contains("mcb.desktopEntries.enableZed = lib.mkForce true;"));
+        assert!(state.status.contains("Noctalia 顶栏仍由"));
+        assert!(!state.home_dirty_users.contains("alice"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn save_current_home_settings_without_override_keeps_selected_profile() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-save-open")?;
+        let mut state = test_state(&root);
+        state.home_settings_by_user.insert(
+            "alice".to_string(),
+            HomeManagedSettings {
+                bar_profile: ManagedBarProfile::Default,
+                ..HomeManagedSettings::default()
+            },
+        );
+
+        state.save_current_home_settings()?;
+
+        let desktop_path = managed_home_desktop_path(&root, "alice");
+        let content = std::fs::read_to_string(desktop_path)?;
+        assert_eq!(managed_file_kind(&content), Some("home-settings-desktop"));
+        assert!(content.contains("# managed-setting: noctalia.barProfile=default"));
+        assert!(content.contains("mcb.noctalia.barProfile = \"default\";"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    fn test_state(root: &Path) -> AppState {
+        let mut settings = BTreeMap::new();
+        settings.insert("alice".to_string(), HomeManagedSettings::default());
+
+        AppState {
+            context: AppContext {
+                repo_root: root.to_path_buf(),
+                etc_root: PathBuf::from("/etc/nixos"),
+                current_host: "demo".to_string(),
+                current_system: "x86_64-linux".to_string(),
+                current_user: "alice".to_string(),
+                privilege_mode: "sudo-available".to_string(),
+                hosts: vec!["demo".to_string()],
+                users: vec!["alice".to_string()],
+                catalog_path: root.join("catalog/packages"),
+                catalog_groups_path: root.join("catalog/groups.toml"),
+                catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_entries: Vec::new(),
+                catalog_groups: BTreeMap::new(),
+                catalog_home_options: vec![
+                    HomeOptionMeta {
+                        id: "noctalia.barProfile".to_string(),
+                        label: "Noctalia 顶栏".to_string(),
+                        description: Some("test".to_string()),
+                        area: "desktop".to_string(),
+                        order: 10,
+                    },
+                    HomeOptionMeta {
+                        id: "desktop.enableZed".to_string(),
+                        label: "Zed 桌面入口".to_string(),
+                        description: Some("test".to_string()),
+                        area: "desktop".to_string(),
+                        order: 20,
+                    },
+                ],
+                catalog_categories: Vec::new(),
+                catalog_sources: Vec::new(),
+            },
+            active_page: 0,
+            deploy_focus: 0,
+            target_host: "demo".to_string(),
+            deploy_task: DeployTask::DirectDeploy,
+            deploy_source: DeploySource::CurrentRepo,
+            deploy_action: DeployAction::Switch,
+            flake_update: false,
+            show_advanced: false,
+            users_focus: 0,
+            hosts_focus: 0,
+            users_text_mode: None,
+            hosts_text_mode: None,
+            host_text_input: String::new(),
+            host_settings_by_name: BTreeMap::new(),
+            host_dirty_user_hosts: BTreeSet::new(),
+            host_dirty_runtime_hosts: BTreeSet::new(),
+            package_user_index: 0,
+            package_mode: PackageDataMode::Search,
+            package_cursor: 0,
+            package_category_index: 0,
+            package_group_filter: None,
+            package_source_filter: None,
+            package_search: String::new(),
+            package_search_result_indices: Vec::new(),
+            package_local_entry_ids: BTreeSet::new(),
+            package_search_mode: false,
+            package_group_create_mode: false,
+            package_group_rename_mode: false,
+            package_group_rename_source: String::new(),
+            package_group_input: String::new(),
+            package_user_selections: BTreeMap::new(),
+            package_dirty_users: BTreeSet::new(),
+            home_user_index: 0,
+            home_focus: 0,
+            home_settings_by_user: settings,
+            home_dirty_users: BTreeSet::new(),
+            actions_focus: 0,
+            status: String::new(),
+        }
+    }
+
+    fn create_temp_repo(prefix: &str) -> Result<PathBuf> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(root.join("home/users/alice"))?;
+        Ok(root)
+    }
+}
