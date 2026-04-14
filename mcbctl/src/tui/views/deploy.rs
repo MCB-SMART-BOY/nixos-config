@@ -5,6 +5,7 @@ use ratatui::prelude::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
 
 pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
+    let apply = state.apply_model();
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
@@ -29,7 +30,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .highlight_symbol(">> ");
     frame.render_stateful_widget(list, chunks[0], &mut list_state);
 
-    let summary = Paragraph::new(state.deploy_summary().join("\n"))
+    let summary = Paragraph::new(apply.summary_lines().join("\n"))
         .block(
             Block::default()
                 .borders(Borders::ALL)

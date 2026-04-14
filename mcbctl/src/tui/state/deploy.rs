@@ -1,6 +1,87 @@
 use super::*;
 use crate::repo::ensure_repository_integrity;
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ApplyModel {
+    pub(crate) target_host: String,
+    pub(crate) task: DeployTask,
+    pub(crate) source: DeploySource,
+    pub(crate) action: DeployAction,
+    pub(crate) flake_update: bool,
+    pub(crate) advanced: bool,
+    pub(crate) sync_preview: Option<String>,
+    pub(crate) rebuild_preview: Option<String>,
+    pub(crate) can_execute_directly: bool,
+    pub(crate) can_apply_current_host: bool,
+    pub(crate) blockers: Vec<String>,
+    pub(crate) warnings: Vec<String>,
+    pub(crate) handoffs: Vec<String>,
+    pub(crate) infos: Vec<String>,
+}
+
+impl ApplyModel {
+    pub(crate) fn summary_lines(&self) -> Vec<String> {
+        let mut lines = vec![
+            format!("目标主机：{}", self.target_host),
+            format!("任务：{}", self.task.label()),
+            format!("来源：{}", self.source.label()),
+            format!("动作：{}", self.action.label()),
+            format!("flake update：{}", bool_label(self.flake_update)),
+            format!("高级项：{}", bool_label(self.advanced)),
+        ];
+
+        lines.push(format!(
+            "同步预览：{}",
+            self.sync_preview
+                .as_deref()
+                .unwrap_or("当前组合不需要同步 /etc/nixos")
+        ));
+        lines.push(format!(
+            "命令预览：{}",
+            self.rebuild_preview
+                .as_deref()
+                .unwrap_or("当前来源会转交给完整部署向导处理。")
+        ));
+
+        if self.blockers.is_empty() {
+            lines.push("阻塞项：无".to_string());
+        } else {
+            lines.push(format!("阻塞项：{}", self.blockers.join(" | ")));
+        }
+
+        if self.warnings.is_empty() {
+            lines.push("警告项：无".to_string());
+        } else {
+            lines.push(format!("警告项：{}", self.warnings.join(" | ")));
+        }
+
+        if self.handoffs.is_empty() {
+            lines.push("交接项：无".to_string());
+        } else {
+            lines.push(format!("交接项：{}", self.handoffs.join(" | ")));
+        }
+
+        if self.infos.is_empty() {
+            lines.push("信息：无".to_string());
+        } else {
+            lines.push(format!("信息：{}", self.infos.join(" | ")));
+        }
+
+        lines.push(format!(
+            "执行路径：{}",
+            if self.can_apply_current_host {
+                "当前页可直接执行；按 x 立即运行。"
+            } else if self.can_execute_directly {
+                "当前页仍是 direct apply，但存在 blocker。"
+            } else {
+                "当前页会调起完整部署向导。"
+            }
+        ));
+
+        lines
+    }
+}
+
 impl AppState {
     pub fn next_deploy_field(&mut self) {
         self.deploy_focus = (self.deploy_focus + 1) % 6;
@@ -43,15 +124,94 @@ impl AppState {
         ]
     }
 
-    pub fn deploy_summary(&self) -> Vec<String> {
-        self.deploy_plan().summary_lines()
-    }
-
     pub fn can_execute_deploy_directly(&self) -> bool {
         !matches!(
             self.deploy_source,
             DeploySource::RemotePinned | DeploySource::RemoteHead
         ) && !self.show_advanced
+    }
+
+    pub(crate) fn apply_model(&self) -> ApplyModel {
+        let can_execute_directly = self.can_execute_deploy_directly();
+        let sync_preview = self
+            .deploy_sync_plan_for_execution()
+            .map(|plan| plan.command_preview());
+        let rebuild_preview = self
+            .deploy_rebuild_plan_for_execution()
+            .map(|plan| plan.command_preview(self.should_use_sudo()));
+
+        let mut blockers = Vec::new();
+        if let Err(err) = self.ensure_no_unsaved_changes_for_execution() {
+            blockers.push(err.to_string());
+        }
+        let host_errors = self.host_configuration_validation_errors(&self.target_host);
+        blockers.extend(
+            host_errors
+                .into_iter()
+                .map(|error| format!("主机 {} 的 TUI 配置未通过校验：{error}", self.target_host)),
+        );
+        if self.context.privilege_mode == "rootless" && self.deploy_action != DeployAction::Build {
+            blockers.push(
+                "rootless 模式下当前页只能直接执行 build；如需 switch/test/boot，请使用 sudo/root 或退回 deploy wizard。"
+                    .to_string(),
+            );
+        }
+
+        let mut warnings = Vec::new();
+        if let Some(preview) = &sync_preview {
+            warnings.push(format!("当前组合会先把仓库同步到 /etc/nixos：{preview}"));
+        }
+        if self.flake_update {
+            warnings.push("当前组合会以 --upgrade 执行重建。".to_string());
+        }
+        if self.should_use_sudo() {
+            warnings.push("当前组合会使用 sudo -E 执行受权命令。".to_string());
+        }
+        let needs_real_hardware = !(self.context.privilege_mode == "rootless"
+            && self.deploy_action == DeployAction::Build);
+        if needs_real_hardware {
+            warnings.push(format!(
+                "当前组合要求 {} 存在真实 hardware-configuration.nix。",
+                host_hardware_config_path(&self.context.etc_root, &self.target_host).display()
+            ));
+        }
+
+        let mut handoffs = Vec::new();
+        match self.deploy_source {
+            DeploySource::RemotePinned => {
+                handoffs.push("远端固定版本必须交给 Advanced Deploy 处理。".to_string())
+            }
+            DeploySource::RemoteHead => {
+                handoffs.push("远端最新版本必须交给 Advanced Deploy 处理。".to_string())
+            }
+            DeploySource::CurrentRepo | DeploySource::EtcNixos => {}
+        }
+        if self.show_advanced {
+            handoffs.push("当前已打开高级选项，应交给 Advanced Deploy 处理。".to_string());
+        }
+
+        let mut infos = Vec::new();
+        if !can_execute_directly {
+            infos.push("当前组合不会直接执行，而是回退到完整 deploy wizard。".to_string());
+        }
+        infos.push(format!("检测 hostname：{}", self.context.current_host));
+
+        ApplyModel {
+            target_host: self.target_host.clone(),
+            task: self.deploy_task,
+            source: self.deploy_source,
+            action: self.deploy_action,
+            flake_update: self.flake_update,
+            advanced: self.show_advanced,
+            sync_preview,
+            rebuild_preview,
+            can_execute_directly,
+            can_apply_current_host: can_execute_directly && blockers.is_empty(),
+            blockers,
+            warnings,
+            handoffs,
+            infos,
+        }
     }
 
     pub fn execute_deploy(&mut self) -> Result<()> {
@@ -124,44 +284,6 @@ impl AppState {
             rebuild_plan.target_host
         );
         Ok(())
-    }
-
-    fn deploy_plan(&self) -> DeployPlan {
-        let mut notes = vec![format!("flake update：{}", bool_label(self.flake_update))];
-        if let Some(sync_plan) = self.deploy_sync_plan_for_execution() {
-            notes.push(format!("同步预览：{}", sync_plan.command_preview()));
-        } else {
-            notes.push("同步预览：当前组合不需要同步 /etc/nixos".to_string());
-        }
-        if self.show_advanced {
-            notes.push("高级项：当前会退回完整部署向导处理。".to_string());
-        } else {
-            notes.push("高级项：关闭".to_string());
-        }
-
-        if let Some(rebuild_plan) = self.deploy_rebuild_plan_for_execution() {
-            notes.push(format!(
-                "命令预览：{}",
-                rebuild_plan.command_preview(self.should_use_sudo())
-            ));
-        } else {
-            notes.push("命令预览：当前来源会转交给完整部署向导处理。".to_string());
-        }
-        if self.can_execute_deploy_directly() {
-            notes.push("执行路径：当前页可直接执行；按 x 立即运行。".to_string());
-        } else {
-            notes.push("执行路径：当前页会调起完整部署向导。".to_string());
-        }
-
-        DeployPlan {
-            task: self.deploy_task,
-            detected_host: Some(self.context.current_host.clone()),
-            target_host: self.target_host.clone(),
-            source: self.deploy_source,
-            source_detail: None,
-            action: self.deploy_action,
-            notes,
-        }
     }
 
     pub(crate) fn deploy_rebuild_plan_for_execution(&self) -> Option<NixosRebuildPlan> {
@@ -250,8 +372,63 @@ mod tests {
         state.deploy_source = DeploySource::RemoteHead;
 
         assert!(!state.can_execute_deploy_directly());
+        let model = state.apply_model();
+        assert!(!model.can_execute_directly);
+        assert!(
+            model
+                .handoffs
+                .iter()
+                .any(|item| item.contains("远端最新版本"))
+        );
         assert!(state.deploy_sync_plan_for_execution().is_none());
         assert!(state.deploy_rebuild_plan_for_execution().is_none());
+    }
+
+    #[test]
+    fn apply_model_surfaces_blockers_warnings_and_previews() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.package_dirty_users.insert("alice".to_string());
+        state.flake_update = true;
+
+        let model = state.apply_model();
+
+        assert_eq!(model.target_host, "demo");
+        assert!(model.can_execute_directly);
+        assert!(!model.can_apply_current_host);
+        assert!(
+            model
+                .blockers
+                .iter()
+                .any(|item| item.contains("Packages: alice"))
+        );
+        assert!(
+            model
+                .warnings
+                .iter()
+                .any(|item| item.contains("同步到 /etc/nixos"))
+        );
+        assert!(model.warnings.iter().any(|item| item.contains("--upgrade")));
+        assert!(model.sync_preview.is_some());
+        assert!(
+            model
+                .rebuild_preview
+                .as_deref()
+                .is_some_and(|preview| preview.contains("/etc/nixos#demo"))
+        );
+    }
+
+    #[test]
+    fn apply_model_reports_rootless_direct_build_without_sync() {
+        let mut state = test_state("/repo", "/etc/nixos", "rootless");
+        state.deploy_action = DeployAction::Build;
+
+        let model = state.apply_model();
+
+        assert!(model.can_execute_directly);
+        assert!(model.can_apply_current_host);
+        assert!(model.sync_preview.is_none());
+        assert!(model.blockers.is_empty());
+        assert!(model.warnings.iter().all(|item| !item.contains("sudo -E")));
     }
 
     #[test]

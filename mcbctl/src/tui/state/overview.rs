@@ -7,7 +7,7 @@ pub(crate) struct OverviewModel {
     pub(crate) host_status: OverviewHostStatus,
     pub(crate) repo_integrity: OverviewCheckState,
     pub(crate) doctor: OverviewCheckState,
-    pub(crate) apply: OverviewApplySummary,
+    pub(crate) apply: ApplyModel,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -38,23 +38,6 @@ pub(crate) enum OverviewCheckState {
     NotRun,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct OverviewApplySummary {
-    pub(crate) task: DeployTask,
-    pub(crate) source: DeploySource,
-    pub(crate) action: DeployAction,
-    pub(crate) flake_update: bool,
-    pub(crate) advanced: bool,
-    pub(crate) sync_preview: Option<String>,
-    pub(crate) rebuild_preview: Option<String>,
-    pub(crate) can_execute_directly: bool,
-    pub(crate) can_apply_current_host: bool,
-    pub(crate) blockers: Vec<String>,
-    pub(crate) warnings: Vec<String>,
-    pub(crate) handoffs: Vec<String>,
-    pub(crate) infos: Vec<String>,
-}
-
 impl AppState {
     pub(crate) fn overview_model(&self) -> OverviewModel {
         OverviewModel {
@@ -70,7 +53,7 @@ impl AppState {
             host_status: self.overview_host_status(),
             repo_integrity: OverviewCheckState::NotRun,
             doctor: OverviewCheckState::NotRun,
-            apply: self.overview_apply_summary(),
+            apply: self.apply_model(),
         }
     }
 
@@ -93,98 +76,6 @@ impl AppState {
             OverviewHostStatus::Ready
         } else {
             OverviewHostStatus::Invalid { errors }
-        }
-    }
-
-    fn overview_apply_summary(&self) -> OverviewApplySummary {
-        let can_execute_directly = self.can_execute_deploy_directly();
-        let sync_preview = self
-            .deploy_sync_plan_for_execution()
-            .map(|plan| plan.command_preview());
-        let rebuild_preview = self
-            .deploy_rebuild_plan_for_execution()
-            .map(|plan| plan.command_preview(self.should_use_sudo()));
-
-        let mut blockers = Vec::new();
-        for section in self.overview_dirty_sections() {
-            blockers.push(format!(
-                "{} 存在未保存修改：{}",
-                section.name,
-                section.items.join(", ")
-            ));
-        }
-
-        match self.overview_host_status() {
-            OverviewHostStatus::Ready => {}
-            OverviewHostStatus::Unavailable { message } => blockers.push(message),
-            OverviewHostStatus::Invalid { errors } => blockers.extend(
-                errors
-                    .into_iter()
-                    .map(|error| format!("主机 {} 配置未通过校验：{error}", self.target_host)),
-            ),
-        }
-
-        if self.context.privilege_mode == "rootless" && self.deploy_action != DeployAction::Build {
-            blockers.push(
-                "rootless 模式下只能直接执行 build；如需 switch/test/boot，请切换 sudo/root 或进入 Advanced。"
-                    .to_string(),
-            );
-        }
-
-        let mut warnings = Vec::new();
-        if let Some(preview) = &sync_preview {
-            warnings.push(format!("当前组合会先把仓库同步到 /etc/nixos：{preview}"));
-        }
-        if self.flake_update {
-            warnings.push("当前组合会以 --upgrade 执行重建。".to_string());
-        }
-        if self.should_use_sudo() {
-            warnings.push("当前组合会使用 sudo -E 执行受权命令。".to_string());
-        }
-        let needs_real_hardware = !(self.context.privilege_mode == "rootless"
-            && self.deploy_action == DeployAction::Build);
-        if needs_real_hardware {
-            warnings.push(format!(
-                "当前组合要求 {} 存在真实 hardware-configuration.nix。",
-                host_hardware_config_path(&self.context.etc_root, &self.target_host).display()
-            ));
-        }
-
-        let mut handoffs = Vec::new();
-        match self.deploy_source {
-            DeploySource::RemotePinned => {
-                handoffs.push("远端固定版本必须交给 Advanced Deploy 处理。".to_string())
-            }
-            DeploySource::RemoteHead => {
-                handoffs.push("远端最新版本必须交给 Advanced Deploy 处理。".to_string())
-            }
-            DeploySource::CurrentRepo | DeploySource::EtcNixos => {}
-        }
-        if self.show_advanced {
-            handoffs.push("当前已打开高级选项，应交给 Advanced Deploy 处理。".to_string());
-        }
-
-        let mut infos = Vec::new();
-        if !can_execute_directly {
-            infos.push("当前组合不会直接执行，而是回退到完整 deploy wizard。".to_string());
-        }
-        infos.push("repo-integrity 还未刷新。".to_string());
-        infos.push("doctor 还未刷新。".to_string());
-
-        OverviewApplySummary {
-            task: self.deploy_task,
-            source: self.deploy_source,
-            action: self.deploy_action,
-            flake_update: self.flake_update,
-            advanced: self.show_advanced,
-            sync_preview,
-            rebuild_preview,
-            can_execute_directly,
-            can_apply_current_host: can_execute_directly && blockers.is_empty(),
-            blockers,
-            warnings,
-            handoffs,
-            infos,
         }
     }
 }
@@ -232,14 +123,14 @@ mod tests {
                 .apply
                 .blockers
                 .iter()
-                .any(|item| item.contains("Packages 存在未保存修改"))
+                .any(|item| item.contains("Packages: alice"))
         );
         assert!(
             model
                 .apply
                 .blockers
                 .iter()
-                .any(|item| item.contains("Home 存在未保存修改"))
+                .any(|item| item.contains("Home: alice"))
         );
         assert!(!model.apply.can_apply_current_host);
     }
@@ -257,7 +148,7 @@ mod tests {
                 .apply
                 .blockers
                 .iter()
-                .any(|item| item.contains("rootless 模式下只能直接执行 build"))
+                .any(|item| item.contains("rootless 模式下当前页只能直接执行 build"))
         );
         assert!(
             model

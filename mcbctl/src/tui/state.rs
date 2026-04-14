@@ -1,4 +1,3 @@
-use crate::domain::deploy::DeployPlan;
 use crate::domain::tui::{
     ActionItem, CatalogEntry, DeployAction, DeploySource, DeployTask, GroupMeta,
     HomeManagedSettings, HomeOptionMeta, HostManagedSettings, HostsTextMode, ManagedBarProfile,
@@ -44,6 +43,7 @@ mod model;
 mod overview;
 mod packages;
 
+pub(crate) use deploy::ApplyModel;
 use helpers::*;
 pub use model::{AppContext, AppState};
 pub(crate) use overview::{OverviewCheckState, OverviewHostStatus};
