@@ -1,9 +1,31 @@
 use super::super::*;
 use mcbctl::repo::ensure_repository_integrity;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SudoProbeStatus {
+    Available,
+    NeedsInteractiveAuth,
+    RootlessNoNewPrivileges,
+}
+
+fn classify_sudo_probe(status_success: bool, stderr: &str) -> SudoProbeStatus {
+    if status_success {
+        return SudoProbeStatus::Available;
+    }
+
+    if stderr.to_lowercase().contains("no new privileges") {
+        SudoProbeStatus::RootlessNoNewPrivileges
+    } else {
+        SudoProbeStatus::NeedsInteractiveAuth
+    }
+}
+
 impl App {
-    pub(crate) fn command_output(cmd: &str, args: &[&str]) -> Option<Output> {
-        Command::new(cmd).args(args).output().ok()
+    pub(crate) fn command_output(cmd: &str, args: &[&str]) -> Result<Output> {
+        Command::new(cmd)
+            .args(args)
+            .output()
+            .with_context(|| format!("failed to run {cmd}"))
     }
 
     pub(crate) fn run_status_inherit(cmd: &str, args: &[String]) -> Result<ExitStatus> {
@@ -68,17 +90,19 @@ impl App {
             bail!("未找到 nixos-rebuild。");
         }
 
-        if self.sudo_cmd.is_some()
-            && let Some(out) = Self::command_output("sudo", &["-n", "true"])
-            && !out.status.success()
-        {
-            let stderr = String::from_utf8_lossy(&out.stderr).to_lowercase();
-            if stderr.contains("no new privileges") {
-                self.warn("sudo 无法提权（no new privileges），进入 rootless 模式。");
-                self.sudo_cmd = None;
-                self.rootless = true;
-            } else {
-                self.warn("sudo 需要交互输入密码，将在需要时提示。");
+        if self.sudo_cmd.is_some() {
+            let out =
+                Self::command_output("sudo", &["-n", "true"]).context("检查 sudo 提权能力失败")?;
+            match classify_sudo_probe(out.status.success(), &String::from_utf8_lossy(&out.stderr)) {
+                SudoProbeStatus::Available => {}
+                SudoProbeStatus::NeedsInteractiveAuth => {
+                    self.warn("sudo 需要交互输入密码，将在需要时提示。");
+                }
+                SudoProbeStatus::RootlessNoNewPrivileges => {
+                    self.warn("sudo 无法提权（no new privileges），进入 rootless 模式。");
+                    self.sudo_cmd = None;
+                    self.rootless = true;
+                }
             }
         }
 
@@ -223,5 +247,35 @@ impl App {
         }
         self.rebuild_upgrade = self.ask_bool("重建时升级上游依赖？", false)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classify_sudo_probe_accepts_success() {
+        assert_eq!(classify_sudo_probe(true, ""), SudoProbeStatus::Available);
+    }
+
+    #[test]
+    fn classify_sudo_probe_detects_no_new_privileges() {
+        assert_eq!(
+            classify_sudo_probe(false, "sudo: The \"no new privileges\" flag is set"),
+            SudoProbeStatus::RootlessNoNewPrivileges
+        );
+    }
+
+    #[test]
+    fn classify_sudo_probe_treats_other_failures_as_interactive_auth() {
+        assert_eq!(
+            classify_sudo_probe(false, "sudo: a password is required"),
+            SudoProbeStatus::NeedsInteractiveAuth
+        );
+        assert_eq!(
+            classify_sudo_probe(false, ""),
+            SudoProbeStatus::NeedsInteractiveAuth
+        );
     }
 }

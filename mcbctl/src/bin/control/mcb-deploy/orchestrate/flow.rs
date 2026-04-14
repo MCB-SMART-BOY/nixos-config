@@ -1,5 +1,13 @@
 use super::super::*;
 
+fn summarize_cleanup_failures(context: &str, failures: &[String]) -> String {
+    if failures.is_empty() {
+        return context.to_string();
+    }
+
+    format!("{context}: {}", failures.join(" | "))
+}
+
 impl App {
     pub(crate) fn deploy_flow(&mut self) -> Result<()> {
         self.banner();
@@ -101,11 +109,29 @@ impl App {
             Ok(())
         })();
 
-        self.temp_dns_disable();
-        if let Some(tmp) = self.tmp_dir.take() {
-            fs::remove_dir_all(tmp).ok();
+        let mut cleanup_failures = Vec::new();
+        if let Err(err) = self.temp_dns_disable() {
+            cleanup_failures.push(err.to_string());
         }
-        result
+        if let Some(tmp) = self.tmp_dir.take()
+            && let Err(err) = fs::remove_dir_all(&tmp)
+        {
+            cleanup_failures.push(format!("清理临时目录 {} 失败: {err}", tmp.display()));
+        }
+
+        if let Err(err) = result {
+            for failure in cleanup_failures {
+                self.warn(&failure);
+            }
+            return Err(err);
+        }
+        if !cleanup_failures.is_empty() {
+            bail!(
+                "{}",
+                summarize_cleanup_failures("部署收尾清理失败", &cleanup_failures)
+            );
+        }
+        Ok(())
     }
 
     pub(crate) fn run(&mut self) -> Result<()> {
@@ -113,5 +139,22 @@ impl App {
             RunAction::Deploy => self.deploy_flow(),
             RunAction::Release => self.release_flow(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summarize_cleanup_failures_joins_messages() {
+        let summary = summarize_cleanup_failures(
+            "部署收尾清理失败",
+            &["恢复 DNS 失败".to_string(), "清理临时目录失败".to_string()],
+        );
+
+        assert!(summary.contains("部署收尾清理失败"));
+        assert!(summary.contains("恢复 DNS 失败"));
+        assert!(summary.contains("清理临时目录失败"));
     }
 }
