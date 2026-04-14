@@ -41,6 +41,55 @@ fn list_visible_hosts(repo_dir: &Path) -> Vec<String> {
     hosts
 }
 
+fn read_optional_probe_file(file: &Path, label: &str) -> Result<Option<String>> {
+    match fs::read_to_string(file) {
+        Ok(text) => Ok(Some(text)),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err).with_context(|| format!("{label} {} 失败", file.display())),
+    }
+}
+
+fn detect_host_profile_kind_from_text(text: &str) -> HostProfileKind {
+    if text.contains("../profiles/server.nix") {
+        HostProfileKind::Server
+    } else if text.contains("../profiles/desktop.nix") {
+        HostProfileKind::Desktop
+    } else {
+        HostProfileKind::Unknown
+    }
+}
+
+fn parse_nix_raw_bool_output(raw: &str, context: &str) -> Result<bool> {
+    match raw.trim() {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        other => bail!("{context} 输出无效：{other:?}"),
+    }
+}
+
+fn per_user_tun_enabled_from_text(text: &str) -> bool {
+    if text
+        .lines()
+        .map(strip_comment)
+        .any(|l| l.contains("mcb.perUserTun.enable") && l.contains("true"))
+    {
+        return true;
+    }
+    let mut in_block = false;
+    for line in text.lines().map(strip_comment) {
+        if line.contains("perUserTun") && line.contains('{') {
+            in_block = true;
+        }
+        if in_block && line.contains("enable") && line.contains("true") {
+            return true;
+        }
+        if in_block && line.contains('}') {
+            in_block = false;
+        }
+    }
+    false
+}
+
 impl App {
     pub(crate) fn list_hosts(&self, repo_dir: &Path) -> Vec<String> {
         list_visible_hosts(repo_dir)
@@ -178,16 +227,20 @@ impl App {
             .join("hosts")
             .join(&self.target_name)
             .join("default.nix");
-        if let Ok(text) = fs::read_to_string(host_file) {
-            if text.contains("../profiles/server.nix") {
-                self.host_profile_kind = HostProfileKind::Server;
-            } else if text.contains("../profiles/desktop.nix") {
-                self.host_profile_kind = HostProfileKind::Desktop;
+        match read_optional_probe_file(&host_file, "读取主机 profile 配置文件") {
+            Ok(Some(text)) => {
+                self.host_profile_kind = detect_host_profile_kind_from_text(&text);
             }
+            Ok(None) => {}
+            Err(err) => self.warn(&err.to_string()),
         }
     }
 
     pub(crate) fn detect_per_user_tun(&self, repo_dir: &Path) -> bool {
+        if !self.host_exists(repo_dir) {
+            return false;
+        }
+
         if command_exists("nix") {
             let mut nix_config = "experimental-features = nix-command flakes".to_string();
             if let Ok(extra) = std::env::var("NIX_CONFIG")
@@ -204,16 +257,28 @@ impl App {
                 .env("NIX_CONFIG", nix_config)
                 .args(["eval", "--raw", &target])
                 .output();
-            if let Ok(out) = out
-                && out.status.success()
-            {
-                let v = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if v == "true" {
-                    return true;
+            match out {
+                Ok(out) if out.status.success() => {
+                    match parse_nix_raw_bool_output(
+                        &String::from_utf8_lossy(&out.stdout),
+                        "nix eval per-user TUN",
+                    ) {
+                        Ok(value) => return value,
+                        Err(err) => self.warn(&err.to_string()),
+                    }
                 }
-                if v == "false" {
-                    return false;
+                Ok(out) => {
+                    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+                    if stderr.is_empty() {
+                        self.warn(&format!(
+                            "nix eval per-user TUN 失败：exit status {}",
+                            out.status
+                        ));
+                    } else {
+                        self.warn(&format!("nix eval per-user TUN 失败：{stderr}"));
+                    }
                 }
+                Err(err) => self.warn(&format!("运行 nix eval 探测 per-user TUN 失败：{err}")),
             }
         }
 
@@ -228,27 +293,14 @@ impl App {
                 .join("default.nix"),
         ];
         for file in files {
-            let Ok(text) = fs::read_to_string(file) else {
-                continue;
-            };
-            if text
-                .lines()
-                .map(strip_comment)
-                .any(|l| l.contains("mcb.perUserTun.enable") && l.contains("true"))
-            {
-                return true;
-            }
-            let mut in_block = false;
-            for line in text.lines().map(strip_comment) {
-                if line.contains("perUserTun") && line.contains('{') {
-                    in_block = true;
+            match read_optional_probe_file(&file, "读取 per-user TUN 候选文件") {
+                Ok(Some(text)) => {
+                    if per_user_tun_enabled_from_text(&text) {
+                        return true;
+                    }
                 }
-                if in_block && line.contains("enable") && line.contains("true") {
-                    return true;
-                }
-                if in_block && line.contains('}') {
-                    in_block = false;
-                }
+                Ok(None) => {}
+                Err(err) => self.warn(&err.to_string()),
             }
         }
         false
@@ -258,6 +310,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -279,6 +332,112 @@ mod tests {
 
         let hosts = vec!["alpha".to_string(), "zeta".to_string()];
         assert_eq!(default_existing_host_index(&hosts), 1);
+    }
+
+    #[test]
+    fn read_optional_probe_file_returns_none_for_missing_file() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-probe-missing")?;
+        let missing = repo_dir.join("missing.nix");
+
+        assert_eq!(read_optional_probe_file(&missing, "读取测试文件")?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn read_optional_probe_file_reports_unreadable_path() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-probe-unreadable")?;
+        let directory = repo_dir.join("directory.nix");
+        fs::create_dir_all(&directory)?;
+
+        let err = read_optional_probe_file(&directory, "读取测试文件")
+            .expect_err("directories should not be treated as missing");
+
+        assert!(err.to_string().contains("读取测试文件"));
+        Ok(())
+    }
+
+    #[test]
+    fn detect_host_profile_kind_from_text_parses_expected_profiles() {
+        assert_eq!(
+            detect_host_profile_kind_from_text("{ imports = [ ../profiles/server.nix ]; }"),
+            HostProfileKind::Server
+        );
+        assert_eq!(
+            detect_host_profile_kind_from_text("{ imports = [ ../profiles/desktop.nix ]; }"),
+            HostProfileKind::Desktop
+        );
+        assert_eq!(
+            detect_host_profile_kind_from_text("{ imports = [ ./local.nix ]; }"),
+            HostProfileKind::Unknown
+        );
+    }
+
+    #[test]
+    fn detect_host_profile_kind_keeps_unknown_for_unreadable_existing_file() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-profile-unreadable")?;
+        let host_dir = repo_dir.join("hosts").join("nixos");
+        fs::create_dir_all(host_dir.join("default.nix"))?;
+        let mut app = test_app(repo_dir.clone());
+        app.target_name = "nixos".to_string();
+
+        app.detect_host_profile_kind(&repo_dir);
+
+        assert_eq!(app.host_profile_kind, HostProfileKind::Unknown);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_nix_raw_bool_output_accepts_true_and_false() -> Result<()> {
+        assert!(parse_nix_raw_bool_output("true\n", "per-user tun")?);
+        assert!(!parse_nix_raw_bool_output("false\n", "per-user tun")?);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_nix_raw_bool_output_rejects_other_values() {
+        let err = parse_nix_raw_bool_output("maybe", "per-user tun")
+            .expect_err("invalid boolean output should fail");
+
+        assert!(err.to_string().contains("输出无效"));
+    }
+
+    #[test]
+    fn per_user_tun_enabled_from_text_detects_flat_and_nested_forms() {
+        assert!(per_user_tun_enabled_from_text(
+            "{ mcb.perUserTun.enable = true; }"
+        ));
+        assert!(per_user_tun_enabled_from_text(
+            "{ mcb.perUserTun = { enable = true; }; }"
+        ));
+        assert!(!per_user_tun_enabled_from_text(
+            "{ mcb.perUserTun = { enable = false; }; }"
+        ));
+    }
+
+    #[test]
+    fn detect_per_user_tun_returns_false_for_new_host() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-per-user-tun-new-host")?;
+        let app = test_app(repo_dir.clone());
+
+        assert!(!app.detect_per_user_tun(&repo_dir));
+        Ok(())
+    }
+
+    #[test]
+    fn detect_per_user_tun_returns_true_from_fallback_file_when_eval_is_unavailable() -> Result<()>
+    {
+        let repo_dir = create_temp_repo_dir("mcbctl-per-user-tun-fallback")?;
+        let host_dir = repo_dir.join("hosts").join("nixos");
+        fs::create_dir_all(&host_dir)?;
+        fs::write(
+            host_dir.join("default.nix"),
+            "{ mcb.perUserTun = { enable = true; }; }",
+        )?;
+        let mut app = test_app(repo_dir.clone());
+        app.target_name = "nixos".to_string();
+
+        assert!(app.detect_per_user_tun(&repo_dir));
+        Ok(())
     }
 
     #[test]

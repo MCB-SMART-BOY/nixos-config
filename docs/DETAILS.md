@@ -95,7 +95,8 @@ Rust 侧负责：
 
 - `missing`：允许继续按回退路径处理
 - `unreadable`：会显式告警，再继续回退
-- 这条规则当前已经落在默认用户来源解析和 GPU Bus ID 默认探测上，不再把不可读文件静默伪装成“没有配置”
+- 这条规则当前已经落在默认用户来源解析、GPU Bus ID 默认探测、host profile 判定、per-user TUN 默认探测上
+- `per-user TUN` 优先尝试 `nix eval`；如果 `nix eval` 失败、输出不是 `true|false`，或候选文件不可读，会告警后退回文件扫描或默认 `false`
 
 ## 5. 桌面命令与 Noctalia
 

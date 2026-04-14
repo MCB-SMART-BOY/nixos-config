@@ -99,6 +99,9 @@ nix run .#mcbctl -- deploy
   - 桌面 host 自动套用识别到的 GPU 默认
   - server override 默认保持关闭
 - 默认用户和 GPU Bus ID 的探测文件如果“缺失”会正常回退；如果“存在但不可读”，现在会显式告警而不是静默当成不存在
+- 现有 host 的 `profile` 判定和 `per-user TUN` 默认探测现在也遵循同一规则：
+  - 缺失则回退
+  - 不可读或 `nix eval` 输出异常则告警后回退
 
 ## 5. 检查与追新
 
