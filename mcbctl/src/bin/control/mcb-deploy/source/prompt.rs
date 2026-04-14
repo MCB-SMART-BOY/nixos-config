@@ -129,6 +129,37 @@ mod tests {
     }
 
     #[test]
+    fn prompt_source_strategy_tty_retries_invalid_menu_then_uses_default_local_source() -> Result<()>
+    {
+        let repo_dir = create_temp_repo_dir("mcbctl-source-tty-local-default")?;
+        let mut app = test_app(repo_dir);
+        let _ui = App::install_test_ui(true, &["9", ""]);
+
+        app.prompt_source_strategy()?;
+
+        assert!(!app.force_remote_source);
+        assert!(!app.allow_remote_head);
+        assert!(app.source_ref.is_empty());
+        assert!(app.source_choice_set);
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_source_strategy_tty_retries_until_remote_pin_is_non_empty() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-source-tty-remote-pin")?;
+        let mut app = test_app(repo_dir);
+        let _ui = App::install_test_ui(true, &["2", "", "demo-tag"]);
+
+        app.prompt_source_strategy()?;
+
+        assert!(app.force_remote_source);
+        assert!(!app.allow_remote_head);
+        assert_eq!(app.source_ref, "demo-tag");
+        assert!(app.source_choice_set);
+        Ok(())
+    }
+
+    #[test]
     fn require_remote_source_pin_rejects_unpinned_remote_source() {
         let app = test_app(PathBuf::from("/tmp/non-repo"));
 

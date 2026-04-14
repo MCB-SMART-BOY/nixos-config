@@ -1,6 +1,39 @@
 use super::*;
 
+#[cfg(test)]
+use std::cell::RefCell;
+#[cfg(test)]
+use std::collections::VecDeque;
+
+#[cfg(test)]
+thread_local! {
+    static TEST_TTY_OVERRIDE: RefCell<Option<bool>> = const { RefCell::new(None) };
+    static TEST_PROMPT_INPUTS: RefCell<VecDeque<String>> = const { RefCell::new(VecDeque::new()) };
+}
+
+#[cfg(test)]
+pub(crate) struct TestUiGuard;
+
+#[cfg(test)]
+impl Drop for TestUiGuard {
+    fn drop(&mut self) {
+        TEST_TTY_OVERRIDE.with(|value| *value.borrow_mut() = None);
+        TEST_PROMPT_INPUTS.with(|inputs| inputs.borrow_mut().clear());
+    }
+}
+
 impl App {
+    #[cfg(test)]
+    pub(crate) fn install_test_ui(force_tty: bool, inputs: &[&str]) -> TestUiGuard {
+        TEST_TTY_OVERRIDE.with(|value| *value.borrow_mut() = Some(force_tty));
+        TEST_PROMPT_INPUTS.with(|queue| {
+            let mut queue = queue.borrow_mut();
+            queue.clear();
+            queue.extend(inputs.iter().map(|input| input.to_string()));
+        });
+        TestUiGuard
+    }
+
     pub(crate) fn msg(&self, level: &str, text: &str) {
         println!("[{}] {}", level, text);
     }
@@ -32,6 +65,10 @@ impl App {
     }
 
     pub(crate) fn is_tty(&self) -> bool {
+        #[cfg(test)]
+        if let Some(tty) = TEST_TTY_OVERRIDE.with(|value| *value.borrow()) {
+            return tty;
+        }
         io::stdin().is_terminal() && io::stdout().is_terminal()
     }
 
@@ -68,6 +105,11 @@ impl App {
     }
 
     pub(crate) fn prompt_line(&self, prompt: &str) -> Result<String> {
+        #[cfg(test)]
+        if let Some(input) = TEST_PROMPT_INPUTS.with(|queue| queue.borrow_mut().pop_front()) {
+            let _ = prompt;
+            return Ok(input);
+        }
         print!("{prompt}");
         io::stdout().flush().context("刷新输出失败")?;
         let mut input = String::new();

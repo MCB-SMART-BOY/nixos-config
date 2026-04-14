@@ -215,6 +215,61 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn prompt_users_tty_retries_invalid_username_and_then_accepts_valid_user() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-prompt-users-invalid-then-valid")?;
+        let host_dir = repo_dir.join("hosts/demo");
+        fs::create_dir_all(&host_dir)?;
+        fs::write(host_dir.join("default.nix"), r#"{ mcb.user = "demo"; }"#)?;
+        let mut app = test_app(repo_dir.clone());
+        app.target_name = "demo".to_string();
+        app.tmp_dir = Some(repo_dir.clone());
+        let _ui = App::install_test_ui(true, &["4", "3", "BadUser", "3", "alice", "5"]);
+
+        let action = app.prompt_users(&repo_dir)?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert_eq!(app.target_users, vec!["alice".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_users_tty_requires_user_before_completion_after_clear() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-prompt-users-clear-then-default")?;
+        let host_dir = repo_dir.join("hosts/demo");
+        fs::create_dir_all(&host_dir)?;
+        fs::write(host_dir.join("default.nix"), r#"{ mcb.user = "alice"; }"#)?;
+        let mut app = test_app(repo_dir.clone());
+        app.target_name = "demo".to_string();
+        app.tmp_dir = Some(repo_dir.clone());
+        app.target_users = vec!["existing".to_string()];
+        let _ui = App::install_test_ui(true, &["4", "5", "1", "5"]);
+
+        let action = app.prompt_users(&repo_dir)?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert_eq!(app.target_users, vec!["alice".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_admin_users_tty_requires_admin_before_completion() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-prompt-admin-requires-selection")?;
+        let mut app = test_app(repo_dir);
+        app.target_users = vec!["alice".to_string(), "bob".to_string()];
+        app.target_admin_users = vec!["alice".to_string()];
+        let _ui = App::install_test_ui(true, &["4", "5", "2", "5"]);
+
+        let action = app.prompt_admin_users()?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert_eq!(
+            app.target_admin_users,
+            vec!["alice".to_string(), "bob".to_string()]
+        );
+        Ok(())
+    }
+
     fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
