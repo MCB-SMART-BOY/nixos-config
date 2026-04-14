@@ -2,6 +2,8 @@
 
 这份文档解释当前主线的关键联动点：TUI 怎么落盘、部署怎么执行、检查怎么兜底。
 
+如果要继续沿部署主线做审计和补测，下一阶段的交互矩阵与命令语义基线见 [DEPLOY_AUDIT_CN.md](/home/mcbgaruda/projects/nixos-config/docs/DEPLOY_AUDIT_CN.md)。
+
 ## 1. TUI 写回链
 
 当前写回路径：
