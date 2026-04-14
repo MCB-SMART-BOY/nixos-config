@@ -241,8 +241,15 @@ pub fn ensure_host_hardware_config(etc_root: &Path, host: &str, use_sudo: bool) 
     if let Err(err) = fs::write(&temp_file, &output.stdout)
         .with_context(|| format!("failed to write {}", temp_file.display()))
     {
-        fs::remove_file(&temp_file).ok();
-        return Err(err);
+        let cleanup_result = cleanup_temp_file(
+            &temp_file,
+            "failed to remove temporary hardware configuration file",
+        );
+        return finalize_with_cleanup(
+            Err(err),
+            cleanup_result,
+            "temporary hardware configuration cleanup failed",
+        );
     }
 
     let install_result = run_root_command_ok(
@@ -254,9 +261,15 @@ pub fn ensure_host_hardware_config(etc_root: &Path, host: &str, use_sudo: bool) 
         ],
         use_sudo,
     );
-    fs::remove_file(&temp_file).ok();
-    install_result?;
-    Ok(())
+    let cleanup_result = cleanup_temp_file(
+        &temp_file,
+        "failed to remove temporary hardware configuration file",
+    );
+    finalize_with_cleanup(
+        install_result,
+        cleanup_result,
+        "temporary hardware configuration cleanup failed",
+    )
 }
 
 pub fn run_repo_sync<FL, FR, FC>(
@@ -270,12 +283,33 @@ where
     FR: FnMut(&str, &[String]) -> Result<()>,
     FC: FnMut() -> Result<()>,
 {
+    run_repo_sync_with_mode(
+        plan,
+        command_exists("rsync"),
+        &mut run_local_ok,
+        &mut run_root_ok,
+        &mut clean_destination,
+    )
+}
+
+fn run_repo_sync_with_mode<FL, FR, FC>(
+    plan: &RepoSyncPlan,
+    use_rsync: bool,
+    run_local_ok: &mut FL,
+    run_root_ok: &mut FR,
+    clean_destination: &mut FC,
+) -> Result<()>
+where
+    FL: FnMut(&str, &[String]) -> Result<()>,
+    FR: FnMut(&str, &[String]) -> Result<()>,
+    FC: FnMut() -> Result<()>,
+{
     run_root_ok(
         "mkdir",
         &["-p".to_string(), plan.destination_dir.display().to_string()],
     )?;
 
-    if command_exists("rsync") {
+    if use_rsync {
         run_root_ok("rsync", &plan.rsync_args())?;
         return Ok(());
     }
@@ -287,16 +321,68 @@ where
     let tar_file = create_temp_path("mcbctl-sync", "tar")?;
     let pack_args = plan.tar_pack_args(&tar_file);
     if let Err(err) = run_local_ok("tar", &pack_args) {
-        fs::remove_file(&tar_file).ok();
-        return Err(err);
+        let cleanup_result =
+            cleanup_temp_file(&tar_file, "failed to remove repository sync archive");
+        return finalize_with_cleanup(
+            Err(err),
+            cleanup_result,
+            "repository sync archive cleanup failed",
+        );
     }
     let unpack_args = plan.tar_extract_args(&tar_file);
     if let Err(err) = run_root_ok("tar", &unpack_args) {
-        fs::remove_file(&tar_file).ok();
-        return Err(err);
+        let cleanup_result =
+            cleanup_temp_file(&tar_file, "failed to remove repository sync archive");
+        return finalize_with_cleanup(
+            Err(err),
+            cleanup_result,
+            "repository sync archive cleanup failed",
+        );
     }
-    fs::remove_file(&tar_file).ok();
-    Ok(())
+    let cleanup_result = cleanup_temp_file(&tar_file, "failed to remove repository sync archive");
+    finalize_with_cleanup(
+        Ok(()),
+        cleanup_result,
+        "repository sync archive cleanup failed",
+    )
+}
+
+fn summarize_cleanup_failures(context: &str, failures: &[String]) -> String {
+    if failures.is_empty() {
+        return context.to_string();
+    }
+
+    format!("{context}: {}", failures.join(" | "))
+}
+
+fn cleanup_temp_file(path: &Path, label: &str) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    fs::remove_file(path).with_context(|| format!("{label}: {}", path.display()))
+}
+
+fn finalize_with_cleanup(
+    primary_result: Result<()>,
+    cleanup_result: Result<()>,
+    cleanup_context: &str,
+) -> Result<()> {
+    match (primary_result, cleanup_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Ok(()), Err(cleanup_err)) => {
+            let failures = vec![cleanup_err.to_string()];
+            bail!("{}", summarize_cleanup_failures(cleanup_context, &failures))
+        }
+        (Err(err), Ok(())) => Err(err),
+        (Err(err), Err(cleanup_err)) => {
+            let failures = vec![cleanup_err.to_string()];
+            bail!(
+                "{}",
+                summarize_cleanup_failures(&err.to_string(), &failures)
+            )
+        }
+    }
 }
 
 fn create_temp_path(prefix: &str, ext: &str) -> Result<PathBuf> {
@@ -325,10 +411,13 @@ fn chrono_like_millis() -> u128 {
 mod tests {
     use super::*;
     use anyhow::Result;
+    use std::cell::{Cell, RefCell};
+    use std::sync::{Mutex, MutexGuard, OnceLock};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn host_hardware_config_path_uses_per_host_location() {
+        let _guard = test_lock();
         let path = host_hardware_config_path(Path::new("/repo"), "demo");
         assert_eq!(
             path,
@@ -338,6 +427,7 @@ mod tests {
 
     #[test]
     fn build_allows_eval_fallback_without_real_hardware_config() -> Result<()> {
+        let _guard = test_lock();
         let root = create_temp_repo()?;
         let plan = NixosRebuildPlan {
             action: DeployAction::Build,
@@ -353,6 +443,7 @@ mod tests {
 
     #[test]
     fn switch_requires_real_hardware_config() -> Result<()> {
+        let _guard = test_lock();
         let root = create_temp_repo()?;
         let plan = NixosRebuildPlan {
             action: DeployAction::Switch,
@@ -376,6 +467,199 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn run_repo_sync_tar_mode_cleans_destination_and_temp_file() -> Result<()> {
+        let _guard = test_lock();
+        let root = create_temp_repo()?;
+        let source_dir = root.join("source");
+        let destination_dir = root.join("dest");
+        fs::create_dir_all(&source_dir)?;
+        let plan = RepoSyncPlan {
+            source_dir: source_dir.clone(),
+            destination_dir: destination_dir.clone(),
+            delete_extra: true,
+        };
+
+        let calls = RefCell::new(Vec::<String>::new());
+        let clean_called = Cell::new(false);
+        let archive_path = RefCell::new(None::<PathBuf>);
+
+        run_repo_sync_with_mode(
+            &plan,
+            false,
+            &mut |cmd, args| {
+                calls
+                    .borrow_mut()
+                    .push(format!("local:{cmd} {}", args.join(" ")));
+                let tar_path = PathBuf::from(&args[5]);
+                fs::write(&tar_path, "archive")?;
+                *archive_path.borrow_mut() = Some(tar_path);
+                Ok(())
+            },
+            &mut |cmd, args| {
+                calls
+                    .borrow_mut()
+                    .push(format!("root:{cmd} {}", args.join(" ")));
+                if cmd == "mkdir" {
+                    fs::create_dir_all(&destination_dir)?;
+                }
+                Ok(())
+            },
+            &mut || {
+                clean_called.set(true);
+                Ok(())
+            },
+        )?;
+
+        assert!(clean_called.get());
+        assert_eq!(
+            calls.borrow()[0],
+            format!("root:mkdir -p {}", destination_dir.display())
+        );
+        assert!(calls.borrow()[1].starts_with("local:tar "));
+        assert!(calls.borrow()[2].starts_with("root:tar "));
+        assert!(!archive_path.borrow().as_ref().unwrap().exists());
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn run_repo_sync_tar_mode_preserves_primary_error_and_reports_cleanup_failure() -> Result<()> {
+        let _guard = test_lock();
+        let root = create_temp_repo()?;
+        let source_dir = root.join("source");
+        let destination_dir = root.join("dest");
+        fs::create_dir_all(&source_dir)?;
+        let plan = RepoSyncPlan {
+            source_dir,
+            destination_dir,
+            delete_extra: false,
+        };
+
+        let archive_path = RefCell::new(None::<PathBuf>);
+        let err = run_repo_sync_with_mode(
+            &plan,
+            false,
+            &mut |_cmd, args| {
+                let tar_path = PathBuf::from(&args[5]);
+                *archive_path.borrow_mut() = Some(tar_path.clone());
+                fs::write(&tar_path, "archive")?;
+                fs::remove_file(&tar_path)?;
+                fs::create_dir(&tar_path)?;
+                bail!("pack failed")
+            },
+            &mut |_cmd, _args| Ok(()),
+            &mut || Ok(()),
+        )
+        .expect_err("pack failure should be reported");
+
+        let message = err.to_string();
+        assert!(message.contains("pack failed"));
+        assert!(message.contains("failed to remove repository sync archive"));
+
+        if let Some(path) = archive_path.borrow().as_ref()
+            && path.is_dir()
+        {
+            fs::remove_dir_all(path)?;
+        }
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn run_repo_sync_tar_mode_fails_when_cleanup_after_success_fails() -> Result<()> {
+        let _guard = test_lock();
+        let root = create_temp_repo()?;
+        let source_dir = root.join("source");
+        let destination_dir = root.join("dest");
+        fs::create_dir_all(&source_dir)?;
+        let plan = RepoSyncPlan {
+            source_dir,
+            destination_dir: destination_dir.clone(),
+            delete_extra: false,
+        };
+
+        let archive_path = RefCell::new(None::<PathBuf>);
+        let err = run_repo_sync_with_mode(
+            &plan,
+            false,
+            &mut |_cmd, args| {
+                let tar_path = PathBuf::from(&args[5]);
+                *archive_path.borrow_mut() = Some(tar_path.clone());
+                fs::write(&tar_path, "archive")?;
+                Ok(())
+            },
+            &mut |cmd, args| {
+                if cmd == "mkdir" {
+                    fs::create_dir_all(&destination_dir)?;
+                } else {
+                    let tar_path = PathBuf::from(&args[3]);
+                    fs::remove_file(&tar_path)?;
+                    fs::create_dir(&tar_path)?;
+                }
+                Ok(())
+            },
+            &mut || Ok(()),
+        )
+        .expect_err("cleanup failure after successful sync should fail");
+
+        let message = err.to_string();
+        assert!(
+            message.contains("failed to remove repository sync archive"),
+            "{message}"
+        );
+
+        if let Some(path) = archive_path.borrow().as_ref()
+            && path.is_dir()
+        {
+            fs::remove_dir_all(path)?;
+        }
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn run_repo_sync_rsync_mode_skips_clean_destination() -> Result<()> {
+        let _guard = test_lock();
+        let root = create_temp_repo()?;
+        let destination_dir = root.join("dest");
+        let plan = RepoSyncPlan {
+            source_dir: root.join("source"),
+            destination_dir: destination_dir.clone(),
+            delete_extra: true,
+        };
+
+        let clean_called = Cell::new(false);
+        let root_calls = RefCell::new(Vec::<String>::new());
+
+        run_repo_sync_with_mode(
+            &plan,
+            true,
+            &mut |_cmd, _args| Ok(()),
+            &mut |cmd, args| {
+                root_calls
+                    .borrow_mut()
+                    .push(format!("{cmd} {}", args.join(" ")));
+                if cmd == "mkdir" {
+                    fs::create_dir_all(&destination_dir)?;
+                }
+                Ok(())
+            },
+            &mut || {
+                clean_called.set(true);
+                Ok(())
+            },
+        )?;
+
+        assert!(!clean_called.get());
+        assert_eq!(root_calls.borrow().len(), 2);
+        assert!(root_calls.borrow()[1].starts_with("rsync -a --delete "));
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
     fn create_temp_repo() -> Result<PathBuf> {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -387,5 +671,12 @@ mod tests {
         ));
         fs::create_dir_all(&root)?;
         Ok(root)
+    }
+
+    fn test_lock() -> MutexGuard<'static, ()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 }

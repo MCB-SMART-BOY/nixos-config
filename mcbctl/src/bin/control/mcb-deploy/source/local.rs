@@ -1,5 +1,44 @@
 use super::*;
 
+fn summarize_cleanup_failures(context: &str, failures: &[String]) -> String {
+    if failures.is_empty() {
+        return context.to_string();
+    }
+
+    format!("{context}: {}", failures.join(" | "))
+}
+
+fn cleanup_local_source_archive(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    fs::remove_file(path)
+        .with_context(|| format!("failed to remove local source archive {}", path.display()))
+}
+
+fn finalize_with_cleanup(
+    primary_result: Result<()>,
+    cleanup_result: Result<()>,
+    cleanup_context: &str,
+) -> Result<()> {
+    match (primary_result, cleanup_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Ok(()), Err(cleanup_err)) => {
+            let failures = vec![cleanup_err.to_string()];
+            bail!("{}", summarize_cleanup_failures(cleanup_context, &failures))
+        }
+        (Err(err), Ok(())) => Err(err),
+        (Err(err), Err(cleanup_err)) => {
+            let failures = vec![cleanup_err.to_string()];
+            bail!(
+                "{}",
+                summarize_cleanup_failures(&err.to_string(), &failures)
+            )
+        }
+    }
+}
+
 impl App {
     pub(crate) fn detect_local_repo_dir(&self) -> Option<PathBuf> {
         let cwd = std::env::current_dir().ok();
@@ -47,11 +86,18 @@ impl App {
                 "-xf".to_string(),
                 tar_file.display().to_string(),
             ];
-            let st = Self::run_status_inherit("tar", &args)?;
-            fs::remove_file(&tar_file).ok();
-            if !st.success() {
-                bail!("解包本地仓库失败");
-            }
+            let extract_status = Self::run_status_inherit("tar", &args)?;
+            let extract_result = if extract_status.success() {
+                Ok(())
+            } else {
+                Err(anyhow::anyhow!("解包本地仓库失败"))
+            };
+            let cleanup_result = cleanup_local_source_archive(&tar_file);
+            finalize_with_cleanup(
+                extract_result,
+                cleanup_result,
+                "local source archive cleanup failed",
+            )?;
         }
 
         if command_exists("git") {

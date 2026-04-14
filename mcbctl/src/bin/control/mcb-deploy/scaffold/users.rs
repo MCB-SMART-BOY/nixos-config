@@ -54,7 +54,9 @@ impl App {
                 let src = template_dir.join(template_file);
                 let dst = user_dir.join(template_file);
                 if src.is_file() && !dst.exists() {
-                    fs::copy(src, dst).ok();
+                    fs::copy(&src, &dst).with_context(|| {
+                        format!("failed to copy {} to {}", src.display(), dst.display())
+                    })?;
                 }
             }
 
@@ -80,7 +82,13 @@ impl App {
                 if let Some((_, template_dir)) = &template_source {
                     let src = template_dir.join("packages.nix");
                     if src.is_file() && user_dir != *template_dir {
-                        fs::copy(src, &packages_file).ok();
+                        fs::copy(&src, &packages_file).with_context(|| {
+                            format!(
+                                "failed to copy {} to {}",
+                                src.display(),
+                                packages_file.display()
+                            )
+                        })?;
                     }
                 }
                 if !packages_file.is_file() {

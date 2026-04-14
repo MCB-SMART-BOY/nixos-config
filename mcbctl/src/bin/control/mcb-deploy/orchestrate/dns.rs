@@ -80,7 +80,12 @@ impl App {
                     "/etc/resolv.conf".to_string(),
                 ],
             )?;
-            fs::remove_file(content_file).ok();
+            fs::remove_file(&content_file).with_context(|| {
+                format!(
+                    "failed to remove temporary DNS content file {}",
+                    content_file.display()
+                )
+            })?;
 
             self.log(&format!(
                 "临时 DNS（/etc/resolv.conf）：{}",

@@ -1,5 +1,44 @@
 use super::*;
 
+fn summarize_cleanup_failures(context: &str, failures: &[String]) -> String {
+    if failures.is_empty() {
+        return context.to_string();
+    }
+
+    format!("{context}: {}", failures.join(" | "))
+}
+
+fn cleanup_release_notes_file(path: &Path) -> Result<()> {
+    if !path.exists() {
+        return Ok(());
+    }
+
+    fs::remove_file(path)
+        .with_context(|| format!("failed to remove release notes file {}", path.display()))
+}
+
+fn finalize_with_cleanup(
+    primary_result: Result<()>,
+    cleanup_result: Result<()>,
+    cleanup_context: &str,
+) -> Result<()> {
+    match (primary_result, cleanup_result) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Ok(()), Err(cleanup_err)) => {
+            let failures = vec![cleanup_err.to_string()];
+            bail!("{}", summarize_cleanup_failures(cleanup_context, &failures))
+        }
+        (Err(err), Ok(())) => Err(err),
+        (Err(err), Err(cleanup_err)) => {
+            let failures = vec![cleanup_err.to_string()];
+            bail!(
+                "{}",
+                summarize_cleanup_failures(&err.to_string(), &failures)
+            )
+        }
+    }
+}
+
 impl App {
     pub(super) fn default_release_version(&self) -> String {
         let today = run_capture_allow_fail("date", &["+%Y.%m.%d"])
@@ -150,10 +189,17 @@ impl App {
                 &notes_file.display().to_string(),
             ])
             .status()?;
-        fs::remove_file(notes_file).ok();
-        if !st.success() {
-            bail!("gh release create 失败");
-        }
+        let release_result = if st.success() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("gh release create 失败"))
+        };
+        let cleanup_result = cleanup_release_notes_file(&notes_file);
+        finalize_with_cleanup(
+            release_result,
+            cleanup_result,
+            "release notes cleanup failed",
+        )?;
 
         let workflow = "release-mcbctl.yml";
         let st = Command::new("gh")
@@ -175,5 +221,25 @@ impl App {
             "Release 已发布：{version}；已触发跨平台预编译产物构建。"
         ));
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summarize_cleanup_failures_joins_messages() {
+        let summary = summarize_cleanup_failures(
+            "release notes cleanup failed",
+            &[
+                "remove temp file failed".to_string(),
+                "another cleanup error".to_string(),
+            ],
+        );
+
+        assert!(summary.contains("release notes cleanup failed"));
+        assert!(summary.contains("remove temp file failed"));
+        assert!(summary.contains("another cleanup error"));
     }
 }
