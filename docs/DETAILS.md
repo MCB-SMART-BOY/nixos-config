@@ -77,6 +77,24 @@ Rust 侧负责：
 - `switch` / `test` / `boot` 现在要求 `hosts/<host>/hardware-configuration.nix` 存在
 - `build-host` / `rebuild build` 可以只使用 `hosts/_support/hardware-configuration-eval.nix` 做评估
 
+当前 wizard 语义：
+
+- `Back` 回到上一个真实交互步骤，而不是上一个数字步骤
+- 因此当 `per-user TUN` 关闭时，从 GPU 返回会直接回到管理员步骤，不会在 `step4 -> step5` 之间打转
+- server host 从 server override 返回时，也会正确退回到 `per-user TUN` 或管理员步骤，而不是在 server override 内部循环
+- 非交互模式会直接采用保守默认：
+  - 已有 host
+  - 解析出的默认用户
+  - 首个管理员用户
+  - 桌面 GPU 自动识别结果
+  - server override 关闭
+
+当前探测读取语义：
+
+- `missing`：允许继续按回退路径处理
+- `unreadable`：会显式告警，再继续回退
+- 这条规则当前已经落在默认用户来源解析和 GPU Bus ID 默认探测上，不再把不可读文件静默伪装成“没有配置”
+
 ## 5. 桌面命令与 Noctalia
 
 桌面命令现在都来自 Rust 二进制：

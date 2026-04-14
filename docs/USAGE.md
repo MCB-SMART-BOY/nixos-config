@@ -87,6 +87,17 @@ nix run .#mcbctl -- deploy
 - `nixos-rebuild` 执行
 - GPU / 代理 / per-user TUN / 虚拟化 写回
 
+向导行为补充：
+
+- `返回` 现在总是回到上一个真正可交互的步骤，不会因为跳过了 TUN / GPU / server override 而卡在循环里
+- 非交互模式会走保守默认：
+  - 选择现有 host
+  - 用户默认取 host 配置里可解析的主用户，取不到再回退环境变量和 `home/users/*`
+  - 管理员默认取第一个目标用户
+  - 桌面 host 自动套用识别到的 GPU 默认
+  - server override 默认保持关闭
+- 默认用户和 GPU Bus ID 的探测文件如果“缺失”会正常回退；如果“存在但不可读”，现在会显式告警而不是静默当成不存在
+
 ## 5. 检查与追新
 
 ```bash

@@ -236,3 +236,107 @@ impl App {
         Ok(WizardAction::Continue)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn configure_gpu_non_tty_applies_detected_defaults_for_desktop() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-gpu-prompt-default")?;
+        let mut app = test_app(repo_dir);
+        app.host_profile_kind = HostProfileKind::Desktop;
+        app.detected_gpu = DetectedGpuProfile {
+            topology: Some(DetectedGpuTopology::MultiGpu),
+            igpu_vendor: "intel".to_string(),
+            intel_bus: "PCI:0:2:0".to_string(),
+            amd_bus: String::new(),
+            nvidia_bus: "PCI:1:0:0".to_string(),
+        };
+
+        let action = app.configure_gpu()?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(app.gpu_override);
+        assert_eq!(app.gpu_mode, "hybrid");
+        assert_eq!(app.gpu_prime_mode, "offload");
+        assert_eq!(app.gpu_intel_bus, "PCI:0:2:0");
+        assert_eq!(app.gpu_nvidia_bus, "PCI:1:0:0");
+        assert!(app.gpu_specialisations_enabled);
+        Ok(())
+    }
+
+    fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn test_app(repo_dir: PathBuf) -> App {
+        App {
+            repo_dir,
+            repo_urls: Vec::new(),
+            branch: "rust脚本分支".to_string(),
+            source_ref: String::new(),
+            allow_remote_head: false,
+            source_commit: String::new(),
+            source_choice_set: false,
+            target_name: "demo".to_string(),
+            target_users: Vec::new(),
+            target_admin_users: Vec::new(),
+            deploy_mode: DeployMode::ManageUsers,
+            deploy_mode_set: false,
+            force_remote_source: false,
+            overwrite_mode: OverwriteMode::Ask,
+            overwrite_mode_set: false,
+            per_user_tun_enabled: false,
+            host_profile_kind: HostProfileKind::Desktop,
+            user_tun: BTreeMap::new(),
+            user_dns: BTreeMap::new(),
+            server_overrides_enabled: false,
+            server_enable_network_cli: String::new(),
+            server_enable_network_gui: String::new(),
+            server_enable_shell_tools: String::new(),
+            server_enable_wayland_tools: String::new(),
+            server_enable_system_tools: String::new(),
+            server_enable_geek_tools: String::new(),
+            server_enable_gaming: String::new(),
+            server_enable_insecure_tools: String::new(),
+            server_enable_docker: String::new(),
+            server_enable_libvirtd: String::new(),
+            created_home_users: Vec::new(),
+            gpu_override: false,
+            gpu_override_from_detection: false,
+            gpu_mode: String::new(),
+            gpu_igpu_vendor: String::new(),
+            gpu_prime_mode: String::new(),
+            gpu_intel_bus: String::new(),
+            gpu_amd_bus: String::new(),
+            gpu_nvidia_bus: String::new(),
+            gpu_nvidia_open: String::new(),
+            gpu_specialisations_enabled: false,
+            gpu_specialisations_set: false,
+            gpu_specialisation_modes: Vec::new(),
+            detected_gpu: DetectedGpuProfile::default(),
+            mode: "switch".to_string(),
+            rebuild_upgrade: false,
+            etc_dir: PathBuf::from("/tmp/etc-nixos"),
+            dns_enabled: false,
+            temp_dns_backend: String::new(),
+            temp_dns_backup: None,
+            temp_dns_iface: String::new(),
+            tmp_dir: None,
+            sudo_cmd: None,
+            rootless: false,
+            run_action: RunAction::Deploy,
+            progress_total: 7,
+            progress_current: 0,
+            git_clone_timeout_sec: 90,
+        }
+    }
+}
