@@ -8,3 +8,10 @@ home/users/*/local.nix
 mcbctl/target/
 result
 result-*
+
+## 本地 AI / 协作产物
+AGENTS.md
+.agents/
+docs/AI_PROMPT_CHAIN_CN.md
+docs/ARCHITECTURE_BASELINE_CN.md
+docs/ROADMAP_MAINLINE_CN.md

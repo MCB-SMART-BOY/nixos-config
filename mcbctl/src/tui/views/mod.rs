@@ -3,6 +3,7 @@ mod dashboard;
 mod deploy;
 mod home;
 mod hosts;
+mod inspect;
 mod packages;
 mod users;
 
@@ -43,6 +44,7 @@ fn render_body(frame: &mut Frame, area: Rect, state: &AppState) {
     match state.page() {
         Page::Dashboard => dashboard::render(frame, area, state),
         Page::Deploy => deploy::render(frame, area, state),
+        Page::Inspect => inspect::render(frame, area, state),
         Page::Users => {
             users::render(frame, area, state);
             if state.active_users_text_mode().is_some() {
@@ -215,10 +217,17 @@ fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {
 fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     let footer = match state.page() {
         Page::Dashboard => {
-            "Overview: r 刷新 repo-integrity  d 刷新 doctor  R 刷新全部健康项  Tab/Shift-Tab 切页  q 退出"
+            "Overview: Enter 打开推荐动作  a 直接执行当前 Apply  p 打开 Apply  i 打开 Inspect  r/d/R 刷新健康项  Tab/Shift-Tab 切页  q 退出"
         }
         Page::Deploy => {
-            "Deploy: j/k 选字段  h/l 或 Enter 调整  x 执行当前部署路径  Tab/Shift-Tab 切页  q 退出"
+            if state.show_advanced {
+                "Apply: 左侧先看执行门槛和预览  j/k 选高级项  h/l 或 Enter 调整  J/K 选高级动作  X 执行高级动作  x 按当前 Apply 路径处理  Tab/Shift-Tab 切页  q 退出"
+            } else {
+                "Apply: 左侧先看执行门槛和预览  j/k 选高级项  h/l 或 Enter 调整  x 执行当前 Apply  Tab/Shift-Tab 切页  q 退出"
+            }
+        }
+        Page::Inspect => {
+            "Inspect: j/k 选命令  r 刷新 repo-integrity  d 刷新 doctor  R 刷新全部健康项  x 执行当前 inspect 命令  Tab/Shift-Tab 切页  q 退出"
         }
         Page::Users if state.active_users_text_mode().is_some() => {
             "Users 输入中: 直接键入  Backspace 删除  Enter 确认  Esc 取消"
@@ -244,7 +253,7 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
         }
         Page::Home => "Home: ←/→ 切用户  j/k 选项  h/l 或 Enter 调整  s 保存  q 退出",
         Page::Actions => {
-            "Actions: j/k 选动作  Enter/Space 打开归宿页  x 直接执行（过渡期）  Tab/Shift-Tab 切页  q 退出"
+            "Actions: j/k 选动作  Enter/Space/x 打开归宿页  当前页只做分组和跳转  Tab/Shift-Tab 切页  q 退出"
         }
     };
     let help = Paragraph::new(footer).block(Block::default().borders(Borders::ALL).title("Help"));

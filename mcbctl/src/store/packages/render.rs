@@ -1,9 +1,69 @@
 use crate::domain::tui::CatalogEntry;
-use crate::{managed_file_is_valid, managed_file_kind, write_managed_file};
+use crate::{
+    ensure_existing_managed_file, managed_file_is_valid, managed_file_kind, write_managed_file,
+};
 use anyhow::{Context, Result};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
+
+pub fn managed_package_guard_errors(
+    managed_dir: &Path,
+    catalog: &[CatalogEntry],
+    selected: &BTreeMap<String, String>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+
+    if let Err(err) = ensure_selected_entries_known(catalog, selected) {
+        errors.push(err.to_string());
+    }
+
+    if let Err(err) =
+        ensure_existing_managed_file(&managed_dir.join("packages.nix"), "home-packages-aggregator")
+    {
+        errors.push(err.to_string());
+    }
+
+    let grouped_dir = managed_dir.join("packages");
+    let active_groups = selected_entries_by_group(catalog, selected)
+        .into_keys()
+        .collect::<BTreeSet<_>>();
+
+    match fs::read_dir(&grouped_dir) {
+        Ok(entries) => {
+            let mut existing_files = entries
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|path| path.is_file() && path.extension().is_some_and(|ext| ext == "nix"))
+                .collect::<Vec<_>>();
+            existing_files.sort();
+
+            for path in existing_files {
+                let Some(group) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                    continue;
+                };
+                if active_groups.contains(group) {
+                    continue;
+                }
+                if let Err(err) = ensure_stale_package_file_is_managed(&path) {
+                    errors.push(err.to_string());
+                }
+            }
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => errors.push(format!("failed to read {}: {err}", grouped_dir.display())),
+    }
+
+    for group in active_groups {
+        let path = grouped_dir.join(format!("{group}.nix"));
+        let kind = format!("package-group:{group}");
+        if let Err(err) = ensure_existing_managed_file(&path, &kind) {
+            errors.push(err.to_string());
+        }
+    }
+
+    errors
+}
 
 pub fn write_grouped_managed_packages(
     managed_dir: &Path,
@@ -232,6 +292,48 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("refusing to write package selections with unknown catalog ids")
+        );
+
+        fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn managed_package_guard_errors_surface_invalid_aggregator_and_stale_files() -> Result<()> {
+        let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
+        let dir = std::env::temp_dir().join(format!("mcbctl-packages-guards-{unique}"));
+        let managed_dir = dir.join("managed");
+        let grouped_dir = managed_dir.join("packages");
+        fs::create_dir_all(&grouped_dir)?;
+        fs::write(
+            managed_dir.join("packages.nix"),
+            "{ lib, ... }: { imports = [ ./packages/manual.nix ]; }\n",
+        )?;
+        fs::write(
+            grouped_dir.join("manual.nix"),
+            "{ pkgs, ... }: { home.packages = [ pkgs.hello ]; }\n",
+        )?;
+
+        let catalog = vec![CatalogEntry {
+            id: "hello".to_string(),
+            name: "Hello".to_string(),
+            category: "cli".to_string(),
+            group: Some("misc".to_string()),
+            expr: "pkgs.hello".to_string(),
+            description: None,
+            keywords: Vec::new(),
+            source: Some("nixpkgs".to_string()),
+            platforms: Vec::new(),
+            desktop_entry_flag: None,
+        }];
+
+        let errors = managed_package_guard_errors(&managed_dir, &catalog, &BTreeMap::new());
+        assert_eq!(errors.len(), 2);
+        assert!(errors.iter().any(|err| err.contains("home-packages-aggregator")));
+        assert!(
+            errors
+                .iter()
+                .any(|err| err.contains("refusing to remove stale unmanaged package file"))
         );
 
         fs::remove_dir_all(&dir)?;

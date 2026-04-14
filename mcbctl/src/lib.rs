@@ -252,6 +252,24 @@ pub fn managed_file_is_valid(content: &str) -> bool {
         .is_some_and(|(_, checksum, body)| checksum == managed_checksum(body))
 }
 
+pub fn ensure_existing_managed_file(path: &Path, kind: &str) -> Result<()> {
+    match fs::read_to_string(path) {
+        Ok(existing) => {
+            if managed_content_is_safe_to_replace(&existing, kind) {
+                Ok(())
+            } else {
+                Err(anyhow!(
+                    "refusing to keep {}: existing content is not a recognized {kind} managed file",
+                    path.display()
+                ))
+            }
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(err) => Err(err)
+            .with_context(|| format!("failed to read existing managed file {}", path.display())),
+    }
+}
+
 pub fn write_managed_file(
     path: &Path,
     kind: &str,
@@ -259,15 +277,23 @@ pub fn write_managed_file(
     _legacy_prefixes: &[&str],
 ) -> Result<()> {
     let rendered = render_managed_file(kind, body);
-    if let Ok(existing) = fs::read_to_string(path) {
-        if existing == rendered {
-            return Ok(());
+    match fs::read_to_string(path) {
+        Ok(existing) => {
+            if existing == rendered {
+                return Ok(());
+            }
+            if !managed_content_is_safe_to_replace(&existing, kind) {
+                return Err(anyhow!(
+                    "refusing to overwrite {}: existing content is not a recognized {kind} managed file",
+                    path.display()
+                ));
+            }
         }
-        if !managed_content_is_safe_to_replace(&existing, kind) {
-            return Err(anyhow!(
-                "refusing to overwrite {}: existing content is not a recognized {kind} managed file",
-                path.display()
-            ));
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => {
+            return Err(err).with_context(|| {
+                format!("failed to read existing managed file {}", path.display())
+            });
         }
     }
 
@@ -410,6 +436,25 @@ mod tests {
         )
         .expect_err("legacy unmarked file should require explicit migration");
         assert!(err.to_string().contains("refusing to overwrite"));
+
+        fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn write_managed_file_reports_existing_read_errors() -> Result<()> {
+        let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
+        let dir = std::env::temp_dir().join(format!("mcbctl-managed-unreadable-{unique}"));
+        fs::create_dir_all(&dir)?;
+        let path = dir.join("network.nix");
+        fs::create_dir_all(&path)?;
+
+        let err = write_managed_file(&path, "host-network", "# final\n{ }\n", &[])
+            .expect_err("directory placeholder should not be treated as a missing managed file");
+        assert!(
+            err.to_string()
+                .contains("failed to read existing managed file")
+        );
 
         fs::remove_dir_all(&dir)?;
         Ok(())

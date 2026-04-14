@@ -2,6 +2,7 @@
 pub enum Page {
     Dashboard,
     Deploy,
+    Inspect,
     Users,
     Hosts,
     Packages,
@@ -10,9 +11,10 @@ pub enum Page {
 }
 
 impl Page {
-    pub const ALL: [Page; 7] = [
+    pub const ALL: [Page; 8] = [
         Page::Dashboard,
         Page::Deploy,
+        Page::Inspect,
         Page::Users,
         Page::Hosts,
         Page::Packages,
@@ -22,8 +24,9 @@ impl Page {
 
     pub fn title(self) -> &'static str {
         match self {
-            Page::Dashboard => "Dashboard",
-            Page::Deploy => "Deploy",
+            Page::Dashboard => "Overview",
+            Page::Deploy => "Apply",
+            Page::Inspect => "Inspect",
             Page::Users => "Users",
             Page::Hosts => "Hosts",
             Page::Packages => "Packages",
@@ -118,5 +121,19 @@ impl ActionDestination {
             ActionDestination::Apply => "Apply",
             ActionDestination::Advanced => "Advanced",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_titles_expose_overview_and_apply_labels() {
+        assert_eq!(Page::Dashboard.title(), "Overview");
+        assert_eq!(Page::Deploy.title(), "Apply");
+        assert_eq!(Page::Inspect.title(), "Inspect");
+        assert_eq!(Page::Users.title(), "Users");
+        assert_eq!(Page::Actions.title(), "Actions");
     }
 }

@@ -19,8 +19,15 @@ impl AppState {
 
         let host_dir = self.context.repo_root.join("hosts").join(&host);
         let managed_dir = host_dir.join("managed");
-        ensure_managed_host_layout(&managed_dir)?;
-        let paths = write_host_runtime_fragments(&managed_dir, &settings)?;
+        let paths = match ensure_managed_host_layout(&managed_dir)
+            .and_then(|()| write_host_runtime_fragments(&managed_dir, &settings))
+        {
+            Ok(paths) => paths,
+            Err(err) => {
+                self.status = format!("Hosts 未写入：{err:#}");
+                return Ok(());
+            }
+        };
         self.host_dirty_runtime_hosts.remove(&host);
         self.status = format!(
             "已写入 {}",
@@ -104,6 +111,30 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn save_current_host_runtime_rejects_tampered_sibling_fragment_and_keeps_dirty() -> Result<()> {
+        let root = create_temp_repo("mcbctl-host-runtime-tampered")?;
+        let mut state = test_state(&root);
+        let managed_dir = root.join("hosts/demo/managed");
+        std::fs::create_dir_all(&managed_dir)?;
+        std::fs::write(
+            managed_dir.join("users.nix"),
+            "{ lib, ... }: { mcb.user = lib.mkForce \"alice\"; }\n",
+        )?;
+        state.host_dirty_runtime_hosts.insert("demo".to_string());
+
+        state.save_current_host_runtime()?;
+
+        let paths = state.current_host_runtime_paths();
+        assert!(paths.iter().all(|path| !path.exists()));
+        assert!(state.host_dirty_runtime_hosts.contains("demo"));
+        assert!(state.status.contains("Hosts 未写入"));
+        assert!(state.status.contains("host-users"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
     fn test_state(root: &Path) -> AppState {
         let mut host_settings_by_name = BTreeMap::new();
         host_settings_by_name.insert("demo".to_string(), valid_host_settings());
@@ -167,6 +198,7 @@ mod tests {
             actions_focus: 0,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
             status: String::new(),
         }
     }

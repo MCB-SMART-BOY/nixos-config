@@ -77,25 +77,43 @@ impl AppState {
         let action = self.current_action_item();
         match action.destination() {
             ActionDestination::Inspect => {
-                self.set_page(Page::Dashboard);
-                self.status = format!(
-                    "{} 归属 Inspect；当前先跳到 Overview，直接执行入口仍暂留在 Actions 页（按 x）。",
-                    action.label()
+                self.set_page(Page::Inspect);
+                self.ensure_inspect_action_focus();
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    UiFeedbackScope::Inspect,
+                    format!(
+                        "{} 归属 Inspect；已跳到 Inspect 页查看健康详情和命令预览。",
+                        action.label()
+                    ),
+                    "在 Inspect 里查看详情或直接执行当前检查命令",
                 );
             }
             ActionDestination::Apply => {
                 self.set_page(Page::Deploy);
-                self.status = format!(
-                    "{} 归属 Apply；已跳到 Deploy 页作为当前过渡入口。",
-                    action.label()
+                self.show_advanced = false;
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    UiFeedbackScope::Apply,
+                    format!(
+                        "{} 归属 Apply；已跳到 Apply 页查看当前主机预览和执行门槛。",
+                        action.label()
+                    ),
+                    "在 Apply 里查看预览后再执行",
                 );
             }
             ActionDestination::Advanced => {
                 self.set_page(Page::Deploy);
                 self.show_advanced = true;
-                self.status = format!(
-                    "{} 归属 Advanced；当前先跳到 Deploy 页并打开高级模式，直接执行入口仍暂留在 Actions 页（按 x）。",
-                    action.label()
+                self.ensure_advanced_action_focus();
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    UiFeedbackScope::Advanced,
+                    format!(
+                        "{} 归属 Advanced；已跳到 Apply 页的 Advanced Workspace。",
+                        action.label()
+                    ),
+                    "在 Apply 的 Advanced Workspace 里选择并执行高级动作",
                 );
             }
         }
@@ -128,19 +146,26 @@ impl AppState {
         if self.action_available(action) {
             lines.push("状态：当前环境可以直接执行".to_string());
         } else {
-            lines.push("状态：当前环境不适合直接执行；请改用 Deploy 页或切换权限".to_string());
+            lines.push("状态：当前环境不适合直接执行；请改用 Apply 页或切换权限".to_string());
         }
-        lines.push(format!(
-            "默认行为：Enter 打开 {} 区域；x 直接执行当前动作。",
-            action.destination().label()
-        ));
+        lines.push(action_transition_hint(action).to_string());
 
         lines.push(String::new());
         lines.push("当前页说明：".to_string());
         lines.push("- 当前页是过渡入口：先按 Inspect / Apply / Advanced 给动作分组。".to_string());
-        lines.push("- 直接执行外部命令前，会临时退出 TUI，执行完成后再返回。".to_string());
-        lines.push("- 后续会把这些动作迁到对应区域，不长期保留杂糅结构。".to_string());
+        lines.push("- 当前页现在只做跳转，不再直接执行动作。".to_string());
+        lines.push("- Advanced 动作会进入 Apply 页里的 Advanced Workspace。".to_string());
         lines
+    }
+}
+
+fn action_transition_hint(action: ActionItem) -> &'static str {
+    match action.destination() {
+        ActionDestination::Inspect => "默认行为：Enter/Space/x 打开 Inspect，不在当前页直接执行。",
+        ActionDestination::Apply => "默认行为：Enter/Space/x 打开 Apply，不在当前页直接执行。",
+        ActionDestination::Advanced => {
+            "默认行为：Enter/Space/x 打开 Apply 页里的 Advanced Workspace。"
+        }
     }
 }
 
@@ -213,10 +238,25 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("分组：Repository Maintenance"))
         );
+        assert!(lines.iter().any(|line| line.contains("Advanced Workspace")));
+    }
+
+    #[test]
+    fn action_summary_lines_explain_route_only_behavior_for_inspect_and_apply() {
+        let inspect_lines = test_state("sudo-available").actions_summary_lines();
         assert!(
-            lines
+            inspect_lines
                 .iter()
-                .any(|line| line.contains("默认行为：Enter 打开 Advanced 区域"))
+                .any(|line| line.contains("Enter/Space/x 打开 Inspect"))
+        );
+
+        let mut apply = test_state("sudo-available");
+        apply.actions_focus = 2;
+        let apply_lines = apply.actions_summary_lines();
+        assert!(
+            apply_lines
+                .iter()
+                .any(|line| line.contains("Enter/Space/x 打开 Apply"))
         );
     }
 
@@ -224,7 +264,7 @@ mod tests {
     fn open_current_action_destination_routes_to_transition_pages() {
         let mut inspect = test_state("sudo-available");
         inspect.open_current_action_destination();
-        assert_eq!(inspect.page(), Page::Dashboard);
+        assert_eq!(inspect.page(), Page::Inspect);
         assert!(inspect.status.contains("Inspect"));
 
         let mut apply = test_state("sudo-available");
@@ -233,6 +273,7 @@ mod tests {
         assert_eq!(apply.page(), Page::Deploy);
         assert!(!apply.show_advanced);
         assert!(apply.status.contains("Apply"));
+        assert!(apply.status.contains("Apply 页"));
 
         let mut advanced = test_state("sudo-available");
         advanced.actions_focus = 4;
@@ -240,6 +281,7 @@ mod tests {
         assert_eq!(advanced.page(), Page::Deploy);
         assert!(advanced.show_advanced);
         assert!(advanced.status.contains("Advanced"));
+        assert!(advanced.status.contains("Advanced Workspace"));
     }
 
     fn test_state(privilege_mode: &str) -> AppState {
@@ -302,6 +344,7 @@ mod tests {
             actions_focus: 0,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
             status: String::new(),
         }
     }

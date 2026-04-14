@@ -1,4 +1,5 @@
 use super::*;
+use crate::domain::tui::ActionDestination;
 use crate::repo::ensure_repository_integrity;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -17,69 +18,6 @@ pub(crate) struct ApplyModel {
     pub(crate) warnings: Vec<String>,
     pub(crate) handoffs: Vec<String>,
     pub(crate) infos: Vec<String>,
-}
-
-impl ApplyModel {
-    pub(crate) fn summary_lines(&self) -> Vec<String> {
-        let mut lines = vec![
-            format!("目标主机：{}", self.target_host),
-            format!("任务：{}", self.task.label()),
-            format!("来源：{}", self.source.label()),
-            format!("动作：{}", self.action.label()),
-            format!("flake update：{}", bool_label(self.flake_update)),
-            format!("高级项：{}", bool_label(self.advanced)),
-        ];
-
-        lines.push(format!(
-            "同步预览：{}",
-            self.sync_preview
-                .as_deref()
-                .unwrap_or("当前组合不需要同步 /etc/nixos")
-        ));
-        lines.push(format!(
-            "命令预览：{}",
-            self.rebuild_preview
-                .as_deref()
-                .unwrap_or("当前来源会转交给完整部署向导处理。")
-        ));
-
-        if self.blockers.is_empty() {
-            lines.push("阻塞项：无".to_string());
-        } else {
-            lines.push(format!("阻塞项：{}", self.blockers.join(" | ")));
-        }
-
-        if self.warnings.is_empty() {
-            lines.push("警告项：无".to_string());
-        } else {
-            lines.push(format!("警告项：{}", self.warnings.join(" | ")));
-        }
-
-        if self.handoffs.is_empty() {
-            lines.push("交接项：无".to_string());
-        } else {
-            lines.push(format!("交接项：{}", self.handoffs.join(" | ")));
-        }
-
-        if self.infos.is_empty() {
-            lines.push("信息：无".to_string());
-        } else {
-            lines.push(format!("信息：{}", self.infos.join(" | ")));
-        }
-
-        lines.push(format!(
-            "执行路径：{}",
-            if self.can_apply_current_host {
-                "当前页可直接执行；按 x 立即运行。"
-            } else if self.can_execute_directly {
-                "当前页仍是 direct apply，但存在 blocker。"
-            } else {
-                "当前页会调起完整部署向导。"
-            }
-        ));
-
-        lines
-    }
 }
 
 impl AppState {
@@ -102,7 +40,12 @@ impl AppState {
             2 => cycle_enum(&mut self.deploy_source, &DeploySource::ALL, delta),
             3 => cycle_enum(&mut self.deploy_action, &DeployAction::ALL, delta),
             4 => self.flake_update = !self.flake_update,
-            5 => self.show_advanced = !self.show_advanced,
+            5 => {
+                self.show_advanced = !self.show_advanced;
+                if self.show_advanced {
+                    self.ensure_advanced_action_focus();
+                }
+            }
             _ => {}
         }
     }
@@ -129,6 +72,49 @@ impl AppState {
             self.deploy_source,
             DeploySource::RemotePinned | DeploySource::RemoteHead
         ) && !self.show_advanced
+    }
+
+    pub(crate) fn advanced_action_items(&self) -> &'static [ActionItem] {
+        advanced_actions()
+    }
+
+    pub(crate) fn ensure_advanced_action_focus(&mut self) {
+        if self.current_action_item().destination() != ActionDestination::Advanced {
+            self.actions_focus = advanced_action_index(0);
+        }
+    }
+
+    pub(crate) fn next_advanced_action(&mut self) {
+        let current = advanced_action_offset(self.current_advanced_action()).unwrap_or(0);
+        self.actions_focus = advanced_action_index((current + 1) % advanced_action_count());
+    }
+
+    pub(crate) fn previous_advanced_action(&mut self) {
+        let current = advanced_action_offset(self.current_advanced_action()).unwrap_or(0);
+        let previous = if current == 0 {
+            advanced_action_count() - 1
+        } else {
+            current - 1
+        };
+        self.actions_focus = advanced_action_index(previous);
+    }
+
+    pub(crate) fn current_advanced_action(&self) -> ActionItem {
+        let action = self.current_action_item();
+        if action.destination() == ActionDestination::Advanced {
+            action
+        } else {
+            advanced_actions()[0]
+        }
+    }
+
+    pub(crate) fn selected_advanced_row_index(&self) -> usize {
+        advanced_action_offset(self.current_advanced_action()).unwrap_or(0)
+    }
+
+    pub(crate) fn execute_current_advanced_action_from_apply(&mut self) -> Result<()> {
+        self.ensure_advanced_action_focus();
+        self.execute_current_action()
     }
 
     pub(crate) fn apply_model(&self) -> ApplyModel {
@@ -227,7 +213,12 @@ impl AppState {
             }
             let status = self.run_sibling_in_repo("mcb-deploy", &args)?;
             if status.success() {
-                self.status = "已返回完整部署向导。".to_string();
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    UiFeedbackScope::Advanced,
+                    "已返回完整部署向导。",
+                    "继续在 Advanced 完成复杂部署",
+                );
                 return Ok(());
             }
             anyhow::bail!("mcb-deploy exited with {}", status.code().unwrap_or(1));
@@ -249,7 +240,7 @@ impl AppState {
         let sync_plan = self.deploy_sync_plan_for_execution();
         let rebuild_plan = self
             .deploy_rebuild_plan_for_execution()
-            .context("当前 Deploy 组合还没有可执行的重建计划")?;
+            .context("当前 Apply 组合还没有可执行的重建计划")?;
 
         if let Some(plan) = sync_plan {
             run_repo_sync(
@@ -278,10 +269,15 @@ impl AppState {
             anyhow::bail!("nixos-rebuild exited with {}", status.code().unwrap_or(1));
         }
 
-        self.status = format!(
-            "Deploy 已执行完成：{} {}",
-            rebuild_plan.action.label(),
-            rebuild_plan.target_host
+        self.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Apply,
+            format!(
+                "Apply 已执行完成：{} {}",
+                rebuild_plan.action.label(),
+                rebuild_plan.target_host
+            ),
+            "回到 Overview 检查健康和下一步",
         );
         Ok(())
     }
@@ -323,6 +319,33 @@ impl AppState {
             && self.deploy_action != DeployAction::Build
             && self.context.privilege_mode != "rootless"
     }
+}
+
+fn advanced_actions() -> &'static [ActionItem] {
+    static ACTIONS: [ActionItem; 3] = [
+        ActionItem::FlakeUpdate,
+        ActionItem::UpdateUpstreamPins,
+        ActionItem::LaunchDeployWizard,
+    ];
+    &ACTIONS
+}
+
+fn advanced_action_count() -> usize {
+    advanced_actions().len()
+}
+
+fn advanced_action_index(offset: usize) -> usize {
+    let action = advanced_actions()[offset];
+    ActionItem::ALL
+        .iter()
+        .position(|candidate| *candidate == action)
+        .expect("advanced action must exist in ActionItem::ALL")
+}
+
+fn advanced_action_offset(action: ActionItem) -> Option<usize> {
+    advanced_actions()
+        .iter()
+        .position(|candidate| *candidate == action)
 }
 
 #[cfg(test)]
@@ -382,6 +405,45 @@ mod tests {
         );
         assert!(state.deploy_sync_plan_for_execution().is_none());
         assert!(state.deploy_rebuild_plan_for_execution().is_none());
+    }
+
+    #[test]
+    fn advanced_focus_falls_back_to_first_advanced_action() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.actions_focus = 0;
+
+        state.ensure_advanced_action_focus();
+
+        assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
+        assert_eq!(state.selected_advanced_row_index(), 0);
+    }
+
+    #[test]
+    fn advanced_focus_cycles_only_between_advanced_actions() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.ensure_advanced_action_focus();
+        assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
+
+        state.next_advanced_action();
+        assert_eq!(
+            state.current_advanced_action(),
+            ActionItem::UpdateUpstreamPins
+        );
+
+        state.next_advanced_action();
+        assert_eq!(
+            state.current_advanced_action(),
+            ActionItem::LaunchDeployWizard
+        );
+
+        state.next_advanced_action();
+        assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
+
+        state.previous_advanced_action();
+        assert_eq!(
+            state.current_advanced_action(),
+            ActionItem::LaunchDeployWizard
+        );
     }
 
     #[test]
@@ -533,6 +595,7 @@ mod tests {
             actions_focus: 0,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
             status: String::new(),
         }
     }

@@ -23,7 +23,7 @@ use crate::store::hosts::{
 };
 use crate::store::packages::{
     ensure_managed_packages_layout, load_managed_package_entries, load_package_user_selections,
-    managed_package_group_path, write_grouped_managed_packages,
+    managed_package_group_path, managed_package_guard_errors, write_grouped_managed_packages,
 };
 use crate::store::search::search_catalog_entries;
 use crate::{resolve_sibling_binary, write_managed_file};
@@ -39,11 +39,20 @@ mod deploy;
 mod helpers;
 mod home;
 mod hosts;
+mod inspect;
 mod model;
 mod overview;
 mod packages;
 
 pub(crate) use deploy::ApplyModel;
 use helpers::*;
-pub use model::{AppContext, AppState};
-pub(crate) use overview::{OverviewCheckState, OverviewHostStatus};
+#[cfg(test)]
+pub(crate) use inspect::InspectCommandModel;
+pub(crate) use inspect::InspectModel;
+pub use model::{AppContext, AppState, UiFeedback, UiFeedbackLevel, UiFeedbackScope};
+pub(crate) use overview::{
+    ManagedGuardSnapshot, OverviewCheckState, OverviewHostStatus, OverviewModel,
+    OverviewPrimaryActionKind,
+};
+#[cfg(test)]
+pub(crate) use overview::{OverviewContext, OverviewDirtySection, OverviewPrimaryAction};

@@ -135,6 +135,17 @@ impl AppState {
         } else {
             lines.push("状态：当前用户没有未保存的 Home 设置修改".to_string());
         }
+        let guard_errors = self.current_home_managed_guard_errors();
+        if self.current_home_user().is_none() {
+            lines.push("受管保护：无可用目标".to_string());
+        } else if guard_errors.is_empty() {
+            lines.push("受管保护：通过".to_string());
+        } else {
+            lines.push("受管保护：存在问题".to_string());
+            for err in guard_errors {
+                lines.push(format!("- {err}"));
+            }
+        }
         if let Some(path) = self.current_home_user_noctalia_override_path()
             && path.is_file()
         {
@@ -173,7 +184,6 @@ impl AppState {
             .join("home/users")
             .join(&user)
             .join("managed");
-        ensure_managed_settings_layout(&managed_dir)?;
 
         let settings = self
             .home_settings_by_user
@@ -185,12 +195,17 @@ impl AppState {
             settings.bar_profile = ManagedBarProfile::Inherit;
         }
         let path = managed_dir.join("settings/desktop.nix");
-        write_managed_file(
-            &path,
-            "home-settings-desktop",
-            &render_managed_desktop_file(&settings),
-            &["# 机器管理的桌面设置分片"],
-        )?;
+        if let Err(err) = ensure_managed_settings_layout(&managed_dir).and_then(|()| {
+            write_managed_file(
+                &path,
+                "home-settings-desktop",
+                &render_managed_desktop_file(&settings),
+                &["# 机器管理的桌面设置分片"],
+            )
+        }) {
+            self.status = format!("Home 未写入：{err:#}");
+            return Ok(());
+        }
         self.home_dirty_users.remove(&user);
         self.status = if let Some(override_path) = self.current_home_user_noctalia_override_path() {
             if override_path.is_file() {
@@ -244,6 +259,32 @@ impl AppState {
     fn current_home_user_noctalia_override_path(&self) -> Option<PathBuf> {
         let user = self.current_home_user()?;
         Some(user_noctalia_override_path(&self.context.repo_root, user))
+    }
+
+    pub(crate) fn current_home_managed_guard_errors(&self) -> Vec<String> {
+        let Some(user) = self.current_home_user() else {
+            return Vec::new();
+        };
+        let settings_dir = self
+            .context
+            .repo_root
+            .join("home/users")
+            .join(user)
+            .join("managed/settings");
+
+        [
+            ("default.nix", "home-settings-default"),
+            ("desktop.nix", "home-settings-desktop"),
+            ("session.nix", "home-settings-session"),
+            ("mime.nix", "home-settings-mime"),
+        ]
+        .into_iter()
+        .filter_map(|(name, kind)| {
+            crate::ensure_existing_managed_file(&settings_dir.join(name), kind)
+                .err()
+                .map(|err| err.to_string())
+        })
+        .collect()
     }
 
     fn home_option_value(&self, option_id: &str, settings: &HomeManagedSettings) -> String {
@@ -333,6 +374,52 @@ mod tests {
         assert!(content.contains("mcb.desktopEntries.enableZed = lib.mkForce true;"));
         assert!(state.status.contains("Noctalia 顶栏仍由"));
         assert!(!state.home_dirty_users.contains("alice"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn save_current_home_settings_rejects_tampered_managed_sibling_and_keeps_dirty() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-save-tampered")?;
+        let mut state = test_state(&root);
+        let settings_dir = root.join("home/users/alice/managed/settings");
+        std::fs::create_dir_all(&settings_dir)?;
+        std::fs::write(
+            settings_dir.join("session.nix"),
+            "{ lib, ... }: { home.sessionVariables.DEMO = \"1\"; }\n",
+        )?;
+        state.home_dirty_users.insert("alice".to_string());
+
+        state.save_current_home_settings()?;
+
+        assert!(state.home_dirty_users.contains("alice"));
+        assert!(state.status.contains("Home 未写入"));
+        assert!(state.status.contains("home-settings-session"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn home_summary_lines_surface_managed_guard_errors_before_save() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-summary-tampered")?;
+        let settings_dir = root.join("home/users/alice/managed/settings");
+        std::fs::create_dir_all(&settings_dir)?;
+        std::fs::write(
+            settings_dir.join("session.nix"),
+            "{ lib, ... }: { home.sessionVariables.DEMO = \"1\"; }\n",
+        )?;
+        let state = test_state(&root);
+
+        let lines = state.home_summary_lines();
+
+        assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("home-settings-session"))
+        );
 
         std::fs::remove_dir_all(root)?;
         Ok(())
@@ -440,6 +527,7 @@ mod tests {
             actions_focus: 0,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
             status: String::new(),
         }
     }

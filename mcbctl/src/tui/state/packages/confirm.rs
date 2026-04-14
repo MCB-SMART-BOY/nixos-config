@@ -95,7 +95,7 @@ impl AppState {
         self.package_group_input.clear();
     }
 
-    pub(super) fn ensure_valid_package_group_filter(&mut self) {
+    pub(crate) fn ensure_valid_package_group_filter(&mut self) {
         let Some(filter) = self.package_group_filter.clone() else {
             return;
         };

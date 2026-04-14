@@ -132,7 +132,7 @@ impl AppState {
             .then_with(|| left.cmp(right))
     }
 
-    pub(super) fn package_groups_for_user(&self, user: &str) -> Vec<String> {
+    pub(crate) fn package_groups_for_user(&self, user: &str) -> Vec<String> {
         let mut groups = BTreeSet::new();
 
         for entry in &self.context.catalog_entries {
@@ -233,7 +233,7 @@ impl AppState {
             .collect()
     }
 
-    pub(super) fn clamp_package_cursor(&mut self) {
+    pub(crate) fn clamp_package_cursor(&mut self) {
         let len = self.package_filtered_count();
         if len == 0 {
             self.package_cursor = 0;

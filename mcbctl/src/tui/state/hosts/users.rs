@@ -60,6 +60,15 @@ impl AppState {
                 lines.push(format!("- {err}"));
             }
         }
+        let guard_errors = self.current_host_managed_guard_errors();
+        if guard_errors.is_empty() {
+            lines.push("受管保护：通过".to_string());
+        } else {
+            lines.push("受管保护：存在问题".to_string());
+            for err in guard_errors {
+                lines.push(format!("- {err}"));
+            }
+        }
 
         lines.push(String::new());
         lines.push("当前页说明：".to_string());
@@ -222,8 +231,15 @@ impl AppState {
 
         let host_dir = self.context.repo_root.join("hosts").join(&host);
         let managed_dir = host_dir.join("managed");
-        ensure_managed_host_layout(&managed_dir)?;
-        let users_path = write_host_users_fragment(&managed_dir, &settings)?;
+        let users_path = match ensure_managed_host_layout(&managed_dir)
+            .and_then(|()| write_host_users_fragment(&managed_dir, &settings))
+        {
+            Ok(path) => path,
+            Err(err) => {
+                self.status = format!("Users 未写入：{err:#}");
+                return Ok(());
+            }
+        };
         self.host_dirty_user_hosts.remove(&host);
         self.status = format!("已写入 {}", users_path.display());
         Ok(())
@@ -393,6 +409,50 @@ mod tests {
     }
 
     #[test]
+    fn save_current_host_users_rejects_tampered_runtime_fragment_and_keeps_dirty() -> Result<()> {
+        let root = create_temp_repo("mcbctl-host-users-tampered")?;
+        let mut state = test_state(&root);
+        let managed_dir = root.join("hosts/demo/managed");
+        std::fs::create_dir_all(&managed_dir)?;
+        std::fs::write(
+            managed_dir.join("network.nix"),
+            "{ lib, ... }: { mcb.proxyMode = lib.mkForce \"http\"; }\n",
+        )?;
+        state.host_dirty_user_hosts.insert("demo".to_string());
+
+        state.save_current_host_users()?;
+
+        let users_path = managed_host_users_path(&root, "demo");
+        assert!(!users_path.exists());
+        assert!(state.host_dirty_user_hosts.contains("demo"));
+        assert!(state.status.contains("Users 未写入"));
+        assert!(state.status.contains("host-network"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn users_summary_lines_surface_managed_guard_errors_before_save() -> Result<()> {
+        let root = create_temp_repo("mcbctl-host-users-summary")?;
+        let managed_dir = root.join("hosts/demo/managed");
+        std::fs::create_dir_all(&managed_dir)?;
+        std::fs::write(
+            managed_dir.join("network.nix"),
+            "{ lib, ... }: { mcb.proxyMode = lib.mkForce \"http\"; }\n",
+        )?;
+        let state = test_state(&root);
+
+        let lines = state.users_summary_lines();
+
+        assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
+        assert!(lines.iter().any(|line| line.contains("host-network")));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
     fn adjust_users_field_refuses_to_modify_unavailable_host_settings() {
         let mut state = test_state(Path::new("/repo"));
         state.host_settings_by_name.clear();
@@ -472,6 +532,7 @@ mod tests {
             actions_focus: 0,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
             status: String::new(),
         }
     }

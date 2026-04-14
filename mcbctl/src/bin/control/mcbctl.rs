@@ -1095,7 +1095,7 @@ mod tests {
     }
 
     #[test]
-    fn assess_doctor_environment_requires_nix_and_nixos_rebuild() {
+    fn assess_doctor_environment_requires_nix_and_warns_for_nixos_rebuild() {
         let assessment = assess_doctor_environment(DoctorToolStatus {
             git: true,
             nix: false,
@@ -1103,7 +1103,7 @@ mod tests {
             cargo: true,
         });
 
-        assert_eq!(assessment.blocking_issues.len(), 2);
+        assert_eq!(assessment.blocking_issues.len(), 1);
         assert!(
             assessment
                 .blocking_issues
@@ -1112,11 +1112,11 @@ mod tests {
         );
         assert!(
             assessment
-                .blocking_issues
+                .warnings
                 .iter()
-                .any(|issue| issue.contains("缺少 nixos-rebuild"))
+                .any(|warning| warning.contains("缺少 nixos-rebuild"))
         );
-        assert!(assessment.warnings.is_empty());
+        assert_eq!(assessment.warnings.len(), 1);
     }
 
     #[test]

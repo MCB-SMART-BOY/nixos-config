@@ -18,6 +18,12 @@ nix run .#mcb-deploy -- --help
 
 ## 2. TUI 页面
 
+- `Overview`
+  汇总当前 host、repo / doctor 健康、dirty 状态和推荐主动作
+- `Apply`
+  做当前 host 的默认应用预览、同步和 `nixos-rebuild`
+- `Inspect`
+  看健康详情，并执行 `flake check` / 上游 pin 检查等 Inspect 动作
 - `Packages`
   写 `home/users/<user>/managed/packages/*.nix`
 - `Home`
@@ -26,10 +32,19 @@ nix run .#mcb-deploy -- --help
   写 `hosts/<host>/managed/users.nix`
 - `Hosts`
   写 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`
-- `Deploy`
-  做同步和 `nixos-rebuild`
 - `Actions`
-  做 flake 检查、追新、同步和重建
+  迁移期入口页，把历史动作按 `Inspect / Apply / Advanced` 分组跳转
+
+当前页语义补充：
+
+- `Overview`：`Enter` 打开推荐主动作，`a` 尝试直接执行当前 Apply，`p` 打开 Apply，`i` 打开 Inspect，`r/d/R` 刷新健康项
+- `Overview`：健康区现在也会汇总 `Packages / Home / Users / Hosts` 的 `受管保护` 快照，进入具体页面前就能看到哪个目标会阻塞保存
+- `Overview`：当推荐主动作变成 `Review Save Guards` 时，`Enter` 会直接跳到最该先处理的页面；host runtime 分片问题优先跳 `Hosts`，host users/default 问题优先跳 `Users`
+- `Overview`：跳过去后还会把左侧焦点尽量落到最相关的字段或组过滤，而不是只切页
+- `Apply`：左侧先看执行门槛和命令预览，右侧再调整高级字段；打开高级模式后，右下角会出现 `Advanced Workspace`，可用 `J/K` 选高级动作、`X` 执行；`x` 仍按当前 Apply 路径处理
+- `Inspect`：`j/k` 选检查动作，`r/d/R` 刷新健康项，`x` 执行当前 Inspect 动作；右上角 `Health Details` 现在会带上四条写回链的 `受管保护` 快照和阻塞细节
+- `Packages / Home / Users / Hosts`：右侧摘要现在会提前显示 `受管保护` 状态；如果同一 `managed` 子树里已有损坏分片，或者 `managed/packages/` 里混入了非受管陈旧组文件，会先在页面里提示
+- `Actions`：`Enter/Space/x` 现在都只打开归宿页；`Advanced` 动作会跳到 Apply 页里的 `Advanced Workspace`
 
 ## 3. 保存规则
 
@@ -39,7 +54,10 @@ nix run .#mcb-deploy -- --help
 
 1. 先跑当前页或整机级校验
 2. 再确认目标文件是有效受管文件，或显式迁移后留下的受管文件
-3. 如果目标文件看起来被手改破坏，直接拒绝覆盖
+3. `Home` / `Users` / `Hosts` 还会顺带检查同一 `managed` 子树里的兄弟分片是否仍然有效
+4. 如果目标文件或兄弟分片看起来被手改破坏，直接拒绝覆盖
+
+保存失败时，TUI 现在会保留 dirty 状态并把原因写到状态栏，不会直接退出。
 
 如果仓库来自旧树，先跑一次：
 

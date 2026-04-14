@@ -29,7 +29,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Grouped Actions"),
+                .title("Transition Actions"),
         )
         .highlight_style(
             Style::default()
@@ -47,7 +47,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Action Summary"),
+                .title("Transition Summary"),
         )
         .wrap(Wrap { trim: false });
     frame.render_widget(summary, chunks[1]);

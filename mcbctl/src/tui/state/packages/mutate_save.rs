@@ -18,8 +18,25 @@ impl AppState {
             .join("home/users")
             .join(&user)
             .join("managed");
-        ensure_managed_packages_layout(&managed_dir)?;
-        write_grouped_managed_packages(&managed_dir, &self.context.catalog_entries, &selected)?;
+        let guard_errors = managed_package_guard_errors(
+            &managed_dir,
+            &self.context.catalog_entries,
+            &selected,
+        );
+        if !guard_errors.is_empty() {
+            self.status = format!("Packages 未写入：{}", guard_errors.join("；"));
+            return Ok(());
+        }
+        if let Err(err) = ensure_managed_packages_layout(&managed_dir) {
+            self.status = format!("Packages 未写入：{err:#}");
+            return Ok(());
+        }
+        if let Err(err) =
+            write_grouped_managed_packages(&managed_dir, &self.context.catalog_entries, &selected)
+        {
+            self.status = format!("Packages 未写入：{err:#}");
+            return Ok(());
+        }
         self.package_dirty_users.remove(&user);
         self.status = format!("已写入 {}", managed_dir.join("packages").display());
         Ok(())
@@ -44,11 +61,10 @@ mod tests {
         );
         state.package_dirty_users.insert("alice".to_string());
 
-        let err = state
-            .save_current_user_packages()
-            .expect_err("unknown selected ids should block package save");
+        state.save_current_user_packages()?;
         assert!(
-            err.to_string()
+            state
+                .status
                 .contains("refusing to write package selections with unknown catalog ids")
         );
         assert!(state.package_dirty_users.contains("alice"));
@@ -77,6 +93,32 @@ mod tests {
         assert!(content.contains("pkgs.hello"));
         assert!(!state.package_dirty_users.contains("alice"));
         assert!(state.status.contains("managed/packages"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn save_current_user_packages_rejects_guard_errors_and_keeps_dirty() -> Result<()> {
+        let root = create_temp_repo("mcbctl-packages-save-guard")?;
+        let grouped_dir = root.join("home/users/alice/managed/packages");
+        std::fs::create_dir_all(&grouped_dir)?;
+        std::fs::write(
+            grouped_dir.join("manual.nix"),
+            "{ pkgs, ... }: { home.packages = [ pkgs.hello ]; }\n",
+        )?;
+
+        let mut state = test_state(&root);
+        state.package_dirty_users.insert("alice".to_string());
+
+        state.save_current_user_packages()?;
+
+        assert!(
+            state
+                .status
+                .contains("refusing to remove stale unmanaged package file")
+        );
+        assert!(state.package_dirty_users.contains("alice"));
 
         std::fs::remove_dir_all(root)?;
         Ok(())
@@ -153,6 +195,7 @@ mod tests {
             actions_focus: 0,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
             status: String::new(),
         }
     }

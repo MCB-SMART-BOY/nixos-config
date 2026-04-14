@@ -254,7 +254,156 @@ impl AppState {
             && self.package_dirty_users.contains(user)
         {
             lines.push("状态：当前用户有未保存修改".to_string());
+        } else {
+            lines.push("状态：当前用户没有未保存修改".to_string());
         }
+
+        let guard_errors = self.current_package_managed_guard_errors();
+        if self.current_package_user().is_none() {
+            lines.push("受管保护：无可用目标".to_string());
+        } else if guard_errors.is_empty() {
+            lines.push("受管保护：通过".to_string());
+        } else {
+            lines.push("受管保护：存在问题".to_string());
+            for err in guard_errors {
+                lines.push(format!("- {err}"));
+            }
+        }
+
         lines
+    }
+
+    pub fn current_package_managed_guard_errors(&self) -> Vec<String> {
+        let Some(user) = self.current_package_user() else {
+            return Vec::new();
+        };
+        let managed_dir = self
+            .context
+            .repo_root
+            .join("home/users")
+            .join(user)
+            .join("managed");
+        let selected = self
+            .package_user_selections
+            .get(user)
+            .cloned()
+            .unwrap_or_default();
+        managed_package_guard_errors(&managed_dir, &self.context.catalog_entries, &selected)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::path::Path;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn package_summary_lines_surface_managed_guard_errors() -> Result<()> {
+        let root = create_temp_repo("mcbctl-packages-summary-guards")?;
+        let grouped_dir = root.join("home/users/alice/managed/packages");
+        std::fs::create_dir_all(&grouped_dir)?;
+        std::fs::write(
+            grouped_dir.join("manual.nix"),
+            "{ pkgs, ... }: { home.packages = [ pkgs.hello ]; }\n",
+        )?;
+
+        let state = test_state(&root);
+        let lines = state.package_summary_lines();
+
+        assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
+        assert!(lines.iter().any(|line| {
+            line.contains("refusing to remove stale unmanaged package file")
+        }));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    fn test_state(root: &Path) -> AppState {
+        AppState {
+            context: AppContext {
+                repo_root: root.to_path_buf(),
+                etc_root: PathBuf::from("/etc/nixos"),
+                current_host: "demo".to_string(),
+                current_system: "x86_64-linux".to_string(),
+                current_user: "alice".to_string(),
+                privilege_mode: "sudo-available".to_string(),
+                hosts: vec!["demo".to_string()],
+                users: vec!["alice".to_string()],
+                catalog_path: root.join("catalog/packages"),
+                catalog_groups_path: root.join("catalog/groups.toml"),
+                catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_entries: vec![CatalogEntry {
+                    id: "hello".to_string(),
+                    name: "Hello".to_string(),
+                    category: "cli".to_string(),
+                    group: Some("misc".to_string()),
+                    expr: "pkgs.hello".to_string(),
+                    description: None,
+                    keywords: Vec::new(),
+                    source: Some("nixpkgs".to_string()),
+                    platforms: Vec::new(),
+                    desktop_entry_flag: None,
+                }],
+                catalog_groups: BTreeMap::new(),
+                catalog_home_options: Vec::new(),
+                catalog_categories: Vec::new(),
+                catalog_sources: Vec::new(),
+            },
+            active_page: 0,
+            deploy_focus: 0,
+            target_host: "demo".to_string(),
+            deploy_task: DeployTask::DirectDeploy,
+            deploy_source: DeploySource::CurrentRepo,
+            deploy_action: DeployAction::Switch,
+            flake_update: false,
+            show_advanced: false,
+            users_focus: 0,
+            hosts_focus: 0,
+            users_text_mode: None,
+            hosts_text_mode: None,
+            host_text_input: String::new(),
+            host_settings_by_name: BTreeMap::new(),
+            host_settings_errors_by_name: BTreeMap::new(),
+            host_dirty_user_hosts: BTreeSet::new(),
+            host_dirty_runtime_hosts: BTreeSet::new(),
+            package_user_index: 0,
+            package_mode: PackageDataMode::Local,
+            package_cursor: 0,
+            package_category_index: 0,
+            package_group_filter: None,
+            package_source_filter: None,
+            package_search: String::new(),
+            package_search_result_indices: Vec::new(),
+            package_local_entry_ids: BTreeSet::from(["hello".to_string()]),
+            package_search_mode: false,
+            package_group_create_mode: false,
+            package_group_rename_mode: false,
+            package_group_rename_source: String::new(),
+            package_group_input: String::new(),
+            package_user_selections: BTreeMap::new(),
+            package_dirty_users: BTreeSet::new(),
+            home_user_index: 0,
+            home_focus: 0,
+            home_settings_by_user: BTreeMap::new(),
+            home_dirty_users: BTreeSet::new(),
+            actions_focus: 0,
+            overview_repo_integrity: OverviewCheckState::NotRun,
+            overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
+            status: String::new(),
+        }
+    }
+
+    fn create_temp_repo(prefix: &str) -> Result<PathBuf> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(&root)?;
+        Ok(root)
     }
 }

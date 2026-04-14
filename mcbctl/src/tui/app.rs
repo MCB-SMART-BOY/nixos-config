@@ -55,8 +55,18 @@ fn run_loop(terminal: &mut CrosstermTerminal, state: &mut AppState) -> Result<()
 
         match key.code {
             KeyCode::Char('q') => break,
-            KeyCode::Tab if key.modifiers.is_empty() => state.next_page(),
-            KeyCode::BackTab if key.modifiers.is_empty() => state.previous_page(),
+            KeyCode::Tab if key.modifiers.is_empty() => {
+                state.next_page();
+                if state.page() == Page::Inspect {
+                    state.ensure_inspect_action_focus();
+                }
+            }
+            KeyCode::BackTab if key.modifiers.is_empty() => {
+                state.previous_page();
+                if state.page() == Page::Inspect {
+                    state.ensure_inspect_action_focus();
+                }
+            }
             _ => handle_page_key(terminal, state, key.code, key.modifiers)?,
         }
     }
@@ -106,12 +116,47 @@ fn handle_page_key(
 
     match state.page() {
         Page::Dashboard => match code {
+            KeyCode::Enter | KeyCode::Char(' ') => state.open_overview_primary_action(),
+            KeyCode::Char('p') => {
+                state.set_page(Page::Deploy);
+                state.show_advanced = false;
+                state.set_feedback_with_next_step(
+                    crate::tui::state::UiFeedbackLevel::Info,
+                    crate::tui::state::UiFeedbackScope::Apply,
+                    "Overview 已跳到 Apply。",
+                    "在 Apply 查看预览并决定下一步",
+                );
+            }
+            KeyCode::Char('i') => {
+                state.set_page(Page::Inspect);
+                state.ensure_inspect_action_focus();
+                state.set_feedback_with_next_step(
+                    crate::tui::state::UiFeedbackLevel::Info,
+                    crate::tui::state::UiFeedbackScope::Inspect,
+                    "Overview 已跳到 Inspect。",
+                    "在 Inspect 查看健康详情和检查命令",
+                );
+            }
+            KeyCode::Char('a') => {
+                if state.apply_model().can_apply_current_host {
+                    run_foreground_task(terminal, state, "Apply", |state| state.execute_deploy())?
+                } else {
+                    state.open_overview_primary_action();
+                }
+            }
             KeyCode::Char('r') => state.refresh_overview_repo_integrity(),
             KeyCode::Char('d') => state.refresh_overview_doctor(),
             KeyCode::Char('R') => state.refresh_overview_health(),
             _ => {}
         },
         Page::Deploy => match code {
+            KeyCode::Char('J') if state.show_advanced => state.next_advanced_action(),
+            KeyCode::Char('K') if state.show_advanced => state.previous_advanced_action(),
+            KeyCode::Char('X') if state.show_advanced => {
+                run_foreground_task(terminal, state, "Advanced", |state| {
+                    state.execute_current_advanced_action_from_apply()
+                })?
+            }
             KeyCode::Down | KeyCode::Char('j') => state.next_deploy_field(),
             KeyCode::Up | KeyCode::Char('k') => state.previous_deploy_field(),
             KeyCode::Left | KeyCode::Char('h') => state.adjust_deploy_field(-1),
@@ -119,8 +164,20 @@ fn handle_page_key(
                 state.adjust_deploy_field(1)
             }
             KeyCode::Char('x') => {
-                run_foreground_task(terminal, state, "Deploy", |state| state.execute_deploy())?
+                run_foreground_task(terminal, state, "Apply", |state| state.execute_deploy())?
             }
+            _ => {}
+        },
+        Page::Inspect => match code {
+            KeyCode::Down | KeyCode::Char('j') => state.next_inspect_action(),
+            KeyCode::Up | KeyCode::Char('k') => state.previous_inspect_action(),
+            KeyCode::Char('r') => state.refresh_overview_repo_integrity(),
+            KeyCode::Char('d') => state.refresh_overview_doctor(),
+            KeyCode::Char('R') => state.refresh_overview_health(),
+            KeyCode::Char('x') => run_foreground_task(terminal, state, "Inspect", |state| {
+                state.ensure_inspect_action_focus();
+                state.execute_current_action()
+            })?,
             _ => {}
         },
         Page::Users => match code {
@@ -187,7 +244,7 @@ fn handle_page_key(
             KeyCode::Up | KeyCode::Char('k') => state.previous_action_item(),
             KeyCode::Enter | KeyCode::Char(' ') => state.open_current_action_destination(),
             KeyCode::Char('x') => run_foreground_task(terminal, state, "Actions", |state| {
-                state.execute_current_action()
+                state.execute_current_action_from_actions()
             })?,
             _ => {}
         },

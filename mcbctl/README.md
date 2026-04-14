@@ -33,12 +33,21 @@
 
 `mcbctl` 当前负责这些页面：
 
+- `Overview`
+- `Apply`
+- `Inspect`
 - `Packages`
 - `Home`
 - `Users`
 - `Hosts`
-- `Deploy`
 - `Actions`
+
+其中：
+
+- `Overview` 负责健康总览、dirty 状态和推荐主动作
+- `Apply` 负责当前 host 的默认应用路径和执行预览
+- `Inspect` 负责健康详情和检查命令
+- `Actions` 当前是过渡入口页，不是长期职责终点
 
 写回位置：
 
@@ -58,6 +67,7 @@
 - `extract-managed` 负责把残留在 `managed/` 里的手写内容抽到 `local.auto.nix` + `local-extracted/*.nix`
 - `repo-integrity` / `lint-repo` 会检查 kind、marker 和校验摘要
 - 被手改破坏的受管文件会被拒绝覆盖
+- `Home` / `Users` / `Hosts` 保存时会连同同一 `managed` 子树的兄弟分片一起检查
 - `managed/packages/` 中的非受管陈旧文件不会被自动删除
 
 这条规则的目的不是“更严格”，而是避免 TUI 静默吃掉人工内容。

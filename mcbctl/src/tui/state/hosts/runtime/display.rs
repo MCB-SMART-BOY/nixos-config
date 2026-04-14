@@ -168,6 +168,15 @@ impl AppState {
                 lines.push(format!("- {err}"));
             }
         }
+        let guard_errors = self.current_host_managed_guard_errors();
+        if guard_errors.is_empty() {
+            lines.push("受管保护：通过".to_string());
+        } else {
+            lines.push("受管保护：存在问题".to_string());
+            for err in guard_errors {
+                lines.push(format!("- {err}"));
+            }
+        }
 
         lines.push(String::new());
         lines.push("当前页说明：".to_string());
@@ -179,5 +188,120 @@ impl AppState {
                 .to_string(),
         );
         lines
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn hosts_summary_lines_surface_managed_guard_errors_before_save() -> Result<()> {
+        let root = create_temp_repo("mcbctl-host-runtime-summary")?;
+        let managed_dir = root.join("hosts/demo/managed");
+        std::fs::create_dir_all(&managed_dir)?;
+        std::fs::write(
+            managed_dir.join("users.nix"),
+            "{ lib, ... }: { mcb.user = lib.mkForce \"alice\"; }\n",
+        )?;
+        let state = test_state(&root);
+
+        let lines = state.hosts_summary_lines();
+
+        assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
+        assert!(lines.iter().any(|line| line.contains("host-users")));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    fn test_state(root: &Path) -> AppState {
+        let mut host_settings_by_name = BTreeMap::new();
+        host_settings_by_name.insert("demo".to_string(), valid_host_settings());
+
+        AppState {
+            context: AppContext {
+                repo_root: root.to_path_buf(),
+                etc_root: PathBuf::from("/etc/nixos"),
+                current_host: "demo".to_string(),
+                current_system: "x86_64-linux".to_string(),
+                current_user: "alice".to_string(),
+                privilege_mode: "sudo-available".to_string(),
+                hosts: vec!["demo".to_string()],
+                users: vec!["alice".to_string()],
+                catalog_path: root.join("catalog/packages"),
+                catalog_groups_path: root.join("catalog/groups.toml"),
+                catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_entries: Vec::new(),
+                catalog_groups: BTreeMap::new(),
+                catalog_home_options: Vec::new(),
+                catalog_categories: Vec::new(),
+                catalog_sources: Vec::new(),
+            },
+            active_page: 0,
+            deploy_focus: 0,
+            target_host: "demo".to_string(),
+            deploy_task: DeployTask::DirectDeploy,
+            deploy_source: DeploySource::CurrentRepo,
+            deploy_action: DeployAction::Switch,
+            flake_update: false,
+            show_advanced: false,
+            users_focus: 0,
+            hosts_focus: 0,
+            users_text_mode: None,
+            hosts_text_mode: None,
+            host_text_input: String::new(),
+            host_settings_by_name,
+            host_settings_errors_by_name: BTreeMap::new(),
+            host_dirty_user_hosts: BTreeSet::new(),
+            host_dirty_runtime_hosts: BTreeSet::new(),
+            package_user_index: 0,
+            package_mode: PackageDataMode::Search,
+            package_cursor: 0,
+            package_category_index: 0,
+            package_group_filter: None,
+            package_source_filter: None,
+            package_search: String::new(),
+            package_search_result_indices: Vec::new(),
+            package_local_entry_ids: BTreeSet::new(),
+            package_search_mode: false,
+            package_group_create_mode: false,
+            package_group_rename_mode: false,
+            package_group_rename_source: String::new(),
+            package_group_input: String::new(),
+            package_user_selections: BTreeMap::new(),
+            package_dirty_users: BTreeSet::new(),
+            home_user_index: 0,
+            home_focus: 0,
+            home_settings_by_user: BTreeMap::new(),
+            home_dirty_users: BTreeSet::new(),
+            actions_focus: 0,
+            overview_repo_integrity: OverviewCheckState::NotRun,
+            overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
+            status: String::new(),
+        }
+    }
+
+    fn valid_host_settings() -> HostManagedSettings {
+        HostManagedSettings {
+            primary_user: "alice".to_string(),
+            users: vec!["alice".to_string()],
+            admin_users: vec!["alice".to_string()],
+            ..HostManagedSettings::default()
+        }
+    }
+
+    fn create_temp_repo(prefix: &str) -> Result<PathBuf> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(&root)?;
+        Ok(root)
     }
 }

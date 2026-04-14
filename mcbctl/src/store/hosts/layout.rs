@@ -1,4 +1,4 @@
-use crate::write_managed_file;
+use crate::{ensure_existing_managed_file, write_managed_file};
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,15 @@ pub fn ensure_managed_host_layout(managed_dir: &Path) -> Result<()> {
         &render_managed_host_default_file(),
         &["# TUI / 自动化工具专用主机入口。"],
     )?;
+
+    for (name, kind) in [
+        ("users.nix", "host-users"),
+        ("network.nix", "host-network"),
+        ("gpu.nix", "host-gpu"),
+        ("virtualization.nix", "host-virtualization"),
+    ] {
+        ensure_existing_managed_file(&managed_dir.join(name), kind)?;
+    }
 
     Ok(())
 }

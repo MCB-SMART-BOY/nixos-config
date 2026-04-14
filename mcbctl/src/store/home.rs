@@ -1,5 +1,5 @@
 use crate::domain::tui::{HomeManagedSettings, ManagedBarProfile, ManagedToggle};
-use crate::write_managed_file;
+use crate::{ensure_existing_managed_file, write_managed_file};
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::fs;
@@ -54,13 +54,14 @@ pub fn ensure_managed_settings_layout(managed_dir: &Path) -> Result<()> {
         ("mime.nix", render_settings_placeholder_file("mime")),
     ] {
         let path = settings_dir.join(name);
+        let kind = match name {
+            "desktop.nix" => "home-settings-desktop",
+            "session.nix" => "home-settings-session",
+            "mime.nix" => "home-settings-mime",
+            _ => unreachable!("unexpected managed settings placeholder"),
+        };
+        ensure_existing_managed_file(&path, kind)?;
         if !path.exists() {
-            let kind = match name {
-                "desktop.nix" => "home-settings-desktop",
-                "session.nix" => "home-settings-session",
-                "mime.nix" => "home-settings-mime",
-                _ => unreachable!("unexpected managed settings placeholder"),
-            };
             write_managed_file(&path, kind, &content, &["# 机器管理的"])?;
         }
     }

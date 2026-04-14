@@ -44,14 +44,16 @@ nix run .#mcbctl -- build-host --dry-run
 
 ## TUI 边界
 
+- `Overview`：汇总当前 host、repo / doctor 健康、dirty 状态和推荐主动作
+- `Apply`：承接当前 host 的默认应用路径，显示执行门槛、预览和高级 handoff
+- `Inspect`：承接 `repo-integrity`、`doctor`、`flake check`、上游 pin 检查等检查动作
 - `Packages`：写 `home/users/<user>/managed/packages/*.nix`
 - `Home`：写 `home/users/<user>/managed/settings/desktop.nix`
 - `Users`：写 `hosts/<host>/managed/users.nix`
 - `Hosts`：写 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`
-- `Deploy`：处理仓库同步与 `nixos-rebuild`
-- `Actions`：处理 flake 检查、追新、同步、重建和向导跳转
+- `Actions`：过渡入口页；把历史杂糅动作按 `Inspect / Apply / Advanced` 归宿重新分发
 
-这些页面保持当前职责边界，不通过 shell 函数补业务逻辑。
+这些页面保持当前职责边界，不通过 shell 函数补业务逻辑。`Actions` 当前仍保留，但定位已经变成迁移期入口，而不是长期主页面。
 
 ## Managed 写回规则
 
@@ -64,6 +66,7 @@ nix run .#mcbctl -- build-host --dry-run
 - `mcbctl extract-managed` 会把残留在 `managed/` 里的手写模块抽到 `local.auto.nix` + `local-extracted/*.nix`
 - `repo-integrity` / `lint-repo` 会把旧格式或错误 kind 的受管文件直接报出来
 - TUI 只覆盖自己确认受管、且未被手改破坏的文件
+- `Home` / `Users` / `Hosts` 保存时，还会检查同一 `managed` 子树里的兄弟分片
 - 遇到陌生内容、损坏内容或 `managed/packages/` 中的非受管陈旧组文件，会直接拒绝覆盖或删除
 
 运行时已经不再自动兼容旧 managed 格式；迁移只能通过显式命令完成。
@@ -85,7 +88,7 @@ nix run .#mcbctl -- build-host --dry-run
 - `nix run .#mcbctl`
 - `nix run .#mcbctl -- deploy`
 - `nix run .#mcb-deploy`
-- `Packages / Home / Users / Deploy / Actions`
+- `Overview / Apply / Inspect / Packages / Home / Users / Hosts / Actions`
 - `hosts/templates/` 与 `home/templates/users/`
 - `mcb.hardware.gpu = igpu | hybrid | dgpu`
 - `mcb.proxyMode = "tun" | "http" | "off"` 与 per-user TUN

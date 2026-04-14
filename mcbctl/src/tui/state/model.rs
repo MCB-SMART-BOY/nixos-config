@@ -1,5 +1,77 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum UiFeedbackLevel {
+    #[default]
+    Info,
+    Success,
+    Warning,
+    Error,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum UiFeedbackScope {
+    #[default]
+    Global,
+    Overview,
+    Apply,
+    Packages,
+    Home,
+    Users,
+    Hosts,
+    Actions,
+    Inspect,
+    Advanced,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct UiFeedback {
+    pub level: UiFeedbackLevel,
+    pub scope: UiFeedbackScope,
+    pub message: String,
+    pub next_step: Option<String>,
+}
+
+impl UiFeedback {
+    pub(crate) fn new(
+        level: UiFeedbackLevel,
+        scope: UiFeedbackScope,
+        message: impl Into<String>,
+        next_step: Option<String>,
+    ) -> Self {
+        Self {
+            level,
+            scope,
+            message: message.into(),
+            next_step,
+        }
+    }
+
+    pub(crate) fn info(scope: UiFeedbackScope, message: impl Into<String>) -> Self {
+        Self::new(UiFeedbackLevel::Info, scope, message, None)
+    }
+
+    pub(crate) fn with_next_step(
+        level: UiFeedbackLevel,
+        scope: UiFeedbackScope,
+        message: impl Into<String>,
+        next_step: impl Into<String>,
+    ) -> Self {
+        Self::new(level, scope, message, Some(next_step.into()))
+    }
+
+    pub(crate) fn legacy_status_text(&self) -> String {
+        if self.message.is_empty() {
+            return String::new();
+        }
+
+        match &self.next_step {
+            Some(next_step) => format!("{} 下一步：{}", self.message, next_step),
+            None => self.message.clone(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AppContext {
     pub repo_root: PathBuf,
@@ -102,6 +174,7 @@ pub struct AppState {
     pub actions_focus: usize,
     pub(crate) overview_repo_integrity: OverviewCheckState,
     pub(crate) overview_doctor: OverviewCheckState,
+    pub(crate) feedback: UiFeedback,
     pub status: String,
 }
 
@@ -156,6 +229,11 @@ impl AppState {
         let overview_repo_integrity =
             super::overview::repo_integrity_check_state(&context.repo_root);
 
+        let initial_feedback = UiFeedback::info(
+            UiFeedbackScope::Packages,
+            "Packages 现在默认使用 nixpkgs 搜索；本地覆盖与已声明软件可按 f 切回查看。",
+        );
+
         Self {
             context,
             active_page: 0,
@@ -198,8 +276,8 @@ impl AppState {
             actions_focus: 0,
             overview_repo_integrity,
             overview_doctor: OverviewCheckState::NotRun,
-            status: "Packages 现在默认使用 nixpkgs 搜索；本地覆盖与已声明软件可按 f 切回查看。"
-                .to_string(),
+            feedback: initial_feedback.clone(),
+            status: initial_feedback.legacy_status_text(),
         }
     }
 
@@ -251,5 +329,79 @@ impl AppState {
 
     pub fn active_hosts_text_mode(&self) -> Option<HostsTextMode> {
         self.hosts_text_mode
+    }
+
+    pub(crate) fn set_feedback(&mut self, feedback: UiFeedback) {
+        self.status = feedback.legacy_status_text();
+        self.feedback = feedback;
+    }
+
+    pub(crate) fn set_feedback_message(
+        &mut self,
+        level: UiFeedbackLevel,
+        scope: UiFeedbackScope,
+        message: impl Into<String>,
+    ) {
+        self.set_feedback(UiFeedback::new(level, scope, message, None));
+    }
+
+    pub(crate) fn set_feedback_with_next_step(
+        &mut self,
+        level: UiFeedbackLevel,
+        scope: UiFeedbackScope,
+        message: impl Into<String>,
+        next_step: impl Into<String>,
+    ) {
+        self.set_feedback(UiFeedback::with_next_step(level, scope, message, next_step));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    #[test]
+    fn structured_feedback_updates_legacy_status_text() {
+        let mut state = AppState::new(AppContext {
+            repo_root: PathBuf::from("/repo"),
+            etc_root: PathBuf::from("/etc/nixos"),
+            current_host: "demo".to_string(),
+            current_system: "x86_64-linux".to_string(),
+            current_user: "alice".to_string(),
+            privilege_mode: "sudo-available".to_string(),
+            hosts: vec!["demo".to_string()],
+            users: vec!["alice".to_string()],
+            catalog_path: PathBuf::from("catalog/packages"),
+            catalog_groups_path: PathBuf::from("catalog/groups.toml"),
+            catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_entries: Vec::new(),
+            catalog_groups: BTreeMap::new(),
+            catalog_home_options: Vec::new(),
+            catalog_categories: Vec::new(),
+            catalog_sources: Vec::new(),
+        });
+
+        state.set_feedback_with_next_step(
+            UiFeedbackLevel::Warning,
+            UiFeedbackScope::Apply,
+            "当前组合不能直接 Apply。",
+            "打开 Apply 查看 blocker",
+        );
+
+        assert_eq!(
+            state.feedback,
+            UiFeedback {
+                level: UiFeedbackLevel::Warning,
+                scope: UiFeedbackScope::Apply,
+                message: "当前组合不能直接 Apply。".to_string(),
+                next_step: Some("打开 Apply 查看 blocker".to_string()),
+            }
+        );
+        assert_eq!(
+            state.status,
+            "当前组合不能直接 Apply。 下一步：打开 Apply 查看 blocker"
+        );
     }
 }

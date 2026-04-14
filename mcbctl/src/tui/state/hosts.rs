@@ -32,6 +32,33 @@ impl AppState {
             .then(|| self.host_settings_unavailable_message(&self.target_host))
     }
 
+    pub(super) fn host_managed_guard_errors(&self, host: &str) -> Vec<String> {
+        let managed_dir = self
+            .context
+            .repo_root
+            .join("hosts")
+            .join(host)
+            .join("managed");
+        [
+            ("default.nix", "host-managed-default"),
+            ("users.nix", "host-users"),
+            ("network.nix", "host-network"),
+            ("gpu.nix", "host-gpu"),
+            ("virtualization.nix", "host-virtualization"),
+        ]
+        .into_iter()
+        .filter_map(|(name, kind)| {
+            crate::ensure_existing_managed_file(&managed_dir.join(name), kind)
+                .err()
+                .map(|err| err.to_string())
+        })
+        .collect()
+    }
+
+    pub(super) fn current_host_managed_guard_errors(&self) -> Vec<String> {
+        self.host_managed_guard_errors(&self.target_host)
+    }
+
     pub(super) fn block_when_current_host_settings_unavailable(&mut self, action: &str) -> bool {
         let Some(message) = self.current_host_settings_unavailable_message() else {
             return false;
@@ -116,6 +143,7 @@ impl AppState {
 mod tests {
     use super::*;
     use std::collections::{BTreeMap, BTreeSet};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn host_configuration_validation_errors_surface_load_failures() {
@@ -146,6 +174,33 @@ mod tests {
             .expect_err("unavailable host settings should block validation");
         assert!(err.to_string().contains("配置未通过校验"));
         assert!(err.to_string().contains("配置读取失败"));
+    }
+
+    #[test]
+    fn current_host_managed_guard_errors_surface_invalid_sibling_fragments() -> Result<()> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!(
+            "mcbctl-host-guard-errors-{}-{unique}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(root.join("hosts/demo/managed"))?;
+        std::fs::write(
+            root.join("hosts/demo/managed/network.nix"),
+            "{ lib, ... }: { mcb.proxyMode = lib.mkForce \"http\"; }\n",
+        )?;
+
+        let mut state = test_state();
+        state.context.repo_root = root.clone();
+
+        let errors = state.current_host_managed_guard_errors();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("host-network"));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
     }
 
     fn test_state() -> AppState {
@@ -219,6 +274,7 @@ mod tests {
             actions_focus: 0,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
+            feedback: UiFeedback::default(),
             status: String::new(),
         }
     }
