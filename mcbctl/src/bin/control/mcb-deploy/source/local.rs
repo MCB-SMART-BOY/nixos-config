@@ -13,10 +13,7 @@ impl App {
 
     pub(crate) fn prepare_local_source(&mut self, tmp_dir: &Path, source_dir: &Path) -> Result<()> {
         self.log(&format!("使用本地仓库：{}", source_dir.display()));
-        if tmp_dir.exists() {
-            fs::remove_dir_all(tmp_dir).ok();
-        }
-        fs::create_dir_all(tmp_dir)?;
+        reset_source_workspace(tmp_dir)?;
 
         if command_exists("rsync") {
             let args = vec![

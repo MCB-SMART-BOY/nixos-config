@@ -24,7 +24,7 @@ impl App {
         }
     }
 
-    fn clone_repo(&mut self, tmp_dir: &Path, url: &str) -> Result<bool> {
+    fn clone_repo(&mut self, tmp_dir: &Path, url: &str) -> Result<()> {
         let timeout_s = self.git_clone_timeout_sec;
         if !self.source_ref.is_empty() {
             self.log(&format!(
@@ -59,22 +59,26 @@ impl App {
                         self.source_commit = commit.trim().to_string();
                     }
                     self.success(&format!("仓库拉取完成（{}）", self.source_commit));
-                    return Ok(true);
+                    return Ok(());
                 }
-                self.warn(&format!(
-                    "已拉取仓库，但 checkout 失败：{url}（ref: {}）",
-                    self.source_ref
-                ));
-                return Ok(false);
+                bail!(
+                    "已拉取仓库，但 checkout 失败：{url}（ref: {}，exit={})",
+                    self.source_ref,
+                    checkout.code().unwrap_or(1)
+                );
             }
             if status.code() == Some(124) {
-                self.warn(&format!("仓库拉取超时：{url}（{}s）", timeout_s));
+                bail!(
+                    "仓库拉取超时：{url}（ref: {}，{}s）",
+                    self.source_ref,
+                    timeout_s
+                );
             }
-            self.warn(&format!(
-                "仓库拉取或 checkout 失败：{url}（ref: {}）",
-                self.source_ref
-            ));
-            return Ok(false);
+            bail!(
+                "仓库拉取失败：{url}（ref: {}，exit={})",
+                self.source_ref,
+                status.code().unwrap_or(1)
+            );
         }
 
         self.log(&format!(
@@ -103,17 +107,25 @@ impl App {
                 self.source_commit = commit.trim().to_string();
             }
             self.success(&format!("仓库拉取完成（{}）", self.source_commit));
-            return Ok(true);
+            return Ok(());
         }
         if status.code() == Some(124) {
-            self.warn(&format!("仓库拉取超时：{url}（{}s）", timeout_s));
+            bail!(
+                "仓库拉取超时：{url}（branch: {}，{}s）",
+                self.branch,
+                timeout_s
+            );
         }
-        self.warn(&format!("仓库拉取失败：{url}"));
-        Ok(false)
+        bail!(
+            "仓库拉取失败：{url}（branch: {}，exit={})",
+            self.branch,
+            status.code().unwrap_or(1)
+        )
     }
 
-    fn clone_repo_any(&mut self, tmp_dir: &Path) -> Result<bool> {
+    fn clone_repo_any(&mut self, tmp_dir: &Path) -> Result<()> {
         self.source_commit.clear();
+        let mut failures = Vec::new();
         for (idx, url) in self.repo_urls.clone().iter().enumerate() {
             self.note(&format!(
                 "尝试镜像 ({}/{})：{}",
@@ -121,38 +133,52 @@ impl App {
                 self.repo_urls.len(),
                 url
             ));
-            if tmp_dir.exists() {
-                fs::remove_dir_all(tmp_dir).ok();
-            }
-            fs::create_dir_all(tmp_dir).ok();
-            if self.clone_repo(tmp_dir, url)? {
-                return Ok(true);
+            reset_source_workspace(tmp_dir)?;
+            match self.clone_repo(tmp_dir, url) {
+                Ok(()) => return Ok(()),
+                Err(err) => {
+                    let detail = err.to_string();
+                    self.warn(&detail);
+                    failures.push((url.clone(), detail));
+                }
             }
         }
-        Ok(false)
+        bail!(
+            "{}",
+            summarize_source_failures("所有镜像都失败了", &failures)
+        )
     }
 
-    fn clone_repo_any_with_dns_retry(&mut self, tmp_dir: &Path) -> Result<bool> {
-        if self.clone_repo_any(tmp_dir)? {
-            return Ok(true);
-        }
+    fn clone_repo_any_with_dns_retry(&mut self, tmp_dir: &Path) -> Result<()> {
+        let first_error = match self.clone_repo_any(tmp_dir) {
+            Ok(()) => return Ok(()),
+            Err(err) => err.to_string(),
+        };
+        self.warn(&first_error);
         self.log("尝试临时切换阿里云 DNS 后重试");
         if !self.temp_dns_enable()? {
             self.warn("临时 DNS 设置失败，将继续使用当前 DNS 再重试一次。");
         }
-        if tmp_dir.exists() {
-            fs::remove_dir_all(tmp_dir).ok();
-        }
-        fs::create_dir_all(tmp_dir).ok();
-        self.clone_repo_any(tmp_dir)
+        let retry_error = match self.clone_repo_any(tmp_dir) {
+            Ok(()) => return Ok(()),
+            Err(err) => err.to_string(),
+        };
+        bail!(
+            "{}",
+            summarize_source_failures(
+                "仓库拉取失败",
+                &[
+                    ("首次尝试".to_string(), first_error),
+                    ("DNS 重试".to_string(), retry_error),
+                ],
+            )
+        )
     }
 
     pub(crate) fn prepare_source_repo(&mut self, tmp_dir: &Path) -> Result<()> {
         if self.force_remote_source {
             self.require_remote_source_pin()?;
-            if !self.clone_repo_any_with_dns_retry(tmp_dir)? {
-                bail!("仓库拉取失败");
-            }
+            self.clone_repo_any_with_dns_retry(tmp_dir)?;
             return Ok(());
         }
 
@@ -162,9 +188,7 @@ impl App {
         }
 
         self.require_remote_source_pin()?;
-        if !self.clone_repo_any_with_dns_retry(tmp_dir)? {
-            bail!("仓库拉取失败");
-        }
+        self.clone_repo_any_with_dns_retry(tmp_dir)?;
         Ok(())
     }
 }

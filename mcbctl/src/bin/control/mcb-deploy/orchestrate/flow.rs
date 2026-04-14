@@ -24,29 +24,33 @@ impl App {
         let result = (|| -> Result<()> {
             self.section("准备源代码");
             loop {
-                if self.prepare_source_repo(&tmp_dir).is_ok() {
-                    break;
-                }
-                if !self.is_tty() {
-                    bail!("仓库拉取失败，请检查网络或更换来源策略");
-                }
-                let pick = self.menu_prompt(
-                    "准备源代码失败，下一步",
-                    1,
-                    &[
-                        "重试当前来源".to_string(),
-                        "重新选择来源策略".to_string(),
-                        "退出".to_string(),
-                    ],
-                )?;
-                match pick {
-                    1 => continue,
-                    2 => {
-                        self.source_choice_set = false;
-                        self.prompt_source_strategy()?;
+                match self.prepare_source_repo(&tmp_dir) {
+                    Ok(()) => break,
+                    Err(err) => {
+                        let detail = err.to_string();
+                        self.warn(&format!("准备源代码失败：{detail}"));
+                        if !self.is_tty() {
+                            bail!("准备源代码失败：{detail}");
+                        }
+                        let pick = self.menu_prompt(
+                            "准备源代码失败，下一步",
+                            1,
+                            &[
+                                "重试当前来源".to_string(),
+                                "重新选择来源策略".to_string(),
+                                "退出".to_string(),
+                            ],
+                        )?;
+                        match pick {
+                            1 => continue,
+                            2 => {
+                                self.source_choice_set = false;
+                                self.prompt_source_strategy()?;
+                            }
+                            3 => bail!("已退出"),
+                            _ => {}
+                        }
                     }
-                    3 => bail!("已退出"),
-                    _ => {}
                 }
             }
             self.progress_step("准备源代码");
