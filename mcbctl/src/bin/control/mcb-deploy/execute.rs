@@ -55,13 +55,10 @@ impl App {
             OverwriteMode::Ask => {
                 if self.is_tty() {
                     loop {
-                        print!(
+                        let ans = self.prompt_line(&format!(
                             "检测到 {} 已存在，选择 [b]备份并覆盖/[o]直接覆盖/[q]退出（默认 b）： ",
                             self.etc_dir.display()
-                        );
-                        io::stdout().flush().ok();
-                        let mut ans = String::new();
-                        io::stdin().read_line(&mut ans).ok();
+                        ))?;
                         let ans = ans.trim();
                         if ans.eq_ignore_ascii_case("q") {
                             bail!("已退出");

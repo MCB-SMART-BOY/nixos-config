@@ -154,10 +154,7 @@ impl App {
                     return Ok(WizardAction::Back);
                 }
                 if pick == options.len() - 1 {
-                    print!("{label}： ");
-                    io::stdout().flush().ok();
-                    let mut input = String::new();
-                    io::stdin().read_line(&mut input).ok();
+                    let input = self.prompt_line(&format!("{label}： "))?;
                     let value = input.trim().to_string();
                     if self.gpu_igpu_vendor == "amd" {
                         self.gpu_amd_bus = value;
@@ -191,10 +188,7 @@ impl App {
                 return Ok(WizardAction::Back);
             }
             if pick == options.len() - 1 {
-                print!("NVIDIA Bus ID： ");
-                io::stdout().flush().ok();
-                let mut input = String::new();
-                io::stdin().read_line(&mut input).ok();
+                let input = self.prompt_line("NVIDIA Bus ID： ")?;
                 self.gpu_nvidia_bus = input.trim().to_string();
             } else {
                 self.gpu_nvidia_bus = nvidia_candidates[pick - 1].clone();

@@ -1,24 +1,49 @@
 use super::*;
 
-impl App {
-    pub(crate) fn list_hosts(&self, repo_dir: &Path) -> Vec<String> {
-        let mut hosts = Vec::new();
-        let host_dir = repo_dir.join("hosts");
-        if host_dir.is_dir()
-            && let Ok(entries) = fs::read_dir(host_dir)
-        {
-            for entry in entries.flatten() {
-                if !entry.path().is_dir() {
-                    continue;
-                }
-                let name = entry.file_name().to_string_lossy().to_string();
-                if name != "profiles" && name != "templates" {
-                    hosts.push(name);
-                }
+const RESERVED_HOST_DIRS: &[&str] = &["profiles", "templates", "_support"];
+
+fn is_visible_host_dir_name(name: &str) -> bool {
+    !RESERVED_HOST_DIRS.contains(&name)
+}
+
+fn default_existing_host_name(hosts: &[String]) -> Option<&str> {
+    hosts
+        .iter()
+        .find(|host| host.as_str() == "nixos")
+        .map(String::as_str)
+        .or_else(|| hosts.first().map(String::as_str))
+}
+
+fn default_existing_host_index(hosts: &[String]) -> usize {
+    hosts
+        .iter()
+        .position(|host| host == "nixos")
+        .map_or(1, |index| index + 1)
+}
+
+fn list_visible_hosts(repo_dir: &Path) -> Vec<String> {
+    let mut hosts = Vec::new();
+    let host_dir = repo_dir.join("hosts");
+    if host_dir.is_dir()
+        && let Ok(entries) = fs::read_dir(host_dir)
+    {
+        for entry in entries.flatten() {
+            if !entry.path().is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if is_visible_host_dir_name(&name) {
+                hosts.push(name);
             }
         }
-        hosts.sort();
-        hosts
+    }
+    hosts.sort();
+    hosts
+}
+
+impl App {
+    pub(crate) fn list_hosts(&self, repo_dir: &Path) -> Vec<String> {
+        list_visible_hosts(repo_dir)
     }
 
     pub(crate) fn host_exists(&self, repo_dir: &Path) -> bool {
@@ -44,10 +69,9 @@ impl App {
         template_label: &str,
     ) -> Result<Option<String>> {
         loop {
-            print!("输入新主机名（模板：{template_label}，留空取消）： ");
-            io::stdout().flush().ok();
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).ok();
+            let input = self.prompt_line(&format!(
+                "输入新主机名（模板：{template_label}，留空取消）： "
+            ))?;
             let input = input.trim();
             if input.is_empty() {
                 return Ok(None);
@@ -56,8 +80,7 @@ impl App {
                 self.warn(&format!("主机名不合法：{input}"));
                 continue;
             }
-            let reserved = ["profiles", "templates"];
-            if reserved.contains(&input) {
+            if RESERVED_HOST_DIRS.contains(&input) {
                 self.warn(&format!("主机名保留不可用：{input}"));
                 continue;
             }
@@ -92,13 +115,7 @@ impl App {
                 let mut cursor = 1usize;
                 if has_existing_hosts {
                     if pick == cursor {
-                        let mut default_index = 1usize;
-                        for (i, h) in hosts.iter().enumerate() {
-                            if h == "nixos" {
-                                default_index = i + 1;
-                                break;
-                            }
-                        }
+                        let default_index = default_existing_host_index(&hosts);
                         let host_pick = self.menu_prompt("选择已有主机", default_index, &hosts)?;
                         self.target_name = hosts[host_pick - 1].clone();
                         return Ok(());
@@ -129,7 +146,9 @@ impl App {
                 bail!("已退出");
             }
         } else {
-            self.target_name = "nixos".to_string();
+            self.target_name = default_existing_host_name(&self.list_hosts(repo_dir))
+                .map(str::to_string)
+                .context("非交互模式下无法推断目标主机；请先准备至少一个 hosts/<name> 目录")?;
         }
         Ok(())
     }
@@ -233,5 +252,57 @@ impl App {
             }
         }
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn default_existing_host_name_prefers_nixos_then_first_visible() {
+        let hosts = vec!["alpha".to_string(), "nixos".to_string(), "zeta".to_string()];
+        assert_eq!(default_existing_host_name(&hosts), Some("nixos"));
+
+        let hosts = vec!["alpha".to_string(), "zeta".to_string()];
+        assert_eq!(default_existing_host_name(&hosts), Some("alpha"));
+
+        let hosts = Vec::<String>::new();
+        assert_eq!(default_existing_host_name(&hosts), None);
+    }
+
+    #[test]
+    fn default_existing_host_index_prefers_nixos() {
+        let hosts = vec!["alpha".to_string(), "nixos".to_string(), "zeta".to_string()];
+        assert_eq!(default_existing_host_index(&hosts), 2);
+
+        let hosts = vec!["alpha".to_string(), "zeta".to_string()];
+        assert_eq!(default_existing_host_index(&hosts), 1);
+    }
+
+    #[test]
+    fn list_hosts_excludes_reserved_directories() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-deploy-host-list")?;
+        for name in ["nixos", "alpha", "_support", "profiles", "templates"] {
+            fs::create_dir_all(repo_dir.join("hosts").join(name))?;
+        }
+
+        let hosts = list_visible_hosts(&repo_dir);
+
+        assert_eq!(hosts, vec!["alpha".to_string(), "nixos".to_string()]);
+
+        fs::remove_dir_all(repo_dir)?;
+        Ok(())
+    }
+
+    fn create_temp_repo_dir(prefix: &str) -> Result<PathBuf> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
+        fs::create_dir_all(root.join("hosts"))?;
+        Ok(root)
     }
 }

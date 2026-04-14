@@ -3,13 +3,7 @@ use super::super::*;
 impl App {
     fn detect_default_iface(&self) -> Option<String> {
         let out = run_capture_allow_fail("ip", &["route", "show", "default"])?;
-        let line = out.lines().next()?;
-        let cols: Vec<&str> = line.split_whitespace().collect();
-        if cols.len() >= 5 {
-            Some(cols[4].to_string())
-        } else {
-            None
-        }
+        parse_default_iface_from_route_output(&out)
     }
 
     pub(crate) fn temp_dns_enable(&mut self) -> Result<bool> {
@@ -117,5 +111,37 @@ impl App {
         self.temp_dns_backend.clear();
         self.temp_dns_iface.clear();
         self.temp_dns_backup = None;
+    }
+}
+
+fn parse_default_iface_from_route_output(output: &str) -> Option<String> {
+    let line = output.lines().next()?;
+    let cols: Vec<&str> = line.split_whitespace().collect();
+    if cols.len() >= 5 && cols.get(3) == Some(&"dev") {
+        Some(cols[4].to_string())
+    } else {
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_default_iface_from_route_output_extracts_device() {
+        let iface = parse_default_iface_from_route_output(
+            "default via 192.168.1.1 dev wlan0 proto dhcp src 192.168.1.9 metric 600\n",
+        );
+        assert_eq!(iface.as_deref(), Some("wlan0"));
+    }
+
+    #[test]
+    fn parse_default_iface_from_route_output_rejects_malformed_lines() {
+        assert_eq!(parse_default_iface_from_route_output(""), None);
+        assert_eq!(
+            parse_default_iface_from_route_output("default via 192.168.1.1 proto dhcp"),
+            None
+        );
     }
 }

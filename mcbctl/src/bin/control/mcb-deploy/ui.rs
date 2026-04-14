@@ -67,6 +67,14 @@ impl App {
         );
     }
 
+    pub(crate) fn prompt_line(&self, prompt: &str) -> Result<String> {
+        print!("{prompt}");
+        io::stdout().flush().context("刷新输出失败")?;
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).context("读取输入失败")?;
+        Ok(input)
+    }
+
     pub(crate) fn menu_prompt(
         &self,
         title: &str,
@@ -86,9 +94,7 @@ impl App {
                 options.len(),
                 default_index
             );
-            io::stdout().flush().ok();
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).context("读取输入失败")?;
+            let input = self.prompt_line("")?;
             let input = input.trim();
             if input.eq_ignore_ascii_case("q") {
                 bail!("已退出");
@@ -120,10 +126,7 @@ impl App {
     }
 
     pub(crate) fn wizard_back_or_quit(&self, prompt: &str) -> Result<WizardAction> {
-        print!("{prompt} [c继续/b返回/q退出]（默认 c）： ");
-        io::stdout().flush().ok();
-        let mut answer = String::new();
-        io::stdin().read_line(&mut answer).ok();
+        let answer = self.prompt_line(&format!("{prompt} [c继续/b返回/q退出]（默认 c）： "))?;
         let a = answer.trim();
         if a.eq_ignore_ascii_case("b") {
             Ok(WizardAction::Back)
@@ -138,10 +141,7 @@ impl App {
         if !self.is_tty() {
             return Ok(());
         }
-        print!("{prompt} [Y/n] ");
-        io::stdout().flush().ok();
-        let mut answer = String::new();
-        io::stdin().read_line(&mut answer).ok();
+        let answer = self.prompt_line(&format!("{prompt} [Y/n] "))?;
         if answer.trim().eq_ignore_ascii_case("n") {
             bail!("已退出");
         }

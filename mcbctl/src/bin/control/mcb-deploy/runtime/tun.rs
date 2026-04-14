@@ -18,10 +18,9 @@ impl App {
             self.user_dns.clear();
             for (idx, user) in self.target_users.iter().enumerate() {
                 let default_iface = format!("tun{}", idx + 1);
-                print!("用户 {user} 的 TUN 接口（默认 {default_iface}）： ");
-                io::stdout().flush().ok();
-                let mut iface = String::new();
-                io::stdin().read_line(&mut iface).ok();
+                let iface = self.prompt_line(&format!(
+                    "用户 {user} 的 TUN 接口（默认 {default_iface}）： "
+                ))?;
                 let iface = iface.trim();
                 let iface = if iface.is_empty() {
                     &default_iface
@@ -31,10 +30,8 @@ impl App {
                 self.user_tun.insert(user.clone(), iface.to_string());
 
                 let default_dns = 1053u16 + (idx as u16);
-                print!("用户 {user} 的 DNS 端口（默认 {default_dns}）： ");
-                io::stdout().flush().ok();
-                let mut dns = String::new();
-                io::stdin().read_line(&mut dns).ok();
+                let dns =
+                    self.prompt_line(&format!("用户 {user} 的 DNS 端口（默认 {default_dns}）： "))?;
                 let dns = dns.trim();
                 let port = if dns.is_empty() {
                     default_dns

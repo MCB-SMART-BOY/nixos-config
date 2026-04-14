@@ -30,10 +30,8 @@ impl App {
         let mut version = std::env::var("RELEASE_VERSION").unwrap_or_default();
         let default_version = self.default_release_version();
         if version.is_empty() && self.is_tty() {
-            print!("请输入发布版本（默认 {default_version}）： ");
-            io::stdout().flush().ok();
-            let mut input = String::new();
-            io::stdin().read_line(&mut input)?;
+            let input =
+                self.prompt_line(&format!("请输入发布版本（默认 {default_version}）： "))?;
             version = input.trim().to_string();
         }
         if version.is_empty() {

@@ -86,14 +86,11 @@ impl App {
             if !can_write_dir(&self.etc_dir) {
                 let alt_dir = home_dir().join(".nixos");
                 if self.is_tty() {
-                    print!(
+                    let ans = self.prompt_line(&format!(
                         "无权限写入 {}，改用 {}？ [Y/n] ",
                         self.etc_dir.display(),
                         alt_dir.display()
-                    );
-                    io::stdout().flush().ok();
-                    let mut ans = String::new();
-                    io::stdin().read_line(&mut ans).ok();
+                    ))?;
                     if ans.trim().eq_ignore_ascii_case("n") {
                         bail!(
                             "无法写入 {}，请使用 root 运行或修改权限。",

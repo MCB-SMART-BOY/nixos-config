@@ -96,10 +96,7 @@ impl App {
                     let _ = self.select_existing_users_menu(&existing)?;
                 }
                 3 => {
-                    print!("输入新增用户名（留空取消）： ");
-                    io::stdout().flush().ok();
-                    let mut input = String::new();
-                    io::stdin().read_line(&mut input).ok();
+                    let input = self.prompt_line("输入新增用户名（留空取消）： ")?;
                     let input = input.trim();
                     if input.is_empty() {
                         continue;

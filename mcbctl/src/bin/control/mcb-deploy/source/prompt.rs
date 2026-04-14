@@ -49,10 +49,7 @@ impl App {
                     self.force_remote_source = true;
                     self.allow_remote_head = false;
                     loop {
-                        print!("请输入远端固定版本（commit/tag）： ");
-                        io::stdout().flush().ok();
-                        let mut line = String::new();
-                        io::stdin().read_line(&mut line).ok();
+                        let line = self.prompt_line("请输入远端固定版本（commit/tag）： ")?;
                         let v = line.trim();
                         if !v.is_empty() {
                             self.source_ref = v.to_string();
