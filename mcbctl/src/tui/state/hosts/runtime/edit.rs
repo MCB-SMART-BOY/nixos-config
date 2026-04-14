@@ -347,3 +347,114 @@ impl AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::path::Path;
+
+    #[test]
+    fn confirm_hosts_text_edit_keeps_invalid_input_open() {
+        let mut state = test_state(Path::new("/repo"));
+        state.hosts_text_mode = Some(HostsTextMode::ProxyDnsPort);
+        state.host_text_input = "not-a-port".to_string();
+
+        state.confirm_hosts_text_edit();
+
+        assert_eq!(state.host_settings_by_name["demo"].proxy_dns_port, 53);
+        assert_eq!(state.hosts_text_mode, Some(HostsTextMode::ProxyDnsPort));
+        assert_eq!(state.host_text_input, "not-a-port");
+        assert!(!state.host_dirty_runtime_hosts.contains("demo"));
+        assert!(state.status.contains("输入无效"));
+        assert!(state.status.contains("无效端口"));
+    }
+
+    #[test]
+    fn confirm_hosts_text_edit_updates_runtime_field_and_marks_dirty() {
+        let mut state = test_state(Path::new("/repo"));
+        state.hosts_text_mode = Some(HostsTextMode::ProxyDnsPort);
+        state.host_text_input = "1053".to_string();
+
+        state.confirm_hosts_text_edit();
+
+        assert_eq!(state.host_settings_by_name["demo"].proxy_dns_port, 1053);
+        assert!(state.host_dirty_runtime_hosts.contains("demo"));
+        assert!(state.hosts_text_mode.is_none());
+        assert!(state.host_text_input.is_empty());
+        assert_eq!(state.status, "主机字段已更新。");
+    }
+
+    fn test_state(root: &Path) -> AppState {
+        let mut host_settings_by_name = BTreeMap::new();
+        host_settings_by_name.insert("demo".to_string(), valid_host_settings());
+
+        AppState {
+            context: AppContext {
+                repo_root: root.to_path_buf(),
+                etc_root: PathBuf::from("/etc/nixos"),
+                current_host: "demo".to_string(),
+                current_system: "x86_64-linux".to_string(),
+                current_user: "alice".to_string(),
+                privilege_mode: "sudo-available".to_string(),
+                hosts: vec!["demo".to_string()],
+                users: vec!["alice".to_string(), "bob".to_string()],
+                catalog_path: root.join("catalog/packages"),
+                catalog_groups_path: root.join("catalog/groups.toml"),
+                catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_entries: Vec::new(),
+                catalog_groups: BTreeMap::new(),
+                catalog_home_options: Vec::new(),
+                catalog_categories: Vec::new(),
+                catalog_sources: Vec::new(),
+            },
+            active_page: 0,
+            deploy_focus: 0,
+            target_host: "demo".to_string(),
+            deploy_task: DeployTask::DirectDeploy,
+            deploy_source: DeploySource::CurrentRepo,
+            deploy_action: DeployAction::Switch,
+            flake_update: false,
+            show_advanced: false,
+            users_focus: 0,
+            hosts_focus: 0,
+            users_text_mode: None,
+            hosts_text_mode: None,
+            host_text_input: String::new(),
+            host_settings_by_name,
+            host_dirty_user_hosts: BTreeSet::new(),
+            host_dirty_runtime_hosts: BTreeSet::new(),
+            package_user_index: 0,
+            package_mode: PackageDataMode::Search,
+            package_cursor: 0,
+            package_category_index: 0,
+            package_group_filter: None,
+            package_source_filter: None,
+            package_search: String::new(),
+            package_search_result_indices: Vec::new(),
+            package_local_entry_ids: BTreeSet::new(),
+            package_search_mode: false,
+            package_group_create_mode: false,
+            package_group_rename_mode: false,
+            package_group_rename_source: String::new(),
+            package_group_input: String::new(),
+            package_user_selections: BTreeMap::new(),
+            package_dirty_users: BTreeSet::new(),
+            home_user_index: 0,
+            home_focus: 0,
+            home_settings_by_user: BTreeMap::new(),
+            home_dirty_users: BTreeSet::new(),
+            actions_focus: 0,
+            status: String::new(),
+        }
+    }
+
+    fn valid_host_settings() -> HostManagedSettings {
+        HostManagedSettings {
+            primary_user: "alice".to_string(),
+            users: vec!["alice".to_string()],
+            admin_users: vec!["alice".to_string()],
+            ..HostManagedSettings::default()
+        }
+    }
+}
