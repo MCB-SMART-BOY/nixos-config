@@ -1,46 +1,118 @@
-use crate::tui::state::AppState;
+use crate::tui::state::{AppState, OverviewCheckState, OverviewHostStatus};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 
 pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
+    let overview = state.overview_model();
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(46), Constraint::Percentage(54)])
         .split(area);
 
+    let host_status = match &overview.host_status {
+        OverviewHostStatus::Ready => "目标主机配置：可用".to_string(),
+        OverviewHostStatus::Unavailable { message } => format!("目标主机配置：{message}"),
+        OverviewHostStatus::Invalid { errors } => {
+            format!("目标主机配置未通过校验：{}", errors.join("；"))
+        }
+    };
+    let repo_integrity = match overview.repo_integrity {
+        OverviewCheckState::NotRun => "repo-integrity：未刷新".to_string(),
+    };
+    let doctor = match overview.doctor {
+        OverviewCheckState::NotRun => "doctor：未刷新".to_string(),
+    };
+    let apply_status = if overview.apply.can_apply_current_host {
+        "当前可直接 Apply"
+    } else if !overview.apply.handoffs.is_empty() {
+        "当前组合需要交给 Advanced"
+    } else {
+        "当前不能直接 Apply"
+    };
     let left = Paragraph::new(format!(
-        "仓库: {}\n/etc/nixos: {}\n检测 hostname: {}\n默认部署目标: {}\n当前用户: {}\n权限模式: {}\n可用 hosts: {}\n可用用户: {}",
-        state.context.repo_root.display(),
-        state.context.etc_root.display(),
-        state.context.current_host,
-        state.target_host,
-        state.context.current_user,
-        state.context.privilege_mode,
+        "当前主机: {}\n目标主机: {}\n当前用户: {}\n权限模式: {}\n当前仓库: {}\n/etc/nixos: {}\n可用 hosts: {}\n可用用户: {}\n\n{}\n{}\n{}\n状态：{}",
+        overview.context.current_host,
+        overview.context.target_host,
+        overview.context.current_user,
+        overview.context.privilege_mode,
+        overview.context.repo_root.display(),
+        overview.context.etc_root.display(),
         state.context.hosts.join(", "),
-        state.context.users.join(", ")
+        state.context.users.join(", "),
+        host_status,
+        repo_integrity,
+        doctor,
+        apply_status
     ))
-    .block(Block::default().borders(Borders::ALL).title("Context"))
+    .block(Block::default().borders(Borders::ALL).title("Overview Context"))
     .wrap(Wrap { trim: false });
     frame.render_widget(left, chunks[0]);
 
-    let right = Paragraph::new(
-        "当前进度:\n\
-         - Deploy 心智模型已经落地\n\
-         - managed/ 机器写入边界已接通\n\
-         - Packages 页默认走 nixpkgs 搜索，并按组写入 managed/packages/*.nix\n\
-         - 本地 catalog 已降级为覆盖层 / 本地包元数据，不再充当主软件源\n\
-         - Packages 页已经支持新建组、重命名组、整组移动、组过滤\n\n\
-         - Home 页已经支持写入 managed/settings/desktop.nix（Noctalia / 桌面入口）\n\
-         - Users 页现在写 users.nix，Hosts 页现在写 network/gpu/virtualization 分片\n\
-         - Deploy / Actions 已经接入真实执行链\n\n\
-         下一步:\n\
-         - 继续拆分超长状态文件与 deploy 巨石文件\n\
-         - 继续把远端来源准备从 mcb-deploy 抽到共享执行层\n\
-         - Home 页继续把 session/mime 等结构化设置接入分片\n\
-         - Packages / Home 扩展更多 metadata 驱动字段",
-    )
-    .block(Block::default().borders(Borders::ALL).title("Roadmap"))
+    let dirty = if overview.dirty_sections.is_empty() {
+        "无未保存修改".to_string()
+    } else {
+        overview
+            .dirty_sections
+            .iter()
+            .map(|section| format!("- {}: {}", section.name, section.items.join(", ")))
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let sync_preview = overview
+        .apply
+        .sync_preview
+        .clone()
+        .unwrap_or_else(|| "当前组合不需要同步 /etc/nixos".to_string());
+    let rebuild_preview = overview
+        .apply
+        .rebuild_preview
+        .clone()
+        .unwrap_or_else(|| "当前组合会转交给 Advanced Deploy".to_string());
+    let blockers = if overview.apply.blockers.is_empty() {
+        "无".to_string()
+    } else {
+        overview.apply.blockers.join(" | ")
+    };
+    let warnings = if overview.apply.warnings.is_empty() {
+        "无".to_string()
+    } else {
+        overview.apply.warnings.join(" | ")
+    };
+    let handoffs = if overview.apply.handoffs.is_empty() {
+        "无".to_string()
+    } else {
+        overview.apply.handoffs.join(" | ")
+    };
+    let infos = if overview.apply.infos.is_empty() {
+        "无".to_string()
+    } else {
+        overview.apply.infos.join(" | ")
+    };
+    let right = Paragraph::new(format!(
+        "未保存修改:\n{}\n\nApply 快照:\n- task: {}\n- source: {}\n- action: {}\n- flake update: {}\n- advanced: {}\n- sync: {}\n- rebuild: {}\n\n阻塞项:\n{}\n\n警告项:\n{}\n\n交接项:\n{}\n\n信息:\n{}",
+        dirty,
+        overview.apply.task.label(),
+        overview.apply.source.label(),
+        overview.apply.action.label(),
+        if overview.apply.flake_update {
+            "开启"
+        } else {
+            "关闭"
+        },
+        if overview.apply.advanced {
+            "开启"
+        } else {
+            "关闭"
+        },
+        sync_preview,
+        rebuild_preview,
+        blockers,
+        warnings,
+        handoffs,
+        infos
+    ))
+    .block(Block::default().borders(Borders::ALL).title("Apply Snapshot"))
     .wrap(Wrap { trim: false });
     frame.render_widget(right, chunks[1]);
 }

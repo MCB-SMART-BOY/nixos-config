@@ -164,7 +164,7 @@ impl AppState {
         }
     }
 
-    fn deploy_rebuild_plan_for_execution(&self) -> Option<NixosRebuildPlan> {
+    pub(crate) fn deploy_rebuild_plan_for_execution(&self) -> Option<NixosRebuildPlan> {
         let flake_root = match self.deploy_source {
             DeploySource::CurrentRepo if self.should_sync_current_repo_before_rebuild() => {
                 self.context.etc_root.clone()
@@ -182,7 +182,7 @@ impl AppState {
         })
     }
 
-    fn deploy_sync_plan_for_execution(&self) -> Option<RepoSyncPlan> {
+    pub(crate) fn deploy_sync_plan_for_execution(&self) -> Option<RepoSyncPlan> {
         match self.deploy_source {
             DeploySource::CurrentRepo if self.should_sync_current_repo_before_rebuild() => {
                 Some(RepoSyncPlan {
