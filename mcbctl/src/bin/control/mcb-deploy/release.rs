@@ -88,6 +88,50 @@ fn render_release_notes_from_log(last_tag: &str, log_output: Option<&str>) -> St
     }
 }
 
+fn dirty_worktree_from_probe(status_success: bool, stdout: &str, stderr: &str) -> Result<bool> {
+    if !status_success {
+        let stderr = stderr.trim();
+        if stderr.is_empty() {
+            bail!("git status --porcelain failed");
+        }
+        bail!("git status --porcelain failed: {stderr}");
+    }
+
+    Ok(!stdout.trim().is_empty())
+}
+
+fn ensure_release_worktree_gate(dirty_result: Result<bool>, allow_dirty: bool) -> Result<()> {
+    let dirty = dirty_result.context("探测工作区状态失败")?;
+    if dirty && !allow_dirty {
+        bail!("工作区存在未提交变更，发布前请先提交或设置 RELEASE_ALLOW_DIRTY=true。");
+    }
+    Ok(())
+}
+
+fn ensure_git_release_step(status_success: bool, args: &[&str]) -> Result<()> {
+    if status_success {
+        Ok(())
+    } else {
+        bail!("git {} 失败", args.join(" "));
+    }
+}
+
+fn ensure_release_create_step(status_success: bool) -> Result<()> {
+    if status_success {
+        Ok(())
+    } else {
+        bail!("gh release create 失败");
+    }
+}
+
+fn ensure_workflow_run_step(status_success: bool, workflow: &str) -> Result<()> {
+    if status_success {
+        Ok(())
+    } else {
+        bail!("gh workflow run {} 失败", workflow);
+    }
+}
+
 impl App {
     pub(super) fn default_release_version(&self) -> String {
         default_release_version_for_package_version(env!("CARGO_PKG_VERSION"))
@@ -151,13 +195,18 @@ impl App {
             bail!("当前目录不是 git 仓库：{}", self.repo_dir.display());
         }
 
-        let dirty = run_capture_allow_fail("git", &["status", "--porcelain"]).unwrap_or_default();
+        let dirty = match Self::command_output("git", &["status", "--porcelain"]) {
+            Ok(out) => dirty_worktree_from_probe(
+                out.status.success(),
+                &String::from_utf8_lossy(&out.stdout),
+                &String::from_utf8_lossy(&out.stderr),
+            ),
+            Err(err) => Err(err),
+        };
         let allow_dirty = std::env::var("RELEASE_ALLOW_DIRTY")
             .ok()
             .is_some_and(|v| v == "true");
-        if !dirty.trim().is_empty() && !allow_dirty {
-            bail!("工作区存在未提交变更，发布前请先提交或设置 RELEASE_ALLOW_DIRTY=true。");
-        }
+        ensure_release_worktree_gate(dirty, allow_dirty)?;
 
         let version = self.resolve_release_version()?;
         let exists = Command::new("git").args(["rev-parse", &version]).status()?;
@@ -172,11 +221,14 @@ impl App {
         }
 
         if self.is_tty() {
-            println!("\n将发布版本：{version}");
+            self.section(&format!("将发布版本：{version}"));
             if !last_tag.is_empty() {
-                println!("上一个版本：{last_tag}");
+                self.note(&format!("上一个版本：{last_tag}"));
             }
-            println!("\nRelease Notes 预览：\n{notes}\n");
+            self.section("Release Notes 预览：");
+            for line in notes.lines() {
+                self.note(line);
+            }
             self.confirm_continue(&format!("确认发布 {version}？"))?;
         }
 
@@ -186,9 +238,7 @@ impl App {
             vec!["push", "origin", &version],
         ] {
             let st = Command::new("git").args(&args).status()?;
-            if !st.success() {
-                bail!("git {} 失败", args.join(" "));
-            }
+            ensure_git_release_step(st.success(), &args)?;
         }
 
         let notes_file = create_temp_path("mcbctl-release-notes", "md")?;
@@ -204,11 +254,7 @@ impl App {
                 &notes_file.display().to_string(),
             ])
             .status()?;
-        let release_result = if st.success() {
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("gh release create 失败"))
-        };
+        let release_result = ensure_release_create_step(st.success());
         let cleanup_result = cleanup_release_notes_file(&notes_file);
         finalize_with_cleanup(
             release_result,
@@ -219,9 +265,7 @@ impl App {
         let workflow = "release-mcbctl.yml";
         let workflow_args = release_workflow_run_args(workflow, &version);
         let st = Command::new("gh").args(&workflow_args).status()?;
-        if !st.success() {
-            bail!("gh workflow run {} 失败", workflow);
-        }
+        ensure_workflow_run_step(st.success(), workflow)?;
 
         self.success(&format!(
             "Release 已发布：{version}；已触发跨平台预编译产物构建。"
@@ -330,6 +374,95 @@ mod tests {
         assert_eq!(
             notes,
             "Git log unavailable since v1.0.0; no release notes generated."
+        );
+    }
+
+    #[test]
+    fn dirty_worktree_from_probe_detects_clean_and_dirty_outputs() -> Result<()> {
+        assert!(!dirty_worktree_from_probe(true, "", "")?);
+        assert!(!dirty_worktree_from_probe(true, "  \n", "")?);
+        assert!(dirty_worktree_from_probe(true, " M Cargo.toml\n", "")?);
+        Ok(())
+    }
+
+    #[test]
+    fn dirty_worktree_from_probe_surfaces_probe_failure() {
+        let err = dirty_worktree_from_probe(false, "", "index locked")
+            .expect_err("failed git status probe should be reported");
+
+        assert!(err.to_string().contains("index locked"));
+    }
+
+    #[test]
+    fn ensure_release_worktree_gate_allows_clean_worktree_without_override() -> Result<()> {
+        ensure_release_worktree_gate(Ok(false), false)?;
+        Ok(())
+    }
+
+    #[test]
+    fn ensure_release_worktree_gate_allows_dirty_worktree_with_override() -> Result<()> {
+        ensure_release_worktree_gate(Ok(true), true)?;
+        Ok(())
+    }
+
+    #[test]
+    fn ensure_release_worktree_gate_blocks_dirty_worktree_without_override() {
+        let err = ensure_release_worktree_gate(Ok(true), false)
+            .expect_err("dirty worktree without override should be rejected");
+
+        assert!(err.to_string().contains("工作区存在未提交变更"));
+        assert!(err.to_string().contains("RELEASE_ALLOW_DIRTY=true"));
+    }
+
+    #[test]
+    fn ensure_release_worktree_gate_surfaces_probe_failure_context() {
+        let err = ensure_release_worktree_gate(Err(anyhow::anyhow!("index locked")), false)
+            .expect_err("probe failure should be wrapped with release gate context");
+
+        assert!(err.to_string().contains("探测工作区状态失败"));
+        assert!(
+            err.chain()
+                .any(|cause| cause.to_string().contains("index locked"))
+        );
+    }
+
+    #[test]
+    fn ensure_git_release_step_surfaces_failing_push() {
+        let err = ensure_git_release_step(false, &["push", "origin", "HEAD"])
+            .expect_err("failing git release step should be reported");
+
+        assert!(err.to_string().contains("git push origin HEAD 失败"));
+    }
+
+    #[test]
+    fn ensure_release_create_step_surfaces_failure() {
+        let err =
+            ensure_release_create_step(false).expect_err("failing release creation should surface");
+
+        assert!(err.to_string().contains("gh release create 失败"));
+    }
+
+    #[test]
+    fn finalize_with_cleanup_preserves_release_create_failure_and_cleanup_context() {
+        let err = finalize_with_cleanup(
+            ensure_release_create_step(false),
+            Err(anyhow::anyhow!("unlink failed")),
+            "release notes cleanup failed",
+        )
+        .expect_err("cleanup aggregation should preserve release creation failure");
+
+        assert!(err.to_string().contains("gh release create 失败"));
+        assert!(err.to_string().contains("unlink failed"));
+    }
+
+    #[test]
+    fn ensure_workflow_run_step_surfaces_failure() {
+        let err = ensure_workflow_run_step(false, "release-mcbctl.yml")
+            .expect_err("failing workflow dispatch should be reported");
+
+        assert!(
+            err.to_string()
+                .contains("gh workflow run release-mcbctl.yml 失败")
         );
     }
 

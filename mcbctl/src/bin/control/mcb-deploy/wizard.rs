@@ -219,10 +219,30 @@ mod tests {
         user_tun: BTreeMap<String, String>,
         user_dns: BTreeMap<String, u16>,
         gpu_override: bool,
+        gpu_override_from_detection: bool,
+        gpu_mode: String,
+        gpu_igpu_vendor: String,
+        gpu_prime_mode: String,
+        gpu_intel_bus: String,
+        gpu_amd_bus: String,
+        gpu_nvidia_bus: String,
+        gpu_nvidia_open: String,
+        gpu_specialisations_enabled: bool,
+        gpu_specialisations_set: bool,
+        gpu_specialisation_modes: Vec<String>,
         server_overrides_enabled: bool,
         server_enable_network_cli: String,
+        server_enable_network_gui: String,
+        server_enable_shell_tools: String,
+        server_enable_wayland_tools: String,
+        server_enable_system_tools: String,
+        server_enable_geek_tools: String,
+        server_enable_gaming: String,
+        server_enable_insecure_tools: String,
         server_enable_docker: String,
+        server_enable_libvirtd: String,
         host_profile_kind: HostProfileKind,
+        detected_gpu: DetectedGpuProfile,
     }
 
     impl Snapshot {
@@ -235,10 +255,30 @@ mod tests {
                 user_tun: app.user_tun.clone(),
                 user_dns: app.user_dns.clone(),
                 gpu_override: app.gpu_override,
+                gpu_override_from_detection: app.gpu_override_from_detection,
+                gpu_mode: app.gpu_mode.clone(),
+                gpu_igpu_vendor: app.gpu_igpu_vendor.clone(),
+                gpu_prime_mode: app.gpu_prime_mode.clone(),
+                gpu_intel_bus: app.gpu_intel_bus.clone(),
+                gpu_amd_bus: app.gpu_amd_bus.clone(),
+                gpu_nvidia_bus: app.gpu_nvidia_bus.clone(),
+                gpu_nvidia_open: app.gpu_nvidia_open.clone(),
+                gpu_specialisations_enabled: app.gpu_specialisations_enabled,
+                gpu_specialisations_set: app.gpu_specialisations_set,
+                gpu_specialisation_modes: app.gpu_specialisation_modes.clone(),
                 server_overrides_enabled: app.server_overrides_enabled,
                 server_enable_network_cli: app.server_enable_network_cli.clone(),
+                server_enable_network_gui: app.server_enable_network_gui.clone(),
+                server_enable_shell_tools: app.server_enable_shell_tools.clone(),
+                server_enable_wayland_tools: app.server_enable_wayland_tools.clone(),
+                server_enable_system_tools: app.server_enable_system_tools.clone(),
+                server_enable_geek_tools: app.server_enable_geek_tools.clone(),
+                server_enable_gaming: app.server_enable_gaming.clone(),
+                server_enable_insecure_tools: app.server_enable_insecure_tools.clone(),
                 server_enable_docker: app.server_enable_docker.clone(),
+                server_enable_libvirtd: app.server_enable_libvirtd.clone(),
                 host_profile_kind: app.host_profile_kind,
+                detected_gpu: app.detected_gpu.clone(),
             }
         }
     }
@@ -289,6 +329,48 @@ mod tests {
                 server_snapshots: Vec::new(),
                 summary_snapshots: Vec::new(),
             }
+        }
+    }
+
+    struct TranscriptWizardRunner;
+
+    impl WizardFlowRunner for TranscriptWizardRunner {
+        fn prepare_host(&mut self, app: &mut App, repo_dir: &Path) -> Result<()> {
+            app.select_host(repo_dir)?;
+            app.validate_host(repo_dir)?;
+            if app.host_exists(repo_dir) {
+                app.detect_host_profile_kind(repo_dir);
+            }
+            Ok(())
+        }
+
+        fn prompt_users(&mut self, app: &mut App, repo_dir: &Path) -> Result<WizardAction> {
+            app.prompt_users(repo_dir)
+        }
+
+        fn prompt_admin_users(&mut self, app: &mut App) -> Result<WizardAction> {
+            app.prompt_admin_users()
+        }
+
+        fn per_user_tun_enabled(&mut self, _app: &App, _repo_dir: &Path) -> bool {
+            false
+        }
+
+        fn configure_per_user_tun(&mut self, _app: &mut App) -> Result<WizardAction> {
+            bail!("unexpected per-user TUN step in transcript runner")
+        }
+
+        fn configure_gpu(&mut self, _app: &mut App) -> Result<WizardAction> {
+            bail!("unexpected GPU step in transcript runner")
+        }
+
+        fn configure_server_overrides(&mut self, app: &mut App) -> Result<WizardAction> {
+            app.configure_server_overrides()
+        }
+
+        fn confirm_summary(&mut self, app: &mut App, prompt: &str) -> Result<WizardAction> {
+            app.print_summary();
+            app.wizard_back_or_quit(prompt)
         }
     }
 
@@ -368,7 +450,18 @@ mod tests {
                 .pop_front()
                 .unwrap_or_else(|| Ok(WizardAction::Continue))?;
             app.gpu_override = true;
+            app.gpu_override_from_detection = false;
             app.gpu_mode = "hybrid".to_string();
+            app.gpu_igpu_vendor = "intel".to_string();
+            app.gpu_prime_mode = "offload".to_string();
+            app.gpu_intel_bus = "PCI:0:2:0".to_string();
+            app.gpu_amd_bus.clear();
+            app.gpu_nvidia_bus = "PCI:1:0:0".to_string();
+            app.gpu_nvidia_open = "false".to_string();
+            app.gpu_specialisations_enabled = true;
+            app.gpu_specialisations_set = true;
+            app.gpu_specialisation_modes =
+                vec!["igpu".to_string(), "hybrid".to_string(), "dgpu".to_string()];
             Ok(action)
         }
 
@@ -383,7 +476,15 @@ mod tests {
                 if self.server_enabled_results.pop_front().unwrap_or(true) {
                     app.server_overrides_enabled = true;
                     app.server_enable_network_cli = "true".to_string();
+                    app.server_enable_network_gui = "false".to_string();
+                    app.server_enable_shell_tools = "true".to_string();
+                    app.server_enable_wayland_tools = "false".to_string();
+                    app.server_enable_system_tools = "true".to_string();
+                    app.server_enable_geek_tools = "true".to_string();
+                    app.server_enable_gaming = "false".to_string();
+                    app.server_enable_insecure_tools = "false".to_string();
                     app.server_enable_docker = "true".to_string();
+                    app.server_enable_libvirtd = "false".to_string();
                 } else {
                     app.reset_server_overrides();
                 }
@@ -510,6 +611,186 @@ mod tests {
         assert!(cleared.server_enable_network_cli.is_empty());
         assert!(cleared.server_enable_docker.is_empty());
         assert_eq!(cleared.host_profile_kind, HostProfileKind::Unknown);
+        Ok(())
+    }
+
+    #[test]
+    fn host_reselection_after_desktop_runtime_reenters_server_flow_with_clean_state() -> Result<()>
+    {
+        let repo_dir = create_temp_dir("mcbctl-wizard-host-reselect-desktop-to-server")?;
+        let mut app = test_app(repo_dir.clone());
+        let mut runner = TestWizardRunner::new();
+        runner.prepare_host_results = VecDeque::from([
+            Ok(("laptop-a".to_string(), HostProfileKind::Desktop)),
+            Ok(("server-b".to_string(), HostProfileKind::Server)),
+        ]);
+        runner.prompt_users_results = VecDeque::from([
+            Ok(WizardAction::Continue),
+            Ok(WizardAction::Back),
+            Ok(WizardAction::Continue),
+        ]);
+        runner.prompt_users_targets = VecDeque::from([
+            Some(vec!["alice".to_string(), "bob".to_string()]),
+            None,
+            Some(vec!["charlie".to_string()]),
+        ]);
+        runner.prompt_admin_results = VecDeque::from([
+            Ok(WizardAction::Continue),
+            Ok(WizardAction::Back),
+            Ok(WizardAction::Continue),
+        ]);
+        runner.per_user_tun_enabled_results = VecDeque::from([true, true, false]);
+        runner.tun_results = VecDeque::from([Ok(WizardAction::Continue), Ok(WizardAction::Back)]);
+        runner.gpu_results = VecDeque::from([Ok(WizardAction::Back)]);
+        runner.server_results = VecDeque::from([Ok(WizardAction::Continue)]);
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_per_user_tun",
+                "configure_gpu",
+                "per_user_tun_enabled",
+                "configure_per_user_tun",
+                "prompt_admin_users",
+                "prompt_users",
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_server_overrides",
+                "confirm_summary",
+            ]
+        );
+        assert_eq!(runner.prepare_host_snapshots.len(), 2);
+        assert_cleared_host_reselection_snapshot(&runner.prepare_host_snapshots[1]);
+
+        assert_eq!(runner.prompt_users_snapshots.len(), 3);
+        let reentered_users = &runner.prompt_users_snapshots[2];
+        assert_eq!(reentered_users.target_name, "server-b");
+        assert_eq!(reentered_users.host_profile_kind, HostProfileKind::Server);
+        assert_cleared_runtime_snapshot(reentered_users);
+
+        assert_eq!(runner.prompt_admin_snapshots.len(), 3);
+        let reentered_admin = &runner.prompt_admin_snapshots[2];
+        assert_eq!(reentered_admin.target_name, "server-b");
+        assert_eq!(reentered_admin.target_users, vec!["charlie".to_string()]);
+        assert!(reentered_admin.target_admin_users.is_empty());
+        assert!(!reentered_admin.per_user_tun_enabled);
+        assert!(reentered_admin.user_tun.is_empty());
+        assert!(reentered_admin.user_dns.is_empty());
+        assert_cleared_gpu_snapshot(reentered_admin);
+        assert_cleared_server_snapshot(reentered_admin);
+
+        assert_eq!(runner.server_snapshots.len(), 1);
+        let reentered_server = &runner.server_snapshots[0];
+        assert_eq!(reentered_server.target_name, "server-b");
+        assert_eq!(reentered_server.host_profile_kind, HostProfileKind::Server);
+        assert_eq!(reentered_server.target_users, vec!["charlie".to_string()]);
+        assert_eq!(
+            reentered_server.target_admin_users,
+            vec!["charlie".to_string()]
+        );
+        assert!(!reentered_server.per_user_tun_enabled);
+        assert!(reentered_server.user_tun.is_empty());
+        assert!(reentered_server.user_dns.is_empty());
+        assert_cleared_gpu_snapshot(reentered_server);
+        assert_cleared_server_snapshot(reentered_server);
+        Ok(())
+    }
+
+    #[test]
+    fn host_reselection_after_server_runtime_reenters_desktop_flow_with_clean_state() -> Result<()>
+    {
+        let repo_dir = create_temp_dir("mcbctl-wizard-host-reselect-server-to-desktop")?;
+        let mut app = test_app(repo_dir.clone());
+        let mut runner = TestWizardRunner::new();
+        runner.prepare_host_results = VecDeque::from([
+            Ok(("server-a".to_string(), HostProfileKind::Server)),
+            Ok(("laptop-b".to_string(), HostProfileKind::Desktop)),
+        ]);
+        runner.prompt_users_results = VecDeque::from([
+            Ok(WizardAction::Continue),
+            Ok(WizardAction::Back),
+            Ok(WizardAction::Continue),
+        ]);
+        runner.prompt_users_targets = VecDeque::from([
+            Some(vec!["alice".to_string()]),
+            None,
+            Some(vec!["charlie".to_string()]),
+        ]);
+        runner.prompt_admin_results = VecDeque::from([
+            Ok(WizardAction::Continue),
+            Ok(WizardAction::Back),
+            Ok(WizardAction::Continue),
+        ]);
+        runner.per_user_tun_enabled_results = VecDeque::from([true, true, false]);
+        runner.tun_results = VecDeque::from([Ok(WizardAction::Continue), Ok(WizardAction::Back)]);
+        runner.server_results = VecDeque::from([Ok(WizardAction::Back)]);
+        runner.gpu_results = VecDeque::from([Ok(WizardAction::Continue)]);
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_per_user_tun",
+                "configure_server_overrides",
+                "per_user_tun_enabled",
+                "configure_per_user_tun",
+                "prompt_admin_users",
+                "prompt_users",
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_gpu",
+                "confirm_summary",
+            ]
+        );
+        assert_eq!(runner.prepare_host_snapshots.len(), 2);
+        assert_cleared_host_reselection_snapshot(&runner.prepare_host_snapshots[1]);
+
+        assert_eq!(runner.prompt_users_snapshots.len(), 3);
+        let reentered_users = &runner.prompt_users_snapshots[2];
+        assert_eq!(reentered_users.target_name, "laptop-b");
+        assert_eq!(reentered_users.host_profile_kind, HostProfileKind::Desktop);
+        assert_cleared_runtime_snapshot(reentered_users);
+
+        assert_eq!(runner.prompt_admin_snapshots.len(), 3);
+        let reentered_admin = &runner.prompt_admin_snapshots[2];
+        assert_eq!(reentered_admin.target_name, "laptop-b");
+        assert_eq!(reentered_admin.target_users, vec!["charlie".to_string()]);
+        assert!(reentered_admin.target_admin_users.is_empty());
+        assert!(!reentered_admin.per_user_tun_enabled);
+        assert!(reentered_admin.user_tun.is_empty());
+        assert!(reentered_admin.user_dns.is_empty());
+        assert_cleared_gpu_snapshot(reentered_admin);
+        assert_cleared_server_snapshot(reentered_admin);
+
+        assert_eq!(runner.gpu_snapshots.len(), 1);
+        let reentered_gpu = &runner.gpu_snapshots[0];
+        assert_eq!(reentered_gpu.target_name, "laptop-b");
+        assert_eq!(reentered_gpu.host_profile_kind, HostProfileKind::Desktop);
+        assert_eq!(reentered_gpu.target_users, vec!["charlie".to_string()]);
+        assert_eq!(
+            reentered_gpu.target_admin_users,
+            vec!["charlie".to_string()]
+        );
+        assert!(!reentered_gpu.per_user_tun_enabled);
+        assert!(reentered_gpu.user_tun.is_empty());
+        assert!(reentered_gpu.user_dns.is_empty());
+        assert_cleared_gpu_snapshot(reentered_gpu);
+        assert_cleared_server_snapshot(reentered_gpu);
         Ok(())
     }
 
@@ -844,6 +1125,76 @@ mod tests {
     }
 
     #[test]
+    fn wizard_flow_tty_emits_long_transcript_for_host_reselection_runtime_chain() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-wizard-host-reselection-transcript")?;
+        seed_existing_host(&repo_dir, "alpha", "server", "alice")?;
+        seed_existing_host(&repo_dir, "beta", "server", "bob")?;
+
+        let mut app = test_app(repo_dir.clone());
+        app.tmp_dir = Some(repo_dir.clone());
+        let _ui = App::install_test_ui(
+            true,
+            &["", "", "5", "5", "3", "6", "6", "", "2", "5", "5", "2", ""],
+        );
+        let mut runner = TranscriptWizardRunner;
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        let output = App::take_test_output();
+
+        assert_eq!(output.matches("选择主机来源").count(), 2);
+        assert_eq!(output.matches("选择已有主机").count(), 2);
+        assert_eq!(output.matches("选择用户（当前：alice）").count(), 2);
+        assert!(output.contains("选择用户（当前：bob）"));
+        assert_eq!(
+            output.matches("管理员权限（wheel，当前：alice）").count(),
+            2
+        );
+        assert!(output.contains("管理员权限（wheel，当前：bob）"));
+        assert_eq!(output.matches("服务器软件覆盖").count(), 2);
+        assert!(output.contains("部署概要"));
+        assert!(output.contains("部署目标：beta"));
+        assert!(output.contains("用户：bob"));
+        assert!(output.contains("管理员：bob"));
+        assert!(output.contains("GPU：沿用主机配置"));
+        assert!(output.contains("确认以上配置 [c继续/b返回/q退出]（默认 c）： "));
+
+        let host_menu_first = output
+            .find("选择主机来源")
+            .context("missing first host menu")?;
+        let server_menu_first = output
+            .find("服务器软件覆盖")
+            .context("missing first runtime menu")?;
+        let host_menu_second = output[server_menu_first + "服务器软件覆盖".len()..]
+            .find("选择主机来源")
+            .map(|offset| server_menu_first + "服务器软件覆盖".len() + offset)
+            .context("missing reselected host menu")?;
+        let users_bob = output[host_menu_second..]
+            .find("选择用户（当前：bob）")
+            .map(|offset| host_menu_second + offset)
+            .context("missing second host user menu")?;
+        let summary = output[users_bob..]
+            .find("部署概要")
+            .map(|offset| users_bob + offset)
+            .context("missing summary after reentry")?;
+        assert!(host_menu_first < server_menu_first);
+        assert!(server_menu_first < host_menu_second);
+        assert!(host_menu_second < users_bob);
+        assert!(users_bob < summary);
+
+        assert_eq!(app.target_name, "beta");
+        assert_eq!(app.target_users, vec!["bob".to_string()]);
+        assert_eq!(app.target_admin_users, vec!["bob".to_string()]);
+        assert_eq!(app.host_profile_kind, HostProfileKind::Server);
+        assert!(!app.per_user_tun_enabled);
+        assert!(app.user_tun.is_empty());
+        assert!(app.user_dns.is_empty());
+        assert!(!app.gpu_override);
+        assert!(!app.server_overrides_enabled);
+        Ok(())
+    }
+
+    #[test]
     fn wizard_flow_stops_after_user_prompt_error() -> Result<()> {
         let repo_dir = create_temp_dir("mcbctl-wizard-user-error")?;
         let mut app = test_app(repo_dir.clone());
@@ -858,6 +1209,56 @@ mod tests {
         Ok(())
     }
 
+    fn assert_cleared_host_reselection_snapshot(snapshot: &Snapshot) {
+        assert!(snapshot.target_name.is_empty());
+        assert!(snapshot.target_users.is_empty());
+        assert!(snapshot.target_admin_users.is_empty());
+        assert_eq!(snapshot.host_profile_kind, HostProfileKind::Unknown);
+        assert!(!snapshot.per_user_tun_enabled);
+        assert_cleared_runtime_snapshot(snapshot);
+    }
+
+    fn assert_cleared_runtime_snapshot(snapshot: &Snapshot) {
+        assert!(snapshot.user_tun.is_empty());
+        assert!(snapshot.user_dns.is_empty());
+        assert_cleared_gpu_snapshot(snapshot);
+        assert_cleared_server_snapshot(snapshot);
+        assert!(snapshot.detected_gpu.topology.is_none());
+        assert!(snapshot.detected_gpu.igpu_vendor.is_empty());
+        assert!(snapshot.detected_gpu.intel_bus.is_empty());
+        assert!(snapshot.detected_gpu.amd_bus.is_empty());
+        assert!(snapshot.detected_gpu.nvidia_bus.is_empty());
+    }
+
+    fn assert_cleared_gpu_snapshot(snapshot: &Snapshot) {
+        assert!(!snapshot.gpu_override);
+        assert!(!snapshot.gpu_override_from_detection);
+        assert!(snapshot.gpu_mode.is_empty());
+        assert!(snapshot.gpu_igpu_vendor.is_empty());
+        assert!(snapshot.gpu_prime_mode.is_empty());
+        assert!(snapshot.gpu_intel_bus.is_empty());
+        assert!(snapshot.gpu_amd_bus.is_empty());
+        assert!(snapshot.gpu_nvidia_bus.is_empty());
+        assert!(snapshot.gpu_nvidia_open.is_empty());
+        assert!(!snapshot.gpu_specialisations_enabled);
+        assert!(!snapshot.gpu_specialisations_set);
+        assert!(snapshot.gpu_specialisation_modes.is_empty());
+    }
+
+    fn assert_cleared_server_snapshot(snapshot: &Snapshot) {
+        assert!(!snapshot.server_overrides_enabled);
+        assert!(snapshot.server_enable_network_cli.is_empty());
+        assert!(snapshot.server_enable_network_gui.is_empty());
+        assert!(snapshot.server_enable_shell_tools.is_empty());
+        assert!(snapshot.server_enable_wayland_tools.is_empty());
+        assert!(snapshot.server_enable_system_tools.is_empty());
+        assert!(snapshot.server_enable_geek_tools.is_empty());
+        assert!(snapshot.server_enable_gaming.is_empty());
+        assert!(snapshot.server_enable_insecure_tools.is_empty());
+        assert!(snapshot.server_enable_docker.is_empty());
+        assert!(snapshot.server_enable_libvirtd.is_empty());
+    }
+
     fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -866,6 +1267,16 @@ mod tests {
         let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
         fs::create_dir_all(&root)?;
         Ok(root)
+    }
+
+    fn seed_existing_host(repo_dir: &Path, name: &str, profile: &str, user: &str) -> Result<()> {
+        let host_dir = repo_dir.join("hosts").join(name);
+        fs::create_dir_all(&host_dir)?;
+        fs::write(
+            host_dir.join("default.nix"),
+            format!("{{ imports = [ ../profiles/{profile}.nix ]; mcb.user = \"{user}\"; }}"),
+        )?;
+        Ok(())
     }
 
     fn test_app(repo_dir: PathBuf) -> App {

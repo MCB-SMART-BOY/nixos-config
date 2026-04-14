@@ -253,6 +253,32 @@ mod tests {
     }
 
     #[test]
+    fn prompt_users_tty_emits_terminal_transcript_for_empty_finish_and_invalid_username()
+    -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-prompt-users-transcript")?;
+        let host_dir = repo_dir.join("hosts/demo");
+        fs::create_dir_all(&host_dir)?;
+        fs::write(host_dir.join("default.nix"), r#"{ mcb.user = "alice"; }"#)?;
+        let mut app = test_app(repo_dir.clone());
+        app.target_name = "demo".to_string();
+        app.tmp_dir = Some(repo_dir.clone());
+        app.target_users = vec!["existing".to_string()];
+        let _ui = App::install_test_ui(true, &["4", "5", "3", "BadUser", "3", "alice", "5"]);
+
+        let action = app.prompt_users(&repo_dir)?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Continue);
+        assert_eq!(app.target_users, vec!["alice".to_string()]);
+        assert!(output.contains("选择用户（当前：existing）"));
+        assert!(output.contains("输入新增用户名（留空取消）： "));
+        assert!(output.contains("[警告] 请至少选择一个用户。"));
+        assert!(output.contains("[警告] 用户名不合法：BadUser"));
+        assert!(output.contains("新增用户（手写用户名）"));
+        Ok(())
+    }
+
+    #[test]
     fn prompt_admin_users_tty_requires_admin_before_completion() -> Result<()> {
         let repo_dir = create_temp_dir("mcbctl-prompt-admin-requires-selection")?;
         let mut app = test_app(repo_dir);
@@ -267,6 +293,29 @@ mod tests {
             app.target_admin_users,
             vec!["alice".to_string(), "bob".to_string()]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_admin_users_tty_emits_terminal_transcript_for_empty_finish_warning() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-prompt-admin-transcript")?;
+        let mut app = test_app(repo_dir);
+        app.target_users = vec!["alice".to_string(), "bob".to_string()];
+        app.target_admin_users = vec!["alice".to_string()];
+        let _ui = App::install_test_ui(true, &["4", "5", "2", "5"]);
+
+        let action = app.prompt_admin_users()?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Continue);
+        assert_eq!(
+            app.target_admin_users,
+            vec!["alice".to_string(), "bob".to_string()]
+        );
+        assert!(output.contains("管理员权限（wheel，当前：alice）"));
+        assert!(output.contains("清空管理员"));
+        assert!(output.contains("[警告] 至少需要一个管理员用户。"));
+        assert!(output.contains("所有用户"));
         Ok(())
     }
 

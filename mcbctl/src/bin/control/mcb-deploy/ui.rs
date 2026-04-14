@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 thread_local! {
     static TEST_TTY_OVERRIDE: RefCell<Option<bool>> = const { RefCell::new(None) };
     static TEST_PROMPT_INPUTS: RefCell<VecDeque<String>> = const { RefCell::new(VecDeque::new()) };
+    static TEST_OUTPUT: RefCell<String> = const { RefCell::new(String::new()) };
 }
 
 #[cfg(test)]
@@ -19,6 +20,7 @@ impl Drop for TestUiGuard {
     fn drop(&mut self) {
         TEST_TTY_OVERRIDE.with(|value| *value.borrow_mut() = None);
         TEST_PROMPT_INPUTS.with(|inputs| inputs.borrow_mut().clear());
+        TEST_OUTPUT.with(|output| output.borrow_mut().clear());
     }
 }
 
@@ -31,11 +33,43 @@ impl App {
             queue.clear();
             queue.extend(inputs.iter().map(|input| input.to_string()));
         });
+        TEST_OUTPUT.with(|output| output.borrow_mut().clear());
         TestUiGuard
     }
 
+    #[cfg(test)]
+    pub(crate) fn take_test_output() -> String {
+        TEST_OUTPUT.with(|output| std::mem::take(&mut *output.borrow_mut()))
+    }
+
+    fn write_raw(&self, text: &str) {
+        #[cfg(test)]
+        {
+            TEST_OUTPUT.with(|output| output.borrow_mut().push_str(text));
+        }
+        #[cfg(not(test))]
+        {
+            print!("{text}");
+        }
+    }
+
+    fn write_line(&self, text: &str) {
+        #[cfg(test)]
+        {
+            TEST_OUTPUT.with(|output| {
+                let mut output = output.borrow_mut();
+                output.push_str(text);
+                output.push('\n');
+            });
+        }
+        #[cfg(not(test))]
+        {
+            println!("{text}");
+        }
+    }
+
     pub(crate) fn msg(&self, level: &str, text: &str) {
-        println!("[{}] {}", level, text);
+        self.write_line(&format!("[{}] {}", level, text));
     }
 
     pub(crate) fn log(&self, text: &str) {
@@ -51,17 +85,17 @@ impl App {
     }
 
     pub(crate) fn section(&self, text: &str) {
-        println!("\n{text}");
+        self.write_line(&format!("\n{text}"));
     }
 
     pub(crate) fn note(&self, text: &str) {
-        println!("{text}");
+        self.write_line(text);
     }
 
     pub(crate) fn banner(&self) {
-        println!("==========================================");
-        println!("  NixOS 一键部署（mcbctl）");
-        println!("==========================================");
+        self.write_line("==========================================");
+        self.write_line("  NixOS 一键部署（mcbctl）");
+        self.write_line("==========================================");
     }
 
     pub(crate) fn is_tty(&self) -> bool {
@@ -82,14 +116,14 @@ impl App {
             "#".repeat(filled as usize),
             "-".repeat(empty as usize)
         );
-        println!(
+        self.write_line(&format!(
             "进度: [{}] {}/{} {}",
             bar, self.progress_current, self.progress_total, label
-        );
+        ));
     }
 
     pub(crate) fn usage(&self) {
-        println!(
+        self.write_line(
             "用法:
   mcb-deploy
   mcb-deploy release
@@ -100,17 +134,17 @@ impl App {
   均在执行过程中通过菜单选择。
 
   release 模式用于发布新版本：创建 tag、发布 GitHub Release，
-  并触发跨平台预编译产物上传流程。"
+  并触发跨平台预编译产物上传流程。",
         );
     }
 
     pub(crate) fn prompt_line(&self, prompt: &str) -> Result<String> {
         #[cfg(test)]
         if let Some(input) = TEST_PROMPT_INPUTS.with(|queue| queue.borrow_mut().pop_front()) {
-            let _ = prompt;
+            self.write_raw(prompt);
             return Ok(input);
         }
-        print!("{prompt}");
+        self.write_raw(prompt);
         io::stdout().flush().context("刷新输出失败")?;
         let mut input = String::new();
         io::stdin().read_line(&mut input).context("读取输入失败")?;
@@ -127,15 +161,15 @@ impl App {
             bail!("菜单选项不能为空");
         }
         loop {
-            println!("\n{title}");
+            self.write_line(&format!("\n{title}"));
             for (idx, opt) in options.iter().enumerate() {
-                println!("  {}) {}", idx + 1, opt);
+                self.write_line(&format!("  {}) {}", idx + 1, opt));
             }
-            print!(
+            self.write_raw(&format!(
                 "请选择 [1-{}]（默认 {}，输入 q 退出）： ",
                 options.len(),
                 default_index
-            );
+            ));
             let input = self.prompt_line("")?;
             let input = input.trim();
             if input.eq_ignore_ascii_case("q") {
@@ -150,7 +184,7 @@ impl App {
             {
                 return Ok(v);
             }
-            println!("无效选择，请重试。");
+            self.write_line("无效选择，请重试。");
         }
     }
 

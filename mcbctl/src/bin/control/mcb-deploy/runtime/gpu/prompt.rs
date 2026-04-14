@@ -293,6 +293,36 @@ mod tests {
     }
 
     #[test]
+    fn configure_gpu_unknown_topology_emits_terminal_transcript_for_manual_flow() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-gpu-prompt-transcript-unknown")?;
+        let etc_dir = write_host_gpu_defaults(
+            &repo_dir,
+            r#"{ mcb.hardware.gpu.nvidiaBusId = "PCI:1:0:0"; }"#,
+        )?;
+        let mut app = test_app(repo_dir);
+        app.etc_dir = etc_dir;
+        app.detected_gpu = DetectedGpuProfile::default();
+        let _ui = App::install_test_ui(true, &["3", "1", "1", "1", "PCI:0:2:0", "1", "2", "2"]);
+
+        let action = app.configure_gpu()?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(output.contains("GPU 自动识别"));
+        assert!(output.contains("检测到当前主机：未识别"));
+        assert!(output.contains("[警告] 未能自动识别当前主机 GPU 拓扑，将退回手动 GPU 配置。"));
+        assert!(output.contains("手动 GPU 方案"));
+        assert!(output.contains("iGPU 厂商"));
+        assert!(output.contains("PRIME 模式"));
+        assert!(output.contains("Intel iGPU Bus ID"));
+        assert!(output.contains("Intel iGPU Bus ID： "));
+        assert!(output.contains("NVIDIA Bus ID"));
+        assert!(output.contains("NVIDIA Open 内核模块"));
+        assert!(output.contains("是否启用 GPU specialisation"));
+        Ok(())
+    }
+
+    #[test]
     fn configure_gpu_manual_hybrid_returns_back_from_deep_nested_prompt() -> Result<()> {
         let repo_dir = create_temp_dir("mcbctl-gpu-prompt-back-deep")?;
         let etc_dir = write_host_gpu_defaults(
@@ -323,6 +353,44 @@ mod tests {
         assert_eq!(app.gpu_intel_bus, "PCI:0:2:0");
         assert_eq!(app.gpu_nvidia_bus, "PCI:1:0:0");
         assert!(app.gpu_nvidia_open.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn configure_gpu_manual_hybrid_back_path_emits_deep_menu_transcript() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-gpu-prompt-transcript-back")?;
+        let etc_dir = write_host_gpu_defaults(
+            &repo_dir,
+            r#"{
+                mcb.hardware.gpu.intelBusId = "PCI:0:2:0";
+                mcb.hardware.gpu.nvidiaBusId = "PCI:1:0:0";
+            }"#,
+        )?;
+        let mut app = test_app(repo_dir);
+        app.etc_dir = etc_dir;
+        app.detected_gpu = DetectedGpuProfile {
+            topology: Some(DetectedGpuTopology::MultiGpu),
+            igpu_vendor: "intel".to_string(),
+            intel_bus: "PCI:0:2:0".to_string(),
+            amd_bus: String::new(),
+            nvidia_bus: "PCI:1:0:0".to_string(),
+        };
+        let _ui = App::install_test_ui(true, &["3", "3", "1", "1", "1", "1", "3"]);
+
+        let action = app.configure_gpu()?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Back);
+        assert!(output.contains("GPU 自动识别"));
+        assert!(output.contains("检测到当前主机：多显卡主机"));
+        assert!(output.contains("GPU 方案"));
+        assert!(output.contains("使用自动识别结果（推荐：hybrid）"));
+        assert!(output.contains("手动 GPU 方案"));
+        assert!(output.contains("iGPU 厂商"));
+        assert!(output.contains("PRIME 模式"));
+        assert!(output.contains("Intel iGPU Bus ID"));
+        assert!(output.contains("NVIDIA Bus ID"));
+        assert!(output.contains("NVIDIA Open 内核模块"));
         Ok(())
     }
 

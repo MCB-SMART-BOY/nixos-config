@@ -28,61 +28,61 @@
 ### 2.1 来源选择
 
 - 场景：TTY 下选择本地源 / 远端 HEAD / 远端固定 ref
-  当前状态：非 TTY 默认、prepare failure 后 `retry / reselect / exit`、非法输入重试、固定 ref 留空重试 已有测试
-  剩余风险：真实 stdin/stdout 级样例仍未补
-  下一步：视收益决定是否补 1 条真实终端样例
+  当前状态：非 TTY 默认、prepare failure 后 `retry / reselect / exit`、非法输入重试、固定 ref 留空重试 已有测试；并已补一条真实 stdin/stdout 样例覆盖“非法菜单 -> 固定 ref -> 空值重试”
+  剩余风险：如果后续还要继续收，只剩本地源默认和远端 HEAD 之类的输出样例
+  下一步：把真实终端样例扩到别的高收益交互页时再补
 
 - 场景：来源准备失败后重新选择策略
-  当前状态：流程级测试已覆盖
-  剩余风险：交互提示文本和内部动作映射是否完全一致
-  下一步：补“输入 1/2/3/q”与动作映射测试
+  当前状态：流程级测试、`1/2/3/q` 动作映射、以及“告警 + 下一步菜单”真实 stdin/stdout 样例都已覆盖
+  剩余风险：如果后续还要继续收，只剩更长链路的端到端终端样例
+  下一步：把真实终端样例转到别的尚未覆盖场景
 
 ### 2.2 Host 选择
 
 - 场景：已有 host 选择、新建 host、`UpdateExisting` 禁止新建
-  当前状态：默认 host、保留目录过滤、TTY 非法输入重试、新建 host 名称重试 已覆盖
-  剩余风险：TTY 下重选 host 后，旧 host 的 profile / GPU / TUN / server override 状态是否在真实交互里完全清掉
-  下一步：补“host 重选 -> users/admin/runtime 再进入”的交互回归
+  当前状态：默认 host、保留目录过滤、TTY 非法输入重试、新建 host 名称重试 已覆盖；并已补真实 stdin/stdout 样例覆盖“已有 host 菜单重试”和“新建 host 名称校验”；同时已补流程级回归覆盖“桌面 -> 服务器 / 服务器 -> 桌面”的 host 重选后再次进入 users/admin/runtime，确认旧 host 的 profile / GPU / TUN / server override 状态会被清空；并已补一条真实向导 transcript 覆盖“host -> users/admin/runtime -> 返回 -> host -> 再进入 runtime”
+  剩余风险：Host 选择本身已基本收口，剩余主要是更大的跨页面端到端 transcript，而不是 host 链路语义空洞
+  下一步：转阶段收口审查，确认这一批 transcript 与门禁补丁是否达到发版候选标准
 
 ### 2.3 Users / Admin
 
 - 场景：选择已有用户、新增用户、清空用户、返回上一页
-  当前状态：非 TTY 默认、非法用户名重试、清空后禁止直接完成 已覆盖
-  剩余风险：从 admin 返回 users 再修改时默认管理员是否同步收缩；“空输入取消”仍未直接覆盖
-  下一步：补 users/admin 连续往返测试
+  当前状态：非 TTY 默认、非法用户名重试、清空后禁止直接完成 已覆盖；并已补一条真实 stdin/stdout 样例覆盖“清空后直接完成 -> 警告”和“非法用户名 -> 重试”
+  剩余风险：如果后续还要继续收，只剩 users/admin 往返后的更长链路终端样例
+  下一步：把真实终端样例转到别的交互页
 
 - 场景：管理员选择
-  当前状态：默认管理员、清空后禁止直接完成 已覆盖
-  剩余风险：用户列表变化后旧管理员残留在真实交互里是否被完全清理
-  下一步：补 users/admin 连续往返测试
+  当前状态：默认管理员、清空后禁止直接完成 已覆盖；并已补一条真实 stdin/stdout 样例覆盖“清空管理员 -> 直接完成 -> 警告”
+  剩余风险：如果后续还要继续收，只剩跨步骤回退后的更长链路终端样例
+  下一步：把真实终端样例转到别的交互页
 
 ### 2.4 per-user TUN
 
 - 场景：开启 / 关闭、为每个用户填写接口和 DNS 端口
-  当前状态：状态机回退已覆盖
-  剩余风险：非法端口、空输入默认、用户数变化后旧映射残留、返回时字段清理是否和 summary 一致
-  下一步：补逐用户输入恢复测试
+  当前状态：状态机回退已覆盖；并已补真实 stdin/stdout 样例覆盖“空输入走默认值 + 预览确认”和“非法端口触发整轮重输”
+  剩余风险：如果后续还要继续收，只剩用户列表变化、返回上一步之后的更长链路终端样例
+  下一步：把真实终端样例转到别的交互页
 
 ### 2.5 GPU
 
 - 场景：自动检测、手工模式、Bus ID 选择 / 手填、specialisation 选择
-  当前状态：非 TTY 默认、关键回退路径、Bus ID 探测与默认回退已覆盖
-  剩余风险：多层菜单下 `Back` 连续返回、手填 Bus ID 非法、自动检测失败后切手工模式的真实输入流
-  下一步：补 GPU 多层交互的返回矩阵
+  当前状态：非 TTY 默认、关键回退路径、Bus ID 探测与默认回退已覆盖；并已补真实 stdin/stdout 样例覆盖“自动检测失败后切手工模式”和“深层菜单返回”
+  剩余风险：如果后续还要继续收，只剩非法 Bus ID 输入之类的更细粒度终端样例
+  下一步：把真实终端样例转到别的交互页
 
 ### 2.6 Server Override
 
 - 场景：开启 / 关闭 override、逐项 bool 选择、返回 summary
-  当前状态：回退逻辑已覆盖
-  剩余风险：多次开关后旧字段残留、从 summary 返回 override 后再关闭时的状态清理
-  下一步：补 “summary -> server override -> summary” 循环测试
+  当前状态：回退逻辑已覆盖；并已补真实 stdin/stdout 样例覆盖“启用 override 后逐项布尔问答”和“沿用主机现有配置不会进入逐项问答”
+  剩余风险：如果后续还要继续收，只剩跨步骤回退后的更长链路终端样例
+  下一步：把真实终端样例转到别的交互页
 
 ### 2.7 Summary / Execute
 
 - 场景：确认同步、确认重建、退出
-  当前状态：流程级测试已覆盖主干，`continue / back / quit` 输入映射已覆盖
-  剩余风险：确认后 cleanup 失败时的终端表现
-  下一步：视收益决定是否补 1 条真实终端样例
+  当前状态：流程级测试已覆盖主干，`continue / back / quit` 输入映射已覆盖；并已补一条真实 stdin/stdout 样例覆盖“两个确认提示 + cleanup 失败后的最终错误文本”
+  剩余风险：如果后续还要继续收，只剩更长链路的真实终端样例
+  下一步：把真实终端样例转到尚未覆盖的其他交互页
 
 ## 3. 剩余命令与探测语义清单
 
@@ -91,14 +91,14 @@
 ### 3.1 强依赖命令
 
 - `[release.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/release.rs)`
-  命令：`gh auth status`、`git rev-parse <tag>`、`git push`、`gh release create`、`gh workflow run`
+  命令：`gh auth status`、`git status --porcelain`、`git rev-parse <tag>`、`git push`、`gh release create`、`gh workflow run`
   当前语义：失败直接中止
-  剩余工作：补更细的失败传播测试，而不是改语义
+  剩余工作：`dirty worktree / allow_dirty / probe failure / git push / gh release create / gh workflow run` 失败传播测试都已补；后续如果还要继续收，只剩更接近真实 CLI 的端到端样例
 
 - `[orchestrate/env.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/orchestrate/env.rs)`
   命令：`cargo check`
   当前语义：失败直接中止；缺 `cargo` 只告警
-  剩余工作：确认这是否继续保持“增强型检查”而非硬依赖
+  剩余工作：这条边界和最小测试都已补；后续如果还要继续收，只剩更接近真实终端输出的样例
 
 ### 3.2 增强型探测命令
 
@@ -109,13 +109,18 @@
 
 - `[execute.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/execute.rs)`
   命令：`date +%Y%m%d-%H%M%S`
-  当前语义：时间戳失败会回退到 `backup`
-  剩余工作：决定是否需要像 release 一样显式告警
+  当前语义：命令失败或输出为空会显式告警，并回退到 `unknown`
+  剩余工作：如果后续需要，再补更接近真实终端输出的样例
 
 - `[source/local.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/source/local.rs)`
   命令：`git rev-parse HEAD`
-  当前语义：失败只是不显示 `source_commit`
-  剩余工作：确认这是允许的静默增强，还是应该告警后继续
+  当前语义：命令失败或输出为空会显式告警，继续复制本地源，并清空旧的 `source_commit`
+  剩余工作：这条语义已经收口；后续只需在需要时补更接近真实终端输出的样例
+
+- `[source/remote.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/source/remote.rs)`
+  命令：`git rev-parse HEAD`
+  当前语义：命令失败或输出为空会显式告警，继续保留已成功拉取的远端源，并清空旧的 `source_commit`
+  剩余工作：如果后续需要，再补更接近真实终端输出的 clone + probe 样例
 
 ### 3.3 权限与环境探测
 
@@ -128,13 +133,13 @@
 
 - `[utils.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/utils.rs)`
   路径：`can_write_dir()`
-  当前语义：探针文件删除失败会静默吞掉
-  剩余工作：判断是否保留 best-effort；如果保留，要在文档里明确这是探针清理而非业务清理
+  当前语义：保留 best-effort；探针文件删除失败不会升级成业务错误
+  剩余工作：这条语义和最小测试都已补；后续如果还要继续收，只剩更接近真实 rootless 终端环境的样例
 
 - `[scaffold/users.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/scaffold/users.rs)`
   路径：`MCBCTL_COPY_USER_TEMPLATE`
-  当前语义：环境变量读取失败等价于关闭
-  剩余工作：低优先级；这里更像配置开关，不建议过度收紧
+  当前语义：只有字面值 `true` 开启；缺失、无效值或读取失败都等价于关闭
+  剩余工作：这条语义和最小测试都已补；后续如果还要继续收，只剩更接近真实脚手架样例的端到端验证
 
 ## 4. 最小测试夹具策略
 

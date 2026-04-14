@@ -113,6 +113,35 @@ mod tests {
     }
 
     #[test]
+    fn configure_server_overrides_tty_emits_terminal_transcript_for_enable_matrix() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-server-overrides-transcript-enable")?;
+        let mut app = test_app(repo_dir);
+        let _ui = App::install_test_ui(
+            true,
+            &["1", "2", "1", "2", "1", "1", "2", "1", "2", "2", "1"],
+        );
+
+        let action = app.configure_server_overrides()?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(output.contains("服务器软件覆盖"));
+        assert!(output.contains("启用服务器包组覆盖"));
+        assert!(output.contains("沿用主机现有配置"));
+        assert!(output.contains("启用网络 CLI 包？"));
+        assert!(output.contains("启用网络 GUI 包？"));
+        assert!(output.contains("启用 Shell 工具？"));
+        assert!(output.contains("启用 Wayland 工具？"));
+        assert!(output.contains("启用系统工具？"));
+        assert!(output.contains("启用 Geek 工具？"));
+        assert!(output.contains("启用游戏工具？"));
+        assert!(output.contains("启用不安全工具？"));
+        assert!(output.contains("启用 Docker？"));
+        assert!(output.contains("启用 Libvirtd？"));
+        Ok(())
+    }
+
+    #[test]
     fn configure_server_overrides_tty_existing_config_clears_stale_values() -> Result<()> {
         let repo_dir = create_temp_dir("mcbctl-server-overrides-tty-existing")?;
         let mut app = test_app(repo_dir);
@@ -129,6 +158,27 @@ mod tests {
         assert!(app.server_enable_network_cli.is_empty());
         assert!(app.server_enable_network_gui.is_empty());
         assert!(app.server_enable_docker.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn configure_server_overrides_tty_existing_config_emits_short_terminal_transcript() -> Result<()>
+    {
+        let repo_dir = create_temp_dir("mcbctl-server-overrides-transcript-existing")?;
+        let mut app = test_app(repo_dir);
+        app.server_overrides_enabled = true;
+        app.server_enable_network_cli = "true".to_string();
+        app.server_enable_docker = "false".to_string();
+        let _ui = App::install_test_ui(true, &["2"]);
+
+        let action = app.configure_server_overrides()?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(output.contains("服务器软件覆盖"));
+        assert!(output.contains("沿用主机现有配置"));
+        assert!(!output.contains("启用网络 CLI 包？"));
+        assert!(!output.contains("启用 Docker？"));
         Ok(())
     }
 

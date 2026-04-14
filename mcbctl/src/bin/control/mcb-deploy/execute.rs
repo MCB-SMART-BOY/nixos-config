@@ -10,11 +10,45 @@ fn directory_has_entries(path: &Path) -> Result<bool> {
     Ok(entries.next().is_some())
 }
 
+fn backup_timestamp_from_probe(status_success: bool, stdout: &str, stderr: &str) -> Result<String> {
+    if !status_success {
+        let stderr = stderr.trim();
+        if stderr.is_empty() {
+            bail!("date probe failed");
+        }
+        bail!("date probe failed: {stderr}");
+    }
+
+    let timestamp = stdout.trim();
+    if timestamp.is_empty() {
+        bail!("date 输出为空");
+    }
+    Ok(timestamp.to_string())
+}
+
 impl App {
+    fn backup_timestamp_or_unknown(&self) -> String {
+        match Self::command_output("date", &["+%Y%m%d-%H%M%S"]) {
+            Ok(out) => match backup_timestamp_from_probe(
+                out.status.success(),
+                &String::from_utf8_lossy(&out.stdout),
+                &String::from_utf8_lossy(&out.stderr),
+            ) {
+                Ok(timestamp) => timestamp,
+                Err(err) => {
+                    self.warn(&format!("备份时间戳探测失败：{err}；回退到 unknown。"));
+                    "unknown".to_string()
+                }
+            },
+            Err(err) => {
+                self.warn(&format!("备份时间戳探测失败：{err}；回退到 unknown。"));
+                "unknown".to_string()
+            }
+        }
+    }
+
     fn backup_etc(&self) -> Result<()> {
-        let ts = run_capture_allow_fail("date", &["+%Y%m%d-%H%M%S"])
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "unknown".to_string());
+        let ts = self.backup_timestamp_or_unknown();
         let backup_dir = PathBuf::from(format!("{}.backup-{ts}", self.etc_dir.display()));
         self.log(&format!(
             "备份 {} -> {}",
@@ -76,7 +110,7 @@ impl App {
                             self.overwrite_mode = OverwriteMode::Backup;
                             break;
                         } else {
-                            println!("无效选择，请重试。");
+                            self.note("无效选择，请重试。");
                         }
                     }
                 } else {
@@ -207,6 +241,8 @@ fn preserved_hardware_parent(root: &Path, host: &str) -> Option<PathBuf> {
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+    #[cfg(unix)]
+    use std::os::unix::process::ExitStatusExt;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
@@ -223,6 +259,57 @@ mod tests {
         assert!(!directory_has_entries(&root.join("missing"))?);
 
         fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn backup_timestamp_from_probe_accepts_trimmed_timestamp() -> Result<()> {
+        assert_eq!(
+            backup_timestamp_from_probe(true, "20260415-123456\n", "")?,
+            "20260415-123456"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn backup_timestamp_from_probe_rejects_empty_success_output() {
+        let err = backup_timestamp_from_probe(true, " \n", "")
+            .expect_err("empty date output should fail");
+
+        assert!(err.to_string().contains("输出为空"));
+    }
+
+    #[test]
+    fn backup_timestamp_from_probe_surfaces_probe_failure() {
+        let err = backup_timestamp_from_probe(false, "", "permission denied")
+            .expect_err("failed date probe should be reported");
+
+        assert!(err.to_string().contains("permission denied"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn backup_timestamp_or_unknown_returns_unknown_for_failed_probe_output() -> Result<()> {
+        let app = test_app(PathBuf::from("/tmp/repo"));
+        let output = Output {
+            status: ExitStatus::from_raw(1 << 8),
+            stdout: Vec::new(),
+            stderr: b"permission denied".to_vec(),
+        };
+
+        let timestamp = match backup_timestamp_from_probe(
+            output.status.success(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+        ) {
+            Ok(timestamp) => timestamp,
+            Err(err) => {
+                app.warn(&format!("备份时间戳探测失败：{err}；回退到 unknown。"));
+                "unknown".to_string()
+            }
+        };
+
+        assert_eq!(timestamp, "unknown");
         Ok(())
     }
 

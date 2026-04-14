@@ -8,6 +8,13 @@ enum SudoProbeStatus {
     RootlessNoNewPrivileges,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RepoCargoSelfCheckPlan {
+    Run,
+    SkipMissingCargo,
+    SkipMissingManifest,
+}
+
 fn classify_sudo_probe(status_success: bool, stderr: &str) -> SudoProbeStatus {
     if status_success {
         return SudoProbeStatus::Available;
@@ -33,6 +40,27 @@ fn current_uid_from_probe(status_success: bool, stdout: &str, stderr: &str) -> R
         .trim()
         .parse::<u32>()
         .with_context(|| format!("id -u 输出无效：{:?}", stdout.trim()))
+}
+
+fn plan_repo_cargo_self_check(
+    cargo_toml_exists: bool,
+    cargo_available: bool,
+) -> RepoCargoSelfCheckPlan {
+    if !cargo_toml_exists {
+        RepoCargoSelfCheckPlan::SkipMissingManifest
+    } else if !cargo_available {
+        RepoCargoSelfCheckPlan::SkipMissingCargo
+    } else {
+        RepoCargoSelfCheckPlan::Run
+    }
+}
+
+fn ensure_repo_cargo_self_check_status(status_success: bool) -> Result<()> {
+    if status_success {
+        Ok(())
+    } else {
+        bail!("mcbctl cargo check 失败");
+    }
 }
 
 impl App {
@@ -207,8 +235,8 @@ impl App {
         ensure_repository_integrity(repo_dir)?;
 
         let cargo_toml = repo_dir.join("mcbctl/Cargo.toml");
-        if cargo_toml.is_file() {
-            if command_exists("cargo") {
+        match plan_repo_cargo_self_check(cargo_toml.is_file(), command_exists("cargo")) {
+            RepoCargoSelfCheckPlan::Run => {
                 let status = Command::new("cargo")
                     .args(["check", "--quiet"])
                     .current_dir(repo_dir.join("mcbctl"))
@@ -217,14 +245,14 @@ impl App {
                     .stderr(Stdio::inherit())
                     .status()
                     .context("failed to run cargo check for mcbctl")?;
-                if !status.success() {
-                    bail!("mcbctl cargo check 失败");
-                }
-            } else {
+                ensure_repo_cargo_self_check_status(status.success())?;
+            }
+            RepoCargoSelfCheckPlan::SkipMissingCargo => {
                 self.warn("未检测到 cargo，跳过 mcbctl 编译自检。");
             }
-        } else {
-            self.warn("未找到 mcbctl/Cargo.toml，跳过 Rust 脚本编译自检。");
+            RepoCargoSelfCheckPlan::SkipMissingManifest => {
+                self.warn("未找到 mcbctl/Cargo.toml，跳过 Rust 脚本编译自检。");
+            }
         }
 
         self.success("仓库自检完成");
@@ -332,5 +360,38 @@ mod tests {
         let failed = current_uid_from_probe(false, "", "permission denied")
             .expect_err("non-zero exit should fail");
         assert!(failed.to_string().contains("permission denied"));
+    }
+
+    #[test]
+    fn plan_repo_cargo_self_check_prefers_missing_manifest_over_missing_cargo() {
+        assert_eq!(
+            plan_repo_cargo_self_check(false, true),
+            RepoCargoSelfCheckPlan::SkipMissingManifest
+        );
+        assert_eq!(
+            plan_repo_cargo_self_check(false, false),
+            RepoCargoSelfCheckPlan::SkipMissingManifest
+        );
+    }
+
+    #[test]
+    fn plan_repo_cargo_self_check_skips_only_when_cargo_is_missing() {
+        assert_eq!(
+            plan_repo_cargo_self_check(true, false),
+            RepoCargoSelfCheckPlan::SkipMissingCargo
+        );
+        assert_eq!(
+            plan_repo_cargo_self_check(true, true),
+            RepoCargoSelfCheckPlan::Run
+        );
+    }
+
+    #[test]
+    fn ensure_repo_cargo_self_check_status_rejects_non_zero_exit() {
+        ensure_repo_cargo_self_check_status(true).expect("successful cargo check should pass");
+
+        let err = ensure_repo_cargo_self_check_status(false)
+            .expect_err("non-zero cargo check should fail");
+        assert!(err.to_string().contains("cargo check"));
     }
 }

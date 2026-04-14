@@ -584,10 +584,20 @@ mod tests {
 
         let err = deploy_flow_with_runner(&mut app, &mut runner)
             .expect_err("cleanup failure after confirmed success should fail deploy flow");
+        let output = App::take_test_output();
+        let cli_error = render_cli_error(&err);
 
         assert!(err.to_string().contains("部署收尾清理失败"));
         assert!(err.to_string().contains("dns disable failed"));
         assert!(err.to_string().contains("tmp cleanup failed"));
+        assert!(output.contains("确认以上配置并继续同步？ [Y/n] "));
+        assert!(output.contains("配置已同步，继续重建系统？ [Y/n] "));
+        assert!(output.contains("同步与构建"));
+        assert!(output.contains("进度: ["));
+        assert!(output.contains("同步配置"));
+        assert!(cli_error.contains("mcbctl: 部署收尾清理失败"));
+        assert!(cli_error.contains("dns disable failed"));
+        assert!(cli_error.contains("tmp cleanup failed"));
         assert_eq!(
             runner.calls,
             vec![
@@ -749,6 +759,27 @@ mod tests {
         let action = runner.handle_source_prepare_failure(&mut app, "checkout failed")?;
 
         assert_eq!(action, SourcePrepareFailureAction::Exit);
+        Ok(())
+    }
+
+    #[test]
+    fn handle_source_prepare_failure_tty_emits_warning_and_next_step_menu() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-menu-transcript")?;
+        let mut app = test_app(tmp_dir);
+        let mut runner = RealDeployFlowRunner;
+        let _ui = App::install_test_ui(true, &["2"]);
+
+        let action = runner.handle_source_prepare_failure(&mut app, "checkout failed")?;
+
+        let output = App::take_test_output();
+        assert_eq!(action, SourcePrepareFailureAction::ReselectSource);
+        assert!(output.contains("[警告] 准备源代码失败：checkout failed"));
+        assert!(output.contains("准备源代码失败，下一步"));
+        assert!(output.contains("重试当前来源"));
+        assert!(output.contains("重新选择来源策略"));
+        assert!(output.contains("退出"));
+        assert!(output.contains("请选择 [1-3]（默认 1，输入 q 退出）： "));
         Ok(())
     }
 

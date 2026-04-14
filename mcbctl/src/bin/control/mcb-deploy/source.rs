@@ -30,6 +30,30 @@ fn summarize_source_failures(context: &str, failures: &[(String, String)]) -> St
     format!("{context}: {joined}")
 }
 
+fn source_commit_from_probe(status_success: bool, stdout: &str, stderr: &str) -> Result<String> {
+    if !status_success {
+        let stderr = stderr.trim();
+        if stderr.is_empty() {
+            bail!("git rev-parse HEAD failed");
+        }
+        bail!("git rev-parse HEAD failed: {stderr}");
+    }
+
+    let commit = stdout.trim();
+    if commit.is_empty() {
+        bail!("git rev-parse HEAD 输出为空");
+    }
+    Ok(commit.to_string())
+}
+
+fn clone_success_message(commit: &str) -> String {
+    if commit.trim().is_empty() {
+        "仓库拉取完成".to_string()
+    } else {
+        format!("仓库拉取完成（{commit}）")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -64,6 +88,40 @@ mod tests {
         assert!(message.contains("准备源代码失败"));
         assert!(message.contains("mirror-a: clone exited with 128"));
         assert!(message.contains("mirror-b: checkout failed"));
+    }
+
+    #[test]
+    fn source_commit_from_probe_accepts_trimmed_head() -> Result<()> {
+        assert_eq!(
+            source_commit_from_probe(true, "abcdef1234567890\n", "")?,
+            "abcdef1234567890"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn source_commit_from_probe_rejects_empty_success_output() {
+        let err = source_commit_from_probe(true, " \n", "")
+            .expect_err("empty git rev-parse output should fail");
+
+        assert!(err.to_string().contains("输出为空"));
+    }
+
+    #[test]
+    fn source_commit_from_probe_surfaces_probe_failure() {
+        let err = source_commit_from_probe(false, "", "not a git repository")
+            .expect_err("failed git rev-parse should be reported");
+
+        assert!(err.to_string().contains("not a git repository"));
+    }
+
+    #[test]
+    fn clone_success_message_omits_empty_commit_suffix() {
+        assert_eq!(clone_success_message(""), "仓库拉取完成");
+        assert_eq!(
+            clone_success_message("abcdef1234567890"),
+            "仓库拉取完成（abcdef1234567890）"
+        );
     }
 
     fn create_temp_dir(prefix: &str) -> Result<PathBuf> {

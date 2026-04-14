@@ -3,6 +3,10 @@ use mcbctl::store::home::ensure_managed_settings_layout;
 use mcbctl::store::packages::ensure_managed_packages_layout;
 use mcbctl::write_managed_file;
 
+fn copy_user_template_content_enabled(env_value: Result<String, std::env::VarError>) -> bool {
+    matches!(env_value.as_deref(), Ok("true"))
+}
+
 impl App {
     pub(crate) fn ensure_user_home_entries(&mut self, repo_dir: &Path) -> Result<()> {
         let mut profile_import = "../../profiles/full.nix";
@@ -20,9 +24,8 @@ impl App {
             self.warn("未找到用户模板目录；将生成最小用户结构，不复制任何现有用户目录。");
         }
 
-        let copy_template_content = std::env::var("MCBCTL_COPY_USER_TEMPLATE")
-            .ok()
-            .is_some_and(|v| v == "true");
+        let copy_template_content =
+            copy_user_template_content_enabled(std::env::var("MCBCTL_COPY_USER_TEMPLATE"));
         if copy_template_content {
             self.note("将复制模板用户目录内容（MCBCTL_COPY_USER_TEMPLATE=true）");
         } else {
@@ -222,5 +225,25 @@ in
             ));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn copy_user_template_content_enabled_only_accepts_literal_true() {
+        assert!(copy_user_template_content_enabled(Ok("true".to_string())));
+        assert!(!copy_user_template_content_enabled(Ok("TRUE".to_string())));
+        assert!(!copy_user_template_content_enabled(Ok("1".to_string())));
+        assert!(!copy_user_template_content_enabled(Ok(String::new())));
+    }
+
+    #[test]
+    fn copy_user_template_content_enabled_treats_missing_env_as_disabled() {
+        assert!(!copy_user_template_content_enabled(Err(
+            std::env::VarError::NotPresent
+        )));
     }
 }

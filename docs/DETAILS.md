@@ -177,9 +177,14 @@ Rust 侧负责：
 - 这条规则当前已经落在默认用户来源解析、现有 `home/users/*` 枚举、GPU Bus ID 默认探测、host profile 判定、per-user TUN 默认探测、默认路由接口探测、当前 uid 探测上
 - `per-user TUN` 优先尝试 `nix eval`；如果 `nix eval` 失败、输出不是 `true|false`，或候选文件不可读，会告警后退回文件扫描或默认 `false`
 - GPU 自动识别优先尝试 `lspci -D`；如果 `lspci` 缺失则静默退回受管配置候选值，如果 `lspci` 执行失败则显式告警后回退
+- 本地源和远端源提交都优先尝试 `git rev-parse HEAD`；如果命令失败或输出为空，会显式告警并继续后续复制/拉取，同时清空旧的 `source_commit`
+- 备份时间戳优先尝试 `date +%Y%m%d-%H%M%S`；如果命令失败或输出为空，会显式告警并回退到 `unknown`
+- 仓库自检里，如果存在 `mcbctl/Cargo.toml` 且系统有 `cargo`，会额外运行一次 `cargo check --quiet`；这条检查属于增强型门禁，命令失败会中止，但缺 `cargo` 或缺 `mcbctl/Cargo.toml` 只告警并跳过
 - 如果最终仍无法识别 GPU 拓扑，TTY 问答会退回手动 GPU 方案；即使没有任何 Bus ID 候选，也必须允许手工输入 Intel / AMD / NVIDIA Bus ID
 - 默认路由接口优先尝试 `ip route show default`；如果 `ip` 缺失则静默跳过，如果命令异常或输出无效则显式告警后回退
 - 当前 uid 优先尝试 `id -u`；如果 `id` 缺失或探测异常，则显式告警并按非 root 环境继续
+- `can_write_dir()` 只用于 rootless 的目录可写性探针；探针文件写入成功后的删除保持 best-effort，删除失败不会升级成部署收尾清理错误，也不会阻止后续 fallback 到 `$HOME/.nixos`
+- `MCBCTL_COPY_USER_TEMPLATE` 只是一条可选脚手架开关；只有字面值 `true` 才复制模板用户目录内容，缺失、无效值或读取失败都等价于关闭
 
 ## 5. 桌面命令与 Noctalia
 
@@ -241,6 +246,7 @@ release 探测语义现在也和 deploy 主线保持一致：
 
 - `git describe` 失败时，会显式告警并按“首次发布”生成 notes
 - `git log` 失败时，会显式告警并生成回退版 release notes
+- `git status --porcelain` 探测失败时，会直接中止 release，避免把未知工作区状态误判成 clean
 
 这意味着：
 

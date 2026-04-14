@@ -82,6 +82,31 @@ mod tests {
     }
 
     #[test]
+    fn configure_per_user_tun_tty_emits_terminal_transcript_for_default_round() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-tun-defaults-transcript")?;
+        let mut app = test_app(repo_dir);
+        app.target_users = vec!["alice".to_string(), "bob".to_string()];
+        let _ui = App::install_test_ui(true, &["", "", "", "", ""]);
+
+        let action = app.configure_per_user_tun()?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(output.contains("Per-user TUN 配置"));
+        assert!(output.contains("检测到当前主机已启用 per-user TUN。"));
+        assert!(output.contains("请为每个用户指定独立 TUN 名称与 DNS 端口。"));
+        assert!(output.contains("用户 alice 的 TUN 接口（默认 tun1）： "));
+        assert!(output.contains("用户 alice 的 DNS 端口（默认 1053）： "));
+        assert!(output.contains("用户 bob 的 TUN 接口（默认 tun2）： "));
+        assert!(output.contains("用户 bob 的 DNS 端口（默认 1054）： "));
+        assert!(output.contains("Per-user TUN 配置预览："));
+        assert!(output.contains("  - alice: tun1, DNS 1053"));
+        assert!(output.contains("  - bob: tun2, DNS 1054"));
+        assert!(output.contains("确认 Per-user TUN 配置？ [c继续/b返回/q退出]（默认 c）： "));
+        Ok(())
+    }
+
+    #[test]
     fn configure_per_user_tun_tty_restarts_whole_round_after_invalid_dns() -> Result<()> {
         let repo_dir = create_temp_dir("mcbctl-tun-invalid-dns-retry")?;
         let mut app = test_app(repo_dir);
@@ -97,6 +122,35 @@ mod tests {
         assert_eq!(app.user_dns.get("alice"), Some(&2053));
         assert_eq!(app.user_tun.get("bob"), Some(&"tun2".to_string()));
         assert_eq!(app.user_dns.get("bob"), Some(&1054));
+        Ok(())
+    }
+
+    #[test]
+    fn configure_per_user_tun_tty_emits_terminal_transcript_for_invalid_dns_retry() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-tun-invalid-dns-transcript")?;
+        let mut app = test_app(repo_dir);
+        app.target_users = vec!["alice".to_string(), "bob".to_string()];
+        let _ui = App::install_test_ui(true, &["tap0", "bad", "tap1", "2053", "", "", ""]);
+
+        let action = app.configure_per_user_tun()?;
+        let output = App::take_test_output();
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(output.contains("[警告] 端口无效，请重新输入这一轮。"));
+        assert!(
+            output
+                .matches("用户 alice 的 TUN 接口（默认 tun1）： ")
+                .count()
+                >= 2
+        );
+        assert!(
+            output
+                .matches("用户 alice 的 DNS 端口（默认 1053）： ")
+                .count()
+                >= 2
+        );
+        assert!(output.contains("  - alice: tap1, DNS 2053"));
+        assert!(output.contains("  - bob: tun2, DNS 1054"));
         Ok(())
     }
 

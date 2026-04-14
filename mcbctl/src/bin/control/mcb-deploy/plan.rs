@@ -4,7 +4,7 @@ impl App {
     pub(super) fn print_summary(&mut self) {
         self.section("部署概要");
         for line in self.build_deploy_plan().summary_lines() {
-            println!("{line}");
+            self.note(&line);
         }
     }
 

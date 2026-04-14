@@ -518,6 +518,28 @@ mod tests {
     }
 
     #[test]
+    fn select_host_tty_emits_terminal_transcript_for_existing_host_retry() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-select-transcript-existing")?;
+        fs::create_dir_all(repo_dir.join("hosts").join("alpha"))?;
+        fs::create_dir_all(repo_dir.join("hosts").join("nixos"))?;
+        let mut app = test_app(repo_dir.clone());
+        let _ui = App::install_test_ui(true, &["9", "", ""]);
+
+        app.select_host(&repo_dir)?;
+
+        let output = App::take_test_output();
+        assert!(output.contains("选择主机来源"));
+        assert!(output.contains("使用已有主机"));
+        assert!(output.contains("新建桌面主机（从模板）"));
+        assert!(output.contains("新建服务器主机（从模板）"));
+        assert!(output.contains("无效选择，请重试。"));
+        assert!(output.contains("选择已有主机"));
+        assert!(output.contains("alpha"));
+        assert!(output.contains("nixos"));
+        Ok(())
+    }
+
+    #[test]
     fn select_host_tty_retries_reserved_and_existing_names_until_valid() -> Result<()> {
         let repo_dir = create_temp_repo_dir("mcbctl-host-select-tty-new")?;
         fs::create_dir_all(repo_dir.join("hosts").join("nixos"))?;
@@ -528,6 +550,24 @@ mod tests {
 
         assert_eq!(app.target_name, "workstation");
         assert_eq!(app.host_profile_kind, HostProfileKind::Desktop);
+        Ok(())
+    }
+
+    #[test]
+    fn select_host_tty_emits_terminal_transcript_for_new_host_validation() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-select-transcript-new")?;
+        fs::create_dir_all(repo_dir.join("hosts").join("nixos"))?;
+        let mut app = test_app(repo_dir.clone());
+        let _ui = App::install_test_ui(true, &["2", "profiles", "nixos", "workstation"]);
+
+        app.select_host(&repo_dir)?;
+
+        let output = App::take_test_output();
+        assert!(output.contains("选择主机来源"));
+        assert!(output.contains("输入新主机名（模板：desktop，留空取消）： "));
+        assert!(output.contains("[警告] 主机名保留不可用：profiles"));
+        assert!(output.contains("[警告] 主机已存在：hosts/nixos"));
+        assert!(output.contains("新建桌面主机（从模板）"));
         Ok(())
     }
 

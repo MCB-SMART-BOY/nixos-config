@@ -300,17 +300,21 @@ impl App {
     }
 }
 
+fn render_cli_error(err: &anyhow::Error) -> String {
+    format!("mcbctl: {err:#}")
+}
+
 fn main() {
     let mut app = match App::new() {
         Ok(v) => v,
         Err(err) => {
-            eprintln!("mcbctl: {err:#}");
+            eprintln!("{}", render_cli_error(&err));
             std::process::exit(1);
         }
     };
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Err(err) = app.parse_args(&args).and_then(|_| app.run()) {
-        eprintln!("mcbctl: {err:#}");
+        eprintln!("{}", render_cli_error(&err));
         std::process::exit(1);
     }
 }

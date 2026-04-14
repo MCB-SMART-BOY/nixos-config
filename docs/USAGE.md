@@ -124,6 +124,11 @@ nix run .#mcbctl -- deploy
   - 缺失则回退
   - 不可读或 `nix eval` 输出异常则告警后回退
 - 现有 `home/users/*` 枚举如果目录结构异常，也会显式告警后回退；GPU 自动识别优先尝试 `lspci -D`，命令缺失时静默降级，命令执行异常时告警后回退
+- 本地源和远端源的 `git rev-parse HEAD` 都只用于补充显示 `source_commit`；探测失败会显式告警并继续后续复制/拉取，不会阻塞部署，也不会保留上一轮旧 commit
+- `/etc/nixos` 备份时间戳优先尝试 `date +%Y%m%d-%H%M%S`；探测失败会显式告警并回退到 `unknown`
+- `mcbctl/Cargo.toml` 存在时，部署前会额外尝试一次 `cargo check --quiet` 作为 Rust 编译自检；这是一条增强型检查，`cargo check` 失败会中止流程，但缺少 `cargo` 或仓库里没有 `mcbctl/Cargo.toml` 只会告警并跳过
+- rootless 模式判断目录是否可写时，会临时写入 `.mcbctl-write-*` 探针文件；该探针删除是 best-effort，不属于部署收尾清理，删除失败不会升级成业务错误
+- `MCBCTL_COPY_USER_TEMPLATE` 是可选模板复制开关；只有字面值 `true` 会复制模板用户目录里的 `config/assets/files.nix`，缺失或其他值都等价于关闭
 - 如果 GPU 拓扑无法自动识别，TTY 流程会退回手动模式，但仍然允许直接手填 iGPU / NVIDIA Bus ID，不会因为候选列表为空而卡死
 
 ## 5. 检查与追新
@@ -169,6 +174,7 @@ nix run .#mcb-deploy -- release
 发布默认会使用当前 `mcbctl` 包版本作为 release tag；如果要发新版本，先更新 `mcbctl/Cargo.toml` 和 `pkgs/mcbctl/default.nix`，或者显式传入 `RELEASE_VERSION`。
 
 发布时如果上一个 tag 探测或 git log 生成失败，现在会显式告警，并退回到保守 release notes，而不是静默生成空结果。
+发布前还会强制探测 `git status --porcelain`；如果探测失败会直接中止发布，避免把未知工作区状态误判成干净。
 
 创建 GitHub Release 后，CI 资产工作流会按刚创建的 tag 触发，而不是按当前分支 head 触发；这样 release 页面和上传的预编译资产始终对齐。
 

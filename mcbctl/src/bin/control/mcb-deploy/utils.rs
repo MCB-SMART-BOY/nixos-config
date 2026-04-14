@@ -22,18 +22,29 @@ pub(crate) fn is_valid_username(v: &str) -> bool {
     chars.all(|c| c == '_' || c == '-' || c.is_ascii_lowercase() || c.is_ascii_digit())
 }
 
-pub(crate) fn can_write_dir(path: &Path) -> bool {
+fn can_write_dir_with_probe_cleanup<F>(path: &Path, cleanup_probe: F) -> bool
+where
+    F: FnOnce(&Path) -> Result<()>,
+{
     if fs::create_dir_all(path).is_err() {
         return false;
     }
     let probe = path.join(format!(".mcbctl-write-{}", std::process::id()));
     match fs::write(&probe, b"ok") {
         Ok(_) => {
-            fs::remove_file(probe).ok();
+            // This is only a rootless writeability probe; cleanup stays best-effort.
+            let _ = cleanup_probe(&probe);
             true
         }
         Err(_) => false,
     }
+}
+
+pub(crate) fn can_write_dir(path: &Path) -> bool {
+    can_write_dir_with_probe_cleanup(path, |probe| {
+        fs::remove_file(probe)
+            .with_context(|| format!("failed to remove write probe {}", probe.display()))
+    })
 }
 
 pub(crate) fn home_dir() -> PathBuf {
@@ -172,4 +183,62 @@ pub(crate) fn is_valid_host_name(v: &str) -> bool {
     }
     v.bytes()
         .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn can_write_dir_accepts_writable_directory_and_cleans_probe() -> Result<()> {
+        let root = create_temp_dir("mcbctl-utils-can-write")?;
+        let target = root.join("target");
+
+        assert!(can_write_dir(&target));
+
+        let leftover = fs::read_dir(&target)?.flatten().any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".mcbctl-write-")
+        });
+        assert!(!leftover);
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn can_write_dir_keeps_success_when_probe_cleanup_fails() -> Result<()> {
+        let root = create_temp_dir("mcbctl-utils-probe-cleanup")?;
+        let target = root.join("target");
+
+        let ok = can_write_dir_with_probe_cleanup(&target, |_probe| {
+            Err(anyhow::anyhow!("probe cleanup failed"))
+        });
+
+        assert!(ok);
+        let leftover = fs::read_dir(&target)?.flatten().any(|entry| {
+            entry
+                .file_name()
+                .to_string_lossy()
+                .starts_with(".mcbctl-write-")
+        });
+        assert!(leftover);
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn can_write_dir_rejects_uncreatable_target_path() -> Result<()> {
+        let root = create_temp_dir("mcbctl-utils-can-write-blocked")?;
+        let blocked = root.join("blocked");
+        fs::write(&blocked, "file blocks nested dir creation")?;
+
+        assert!(!can_write_dir(&blocked.join("nested")));
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
 }

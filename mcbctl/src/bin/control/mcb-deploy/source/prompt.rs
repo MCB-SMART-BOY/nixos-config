@@ -55,7 +55,7 @@ impl App {
                             self.source_ref = v.to_string();
                             break;
                         }
-                        println!("版本不能为空，请重试。");
+                        self.note("版本不能为空，请重试。");
                     }
                 }
                 2 => {
@@ -156,6 +156,25 @@ mod tests {
         assert!(!app.allow_remote_head);
         assert_eq!(app.source_ref, "demo-tag");
         assert!(app.source_choice_set);
+        Ok(())
+    }
+
+    #[test]
+    fn prompt_source_strategy_tty_emits_terminal_transcript_for_invalid_menu_and_empty_pin()
+    -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-source-tty-transcript")?;
+        let mut app = test_app(repo_dir);
+        let _ui = App::install_test_ui(true, &["9", "2", "", "demo-tag"]);
+
+        app.prompt_source_strategy()?;
+
+        let output = App::take_test_output();
+        assert!(output.contains("选择配置来源"));
+        assert!(output.contains("使用本地仓库（推荐）"));
+        assert!(output.contains("使用网络仓库固定版本（输入 commit/tag）"));
+        assert!(output.contains("无效选择，请重试。"));
+        assert!(output.contains("请输入远端固定版本（commit/tag）： "));
+        assert!(output.contains("版本不能为空，请重试。"));
         Ok(())
     }
 
