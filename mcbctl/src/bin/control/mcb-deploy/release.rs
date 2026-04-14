@@ -39,30 +39,68 @@ fn finalize_with_cleanup(
     }
 }
 
+fn next_release_version_for_base(base: &str, tag_output: &str) -> String {
+    let mut max = -1i64;
+    for tag in tag_output.lines() {
+        if tag == base {
+            max = 0;
+        } else if let Some(sfx) = tag.strip_prefix(&(base.to_string() + "."))
+            && let Ok(num) = sfx.parse::<i64>()
+            && num > max
+        {
+            max = num;
+        }
+    }
+    if max >= 0 {
+        format!("{base}.{}", max + 1)
+    } else {
+        base.to_string()
+    }
+}
+
+fn render_release_notes_from_log(last_tag: &str, log_output: Option<&str>) -> String {
+    let Some(out) = log_output else {
+        return if last_tag.is_empty() {
+            "Git log unavailable; no release notes generated.".to_string()
+        } else {
+            format!("Git log unavailable since {last_tag}; no release notes generated.")
+        };
+    };
+    let lines: Vec<&str> = out.lines().collect();
+    if lines.is_empty() {
+        if last_tag.is_empty() {
+            "No code changes found.".to_string()
+        } else {
+            format!("No code changes since {last_tag}.")
+        }
+    } else {
+        let header = if last_tag.is_empty() {
+            "Changes".to_string()
+        } else {
+            format!("Changes since {last_tag}")
+        };
+        let mut notes = format!("## {header}\n");
+        for line in lines {
+            notes.push_str(&format!("- {line}\n"));
+        }
+        notes
+    }
+}
+
 impl App {
     pub(super) fn default_release_version(&self) -> String {
         let today = run_capture_allow_fail("date", &["+%Y.%m.%d"])
             .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| "1970.01.01".to_string());
+            .unwrap_or_else(|| {
+                self.warn("无法读取当前日期，发布版本前缀将回退到 1970.01.01。");
+                "1970.01.01".to_string()
+            });
         let base = format!("v{today}");
-        let mut max = -1i64;
-        let out = run_capture_allow_fail("git", &["tag", "--list", &base, &format!("{base}.*")])
-            .unwrap_or_default();
-        for tag in out.lines() {
-            if tag == base {
-                max = 0;
-            } else if let Some(sfx) = tag.strip_prefix(&(base.clone() + "."))
-                && let Ok(num) = sfx.parse::<i64>()
-                && num > max
-            {
-                max = num;
-            }
+        let out = run_capture_allow_fail("git", &["tag", "--list", &base, &format!("{base}.*")]);
+        if out.is_none() {
+            self.warn("无法读取现有 release tag，发布版本将按当天基础版本回退。");
         }
-        if max >= 0 {
-            format!("{base}.{}", max + 1)
-        } else {
-            base
-        }
+        next_release_version_for_base(&base, out.as_deref().unwrap_or(""))
     }
 
     pub(super) fn resolve_release_version(&self) -> Result<String> {
@@ -85,7 +123,10 @@ impl App {
     pub(super) fn find_last_release_tag(&self) -> String {
         run_capture_allow_fail("git", &["describe", "--tags", "--abbrev=0"])
             .map(|s| s.trim().to_string())
-            .unwrap_or_default()
+            .unwrap_or_else(|| {
+                self.warn("无法探测上一个 release tag，将按首次发布生成 release notes。");
+                String::new()
+            })
     }
 
     pub(super) fn generate_release_notes(&self, last_tag: &str) -> String {
@@ -94,27 +135,11 @@ impl App {
         } else {
             format!("{last_tag}..HEAD")
         };
-        let out = run_capture_allow_fail("git", &["log", "--oneline", "--no-merges", &range])
-            .unwrap_or_default();
-        let lines: Vec<&str> = out.lines().collect();
-        if lines.is_empty() {
-            if last_tag.is_empty() {
-                "No code changes found.".to_string()
-            } else {
-                format!("No code changes since {last_tag}.")
-            }
-        } else {
-            let header = if last_tag.is_empty() {
-                "Changes".to_string()
-            } else {
-                format!("Changes since {last_tag}")
-            };
-            let mut notes = format!("## {header}\n");
-            for line in lines {
-                notes.push_str(&format!("- {line}\n"));
-            }
-            notes
+        let out = run_capture_allow_fail("git", &["log", "--oneline", "--no-merges", &range]);
+        if out.is_none() {
+            self.warn("无法读取 git log，将生成回退版 release notes。");
         }
+        render_release_notes_from_log(last_tag, out.as_deref())
     }
 
     pub(super) fn release_flow(&mut self) -> Result<()> {
@@ -241,5 +266,42 @@ mod tests {
         assert!(summary.contains("release notes cleanup failed"));
         assert!(summary.contains("remove temp file failed"));
         assert!(summary.contains("another cleanup error"));
+    }
+
+    #[test]
+    fn next_release_version_for_base_picks_next_suffix() {
+        let tags = "v2026.04.14\nv2026.04.14.1\nv2026.04.14.3\nv2026.04.13.9\n";
+
+        assert_eq!(
+            next_release_version_for_base("v2026.04.14", tags),
+            "v2026.04.14.4"
+        );
+    }
+
+    #[test]
+    fn next_release_version_for_base_returns_base_when_no_matching_tag_exists() {
+        assert_eq!(
+            next_release_version_for_base("v2026.04.14", "v2026.04.13\n"),
+            "v2026.04.14"
+        );
+    }
+
+    #[test]
+    fn render_release_notes_from_log_renders_changes_when_log_is_available() {
+        let notes = render_release_notes_from_log("v1.0.0", Some("abc fix bug\ndef add test"));
+
+        assert!(notes.contains("## Changes since v1.0.0"));
+        assert!(notes.contains("- abc fix bug"));
+        assert!(notes.contains("- def add test"));
+    }
+
+    #[test]
+    fn render_release_notes_from_log_falls_back_when_log_is_unavailable() {
+        let notes = render_release_notes_from_log("v1.0.0", None);
+
+        assert_eq!(
+            notes,
+            "Git log unavailable since v1.0.0; no release notes generated."
+        );
     }
 }

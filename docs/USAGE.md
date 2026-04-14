@@ -138,7 +138,15 @@ nix run .#noctalia-proxy-status
 - `mcbctl terminal-action <flake-status|flake-hint|sensors|memory|disk>`
 - `mcbctl screenshot-edit <full|region>`
 
-## 7. 手写逻辑应该放哪
+## 7. 发布
+
+```bash
+nix run .#mcb-deploy -- release
+```
+
+发布时如果版本探测、上一个 tag 探测或 git log 生成失败，现在会显式告警，并退回到保守版本号或保守 release notes，而不是静默生成空结果。
+
+## 8. 手写逻辑应该放哪
 
 主机：
 
@@ -160,7 +168,7 @@ nix run .#noctalia-proxy-status
 
 不要把长期手写逻辑放进 `managed/`。
 
-## 8. 验证
+## 9. 验证
 
 ```bash
 cargo fmt --check --manifest-path mcbctl/Cargo.toml
