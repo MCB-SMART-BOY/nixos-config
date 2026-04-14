@@ -20,7 +20,36 @@ fn classify_sudo_probe(status_success: bool, stderr: &str) -> SudoProbeStatus {
     }
 }
 
+fn current_uid_from_probe(status_success: bool, stdout: &str, stderr: &str) -> Result<u32> {
+    if !status_success {
+        let stderr = stderr.trim();
+        if stderr.is_empty() {
+            bail!("id -u failed");
+        }
+        bail!("id -u failed: {stderr}");
+    }
+
+    stdout
+        .trim()
+        .parse::<u32>()
+        .with_context(|| format!("id -u 输出无效：{:?}", stdout.trim()))
+}
+
 impl App {
+    fn probe_current_uid(&self) -> Result<Option<u32>> {
+        if !command_exists("id") {
+            return Ok(None);
+        }
+
+        let output = Self::command_output("id", &["-u"]).context("探测当前 uid 失败")?;
+        current_uid_from_probe(
+            output.status.success(),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+        )
+        .map(Some)
+    }
+
     pub(crate) fn command_output(cmd: &str, args: &[&str]) -> Result<Output> {
         Command::new(cmd)
             .args(args)
@@ -71,9 +100,17 @@ impl App {
     pub(crate) fn check_env(&mut self) -> Result<()> {
         self.log("检查环境...");
 
-        let is_root = run_capture_allow_fail("id", &["-u"])
-            .map(|s| s.trim() == "0")
-            .unwrap_or(false);
+        let is_root = match self.probe_current_uid() {
+            Ok(Some(uid)) => uid == 0,
+            Ok(None) => {
+                self.warn("未找到 id，按非 root 环境处理。");
+                false
+            }
+            Err(err) => {
+                self.warn(&format!("当前 uid 探测失败：{err}；按非 root 环境处理。"));
+                false
+            }
+        };
         if is_root {
             self.warn("检测到 root，将跳过 sudo。");
             self.sudo_cmd = None;
@@ -277,5 +314,23 @@ mod tests {
             classify_sudo_probe(false, ""),
             SudoProbeStatus::NeedsInteractiveAuth
         );
+    }
+
+    #[test]
+    fn current_uid_from_probe_accepts_valid_uid_output() -> Result<()> {
+        assert_eq!(current_uid_from_probe(true, "0\n", "")?, 0);
+        assert_eq!(current_uid_from_probe(true, "1000\n", "")?, 1000);
+        Ok(())
+    }
+
+    #[test]
+    fn current_uid_from_probe_rejects_invalid_or_failed_output() {
+        let invalid = current_uid_from_probe(true, "root", "")
+            .expect_err("non-numeric uid output should fail");
+        assert!(invalid.to_string().contains("输出无效"));
+
+        let failed = current_uid_from_probe(false, "", "permission denied")
+            .expect_err("non-zero exit should fail");
+        assert!(failed.to_string().contains("permission denied"));
     }
 }

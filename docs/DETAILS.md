@@ -97,9 +97,11 @@ Rust 侧负责：
 
 - `missing`：允许继续按回退路径处理
 - `unreadable`：会显式告警，再继续回退
-- 这条规则当前已经落在默认用户来源解析、现有 `home/users/*` 枚举、GPU Bus ID 默认探测、host profile 判定、per-user TUN 默认探测上
+- 这条规则当前已经落在默认用户来源解析、现有 `home/users/*` 枚举、GPU Bus ID 默认探测、host profile 判定、per-user TUN 默认探测、默认路由接口探测、当前 uid 探测上
 - `per-user TUN` 优先尝试 `nix eval`；如果 `nix eval` 失败、输出不是 `true|false`，或候选文件不可读，会告警后退回文件扫描或默认 `false`
 - GPU 自动识别优先尝试 `lspci -D`；如果 `lspci` 缺失则静默退回受管配置候选值，如果 `lspci` 执行失败则显式告警后回退
+- 默认路由接口优先尝试 `ip route show default`；如果 `ip` 缺失则静默跳过，如果命令异常或输出无效则显式告警后回退
+- 当前 uid 优先尝试 `id -u`；如果 `id` 缺失或探测异常，则显式告警并按非 root 环境继续
 
 ## 5. 桌面命令与 Noctalia
 

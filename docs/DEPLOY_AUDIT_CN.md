@@ -26,9 +26,9 @@
 ### 2.1 来源选择
 
 - 场景：TTY 下选择本地源 / 远端 HEAD / 远端固定 ref
-  当前状态：非 TTY 默认、prepare failure 后 `retry / reselect / exit` 已有测试
-  剩余风险：真实输入非法、空输入默认、固定 ref 留空、切换来源后旧 `source_ref` / `force_remote_source` 残留
-  下一步：补最小 stdin/stdout 级测试或更窄的 prompt seam
+  当前状态：非 TTY 默认、prepare failure 后 `retry / reselect / exit`、非法输入重试、固定 ref 留空重试 已有测试
+  剩余风险：真实 stdin/stdout 级样例仍未补
+  下一步：视收益决定是否补 1 条真实终端样例
 
 - 场景：来源准备失败后重新选择策略
   当前状态：流程级测试已覆盖
@@ -38,19 +38,19 @@
 ### 2.2 Host 选择
 
 - 场景：已有 host 选择、新建 host、`UpdateExisting` 禁止新建
-  当前状态：默认 host 和保留目录过滤已覆盖
+  当前状态：默认 host、保留目录过滤、TTY 非法输入重试、新建 host 名称重试 已覆盖
   剩余风险：TTY 下重选 host 后，旧 host 的 profile / GPU / TUN / server override 状态是否在真实交互里完全清掉
   下一步：补“host 重选 -> users/admin/runtime 再进入”的交互回归
 
 ### 2.3 Users / Admin
 
 - 场景：选择已有用户、新增用户、清空用户、返回上一页
-  当前状态：非 TTY 默认、部分状态机级行为已覆盖
-  剩余风险：非法用户名、多次清空后再完成、从 admin 返回 users 再修改时默认管理员是否同步收缩
-  下一步：补真实输入矩阵，尤其是“空输入取消”和“非法用户名重试”
+  当前状态：非 TTY 默认、非法用户名重试、清空后禁止直接完成 已覆盖
+  剩余风险：从 admin 返回 users 再修改时默认管理员是否同步收缩；“空输入取消”仍未直接覆盖
+  下一步：补 users/admin 连续往返测试
 
 - 场景：管理员选择
-  当前状态：默认管理员和勾选逻辑已覆盖
+  当前状态：默认管理员、清空后禁止直接完成 已覆盖
   剩余风险：用户列表变化后旧管理员残留在真实交互里是否被完全清理
   下一步：补 users/admin 连续往返测试
 
@@ -78,9 +78,9 @@
 ### 2.7 Summary / Execute
 
 - 场景：确认同步、确认重建、退出
-  当前状态：流程级测试已覆盖主干
-  剩余风险：TTY 提示文案、用户取消、确认后 cleanup 失败时的终端表现
-  下一步：补确认页输入级测试
+  当前状态：流程级测试已覆盖主干，`continue / back / quit` 输入映射已覆盖
+  剩余风险：确认后 cleanup 失败时的终端表现
+  下一步：视收益决定是否补 1 条真实终端样例
 
 ## 3. 剩余命令与探测语义清单
 
@@ -102,8 +102,8 @@
 
 - `[orchestrate/dns.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/orchestrate/dns.rs)`
   命令：`ip route show default`
-  当前语义：探测失败直接视为无默认接口
-  剩余工作：明确区分“命令缺失”和“命令异常”；至少给异常路径补告警测试
+  当前语义：`ip` 缺失时静默回退；命令异常或输出无效时显式告警后回退
+  剩余工作：如果后续需要，再补更接近终端输出的集成样例
 
 - `[execute.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/execute.rs)`
   命令：`date +%Y%m%d-%H%M%S`
@@ -119,13 +119,8 @@
 
 - `[orchestrate/env.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/orchestrate/env.rs)`
   命令：`id -u`
-  当前语义：用于 root/rootless 判定
-  剩余工作：如果命令缺失，是否需要更明确地退回 rootless 并告警
-
-- `[execute.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/execute.rs)`
-  命令：`id -u`
-  当前语义：用于 backup 命名/权限路径判断
-  剩余工作：统一和 `check_env()` 的探测语义，不再各自保守回退
+  当前语义：`id` 缺失或探测异常会显式告警，并按非 root 环境继续
+  剩余工作：如果后续还要继续收，重点应转向 backup 时间戳和本地源 commit 探测，不再是 `id -u`
 
 ### 3.4 清理与辅助路径
 

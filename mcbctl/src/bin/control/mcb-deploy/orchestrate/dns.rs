@@ -16,10 +16,49 @@ fn systemd_resolved_is_active() -> Result<bool> {
     Ok(status.success())
 }
 
+fn default_iface_from_route_probe(
+    status_success: bool,
+    stdout: &str,
+    stderr: &str,
+) -> Result<Option<String>> {
+    if !status_success {
+        let stderr = stderr.trim();
+        if stderr.is_empty() {
+            bail!("ip route show default failed");
+        }
+        bail!("ip route show default failed: {stderr}");
+    }
+    if stdout.trim().is_empty() {
+        return Ok(None);
+    }
+    parse_default_iface_from_route_output(stdout)
+        .ok_or_else(|| anyhow::anyhow!("ip route show default 输出无效"))
+        .map(Some)
+}
+
 impl App {
     fn detect_default_iface(&self) -> Option<String> {
-        let out = run_capture_allow_fail("ip", &["route", "show", "default"])?;
-        parse_default_iface_from_route_output(&out)
+        if !command_exists("ip") {
+            return None;
+        }
+
+        match Self::command_output("ip", &["route", "show", "default"]) {
+            Ok(output) => match default_iface_from_route_probe(
+                output.status.success(),
+                &String::from_utf8_lossy(&output.stdout),
+                &String::from_utf8_lossy(&output.stderr),
+            ) {
+                Ok(iface) => iface,
+                Err(err) => {
+                    self.warn(&format!("默认路由接口探测失败：{err}"));
+                    None
+                }
+            },
+            Err(err) => {
+                self.warn(&format!("运行 ip route show default 失败：{err}"));
+                None
+            }
+        }
     }
 
     pub(crate) fn temp_dns_enable(&mut self) -> Result<bool> {
@@ -199,6 +238,31 @@ mod tests {
             parse_default_iface_from_route_output("default via 192.168.1.1 proto dhcp"),
             None
         );
+    }
+
+    #[test]
+    fn default_iface_from_route_probe_accepts_valid_and_empty_output() -> Result<()> {
+        assert_eq!(
+            default_iface_from_route_probe(
+                true,
+                "default via 192.168.1.1 dev wlan0 proto dhcp\n",
+                ""
+            )?,
+            Some("wlan0".to_string())
+        );
+        assert_eq!(default_iface_from_route_probe(true, "", "")?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn default_iface_from_route_probe_rejects_invalid_or_failed_probe() {
+        let invalid = default_iface_from_route_probe(true, "default via 1.1.1.1 proto dhcp", "")
+            .expect_err("malformed route output should fail");
+        assert!(invalid.to_string().contains("输出无效"));
+
+        let failed = default_iface_from_route_probe(false, "", "permission denied")
+            .expect_err("non-zero exit should fail");
+        assert!(failed.to_string().contains("permission denied"));
     }
 
     #[test]
