@@ -104,24 +104,44 @@ impl App {
         "user".to_string()
     }
 
-    pub(crate) fn list_existing_home_users(&self, repo_dir: &Path) -> Vec<String> {
-        let mut users = Vec::new();
+    fn list_existing_home_users_in(repo_dir: &Path) -> Result<Vec<String>> {
         let users_dir = repo_dir.join("home/users");
-        if users_dir.is_dir()
-            && let Ok(entries) = fs::read_dir(users_dir)
-        {
-            for entry in entries.flatten() {
-                if !entry.path().is_dir() {
-                    continue;
-                }
-                let name = entry.file_name().to_string_lossy().to_string();
-                if is_valid_username(&name) {
-                    users.push(name);
-                }
+        if !users_dir.exists() {
+            return Ok(Vec::new());
+        }
+        if !users_dir.is_dir() {
+            bail!("现有 Home 用户目录不是目录：{}", users_dir.display());
+        }
+
+        let entries = fs::read_dir(&users_dir)
+            .with_context(|| format!("读取 Home 用户目录 {} 失败", users_dir.display()))?;
+        let mut users = Vec::new();
+        for entry in entries {
+            let entry = entry
+                .with_context(|| format!("遍历 Home 用户目录 {} 失败", users_dir.display()))?;
+            let file_type = entry.file_type().with_context(|| {
+                format!("读取 Home 用户条目类型 {} 失败", entry.path().display())
+            })?;
+            if !file_type.is_dir() {
+                continue;
+            }
+            let name = entry.file_name().to_string_lossy().to_string();
+            if is_valid_username(&name) {
+                users.push(name);
             }
         }
         users.sort();
-        users
+        Ok(users)
+    }
+
+    pub(crate) fn list_existing_home_users(&self, repo_dir: &Path) -> Vec<String> {
+        match Self::list_existing_home_users_in(repo_dir) {
+            Ok(users) => users,
+            Err(err) => {
+                self.warn(&err.to_string());
+                Vec::new()
+            }
+        }
     }
 }
 
@@ -160,6 +180,20 @@ mod tests {
         let app = test_app(temp_root.clone());
 
         assert_eq!(app.resolve_default_user(), "alice");
+        Ok(())
+    }
+
+    #[test]
+    fn list_existing_home_users_in_reports_invalid_home_users_root() -> Result<()> {
+        let temp_root = create_temp_dir("mcbctl-home-users-invalid-root")?;
+        let home_dir = temp_root.join("home");
+        fs::create_dir_all(&home_dir)?;
+        fs::write(home_dir.join("users"), "not-a-directory")?;
+
+        let err = App::list_existing_home_users_in(&temp_root)
+            .expect_err("a file at home/users should be reported as invalid");
+
+        assert!(err.to_string().contains("现有 Home 用户目录不是目录"));
         Ok(())
     }
 

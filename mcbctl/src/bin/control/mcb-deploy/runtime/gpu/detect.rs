@@ -17,9 +17,16 @@ impl App {
     }
 
     pub(crate) fn detect_host_gpu_profile(&mut self) {
-        let intel = Self::detect_bus_ids_from_lspci("intel");
-        let amd = Self::detect_bus_ids_from_lspci("amd");
-        let nvidia = Self::detect_bus_ids_from_lspci("nvidia");
+        let lspci_text = match Self::capture_lspci_output() {
+            Ok(text) => text,
+            Err(err) => {
+                self.warn(&format!("GPU 自动探测失败：{err}"));
+                None
+            }
+        };
+        let intel = Self::detect_bus_ids_from_lspci_text(lspci_text.as_deref(), "intel");
+        let amd = Self::detect_bus_ids_from_lspci_text(lspci_text.as_deref(), "amd");
+        let nvidia = Self::detect_bus_ids_from_lspci_text(lspci_text.as_deref(), "nvidia");
 
         let intel_bus = intel
             .first()
@@ -109,7 +116,12 @@ impl App {
     }
 
     fn strip_leading_zeros(v: &str) -> String {
-        v.trim_start_matches('0').to_string()
+        let trimmed = v.trim_start_matches('0');
+        if trimmed.is_empty() {
+            "0".to_string()
+        } else {
+            trimmed.to_string()
+        }
     }
 
     fn normalize_pci_bus_id(addr: &str) -> Option<String> {
@@ -133,9 +145,24 @@ impl App {
         Some(format!("PCI:{bus}:{device}:{function}"))
     }
 
-    fn detect_bus_ids_from_lspci(vendor: &str) -> Vec<String> {
+    fn capture_lspci_output() -> Result<Option<String>> {
+        let output = match Command::new("lspci").args(["-D"]).output() {
+            Ok(output) => output,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(err) => return Err(err).context("运行 lspci -D 失败"),
+        };
+        if !output.status.success() {
+            bail!(
+                "lspci -D exited with {}",
+                output.status.code().unwrap_or_default()
+            );
+        }
+        Ok(Some(String::from_utf8_lossy(&output.stdout).to_string()))
+    }
+
+    fn detect_bus_ids_from_lspci_text(text: Option<&str>, vendor: &str) -> Vec<String> {
         let mut out = Vec::new();
-        let Some(text) = run_capture_allow_fail("lspci", &["-D"]) else {
+        let Some(text) = text else {
             return out;
         };
         for line in text.lines() {
@@ -164,6 +191,16 @@ impl App {
             }
         }
         out
+    }
+
+    fn detect_bus_ids_from_lspci(&self, vendor: &str) -> Vec<String> {
+        match Self::capture_lspci_output() {
+            Ok(text) => Self::detect_bus_ids_from_lspci_text(text.as_deref(), vendor),
+            Err(err) => {
+                self.warn(&format!("GPU 自动探测失败：{err}"));
+                Vec::new()
+            }
+        }
     }
 
     fn extract_bus_id_from_file(file: &Path, key: &str) -> Result<Option<String>> {
@@ -228,7 +265,7 @@ impl App {
                 Err(err) => self.warn(&err.to_string()),
             }
         }
-        Self::detect_bus_ids_from_lspci(vendor).into_iter().next()
+        self.detect_bus_ids_from_lspci(vendor).into_iter().next()
     }
 
     pub(crate) fn bus_candidates_for_vendor(&self, vendor: &str) -> Vec<String> {
@@ -236,7 +273,7 @@ impl App {
         if let Some(v) = self.resolve_bus_id_default(vendor) {
             out.push(v);
         }
-        for v in Self::detect_bus_ids_from_lspci(vendor) {
+        for v in self.detect_bus_ids_from_lspci(vendor) {
             if !out.contains(&v) {
                 out.push(v);
             }
@@ -287,6 +324,35 @@ mod tests {
             Some("PCI:0:2:0".to_string())
         );
         Ok(())
+    }
+
+    #[test]
+    fn detect_bus_ids_from_lspci_text_extracts_expected_vendors() {
+        let text = r#"
+0000:00:02.0 VGA compatible controller: Intel Corporation Device 9a49
+0000:03:00.0 VGA compatible controller: NVIDIA Corporation Device 25a0
+0000:03:00.0 3D controller: NVIDIA Corporation Device 25a0
+0000:04:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Device 164e
+0000:05:00.0 Ethernet controller: Intel Corporation Device 15f3
+"#;
+
+        assert_eq!(
+            App::detect_bus_ids_from_lspci_text(Some(text), "intel"),
+            vec!["PCI:0:2:0".to_string()]
+        );
+        assert_eq!(
+            App::detect_bus_ids_from_lspci_text(Some(text), "nvidia"),
+            vec!["PCI:3:0:0".to_string()]
+        );
+        assert_eq!(
+            App::detect_bus_ids_from_lspci_text(Some(text), "amd"),
+            vec!["PCI:4:0:0".to_string()]
+        );
+    }
+
+    #[test]
+    fn detect_bus_ids_from_lspci_text_returns_empty_without_probe_output() {
+        assert!(App::detect_bus_ids_from_lspci_text(None, "intel").is_empty());
     }
 
     fn create_temp_dir(prefix: &str) -> Result<PathBuf> {

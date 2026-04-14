@@ -102,6 +102,7 @@ nix run .#mcbctl -- deploy
 - 现有 host 的 `profile` 判定和 `per-user TUN` 默认探测现在也遵循同一规则：
   - 缺失则回退
   - 不可读或 `nix eval` 输出异常则告警后回退
+- 现有 `home/users/*` 枚举如果目录结构异常，也会显式告警后回退；GPU 自动识别优先尝试 `lspci -D`，命令缺失时静默降级，命令执行异常时告警后回退
 
 ## 5. 检查与追新
 
