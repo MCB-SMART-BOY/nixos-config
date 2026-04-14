@@ -11,18 +11,25 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .split(area);
 
     let rows = state
-        .actions_rows()
+        .action_display_rows()
         .into_iter()
-        .map(|(label, value)| ListItem::new(format!("{label:<22} {value}")))
+        .map(|row| {
+            let content = if row.selectable {
+                format!("{}  {}", row.label, row.value)
+            } else {
+                row.label
+            };
+            ListItem::new(content)
+        })
         .collect::<Vec<_>>();
 
     let mut list_state = ListState::default();
-    list_state.select(Some(state.actions_focus));
+    list_state.select(Some(state.selected_action_row_index()));
     let list = List::new(rows)
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Maintenance Actions"),
+                .title("Grouped Actions"),
         )
         .highlight_style(
             Style::default()
