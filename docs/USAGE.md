@@ -108,6 +108,9 @@ nix run .#mcbctl -- deploy
 向导行为补充：
 
 - `返回` 现在总是回到上一个真正可交互的步骤，不会因为跳过了 TUN / GPU / server override 而卡在循环里
+- server host 如果从 summary 返回到 server override，再改成“沿用主机现有配置”，旧 override 字段会被清空，不会带着上一轮的值继续执行
+- 同步前和重建前各有一次确认；任一处输入 `n` 都会退出当前部署，但仍会执行临时 DNS / 临时目录收尾
+- 如果主流程已经完成而收尾清理失败，部署会显式以 cleanup 错误结束，不会把这次执行当成成功
 - 非交互模式会走保守默认：
   - `ManageUsers` 优先使用当前仓库作为本地源
   - `UpdateExisting` 默认改为远端分支 HEAD
@@ -121,6 +124,7 @@ nix run .#mcbctl -- deploy
   - 缺失则回退
   - 不可读或 `nix eval` 输出异常则告警后回退
 - 现有 `home/users/*` 枚举如果目录结构异常，也会显式告警后回退；GPU 自动识别优先尝试 `lspci -D`，命令缺失时静默降级，命令执行异常时告警后回退
+- 如果 GPU 拓扑无法自动识别，TTY 流程会退回手动模式，但仍然允许直接手填 iGPU / NVIDIA Bus ID，不会因为候选列表为空而卡死
 
 ## 5. 检查与追新
 
@@ -162,7 +166,11 @@ nix run .#noctalia-proxy-status
 nix run .#mcb-deploy -- release
 ```
 
-发布时如果版本探测、上一个 tag 探测或 git log 生成失败，现在会显式告警，并退回到保守版本号或保守 release notes，而不是静默生成空结果。
+发布默认会使用当前 `mcbctl` 包版本作为 release tag；如果要发新版本，先更新 `mcbctl/Cargo.toml` 和 `pkgs/mcbctl/default.nix`，或者显式传入 `RELEASE_VERSION`。
+
+发布时如果上一个 tag 探测或 git log 生成失败，现在会显式告警，并退回到保守 release notes，而不是静默生成空结果。
+
+创建 GitHub Release 后，CI 资产工作流会按刚创建的 tag 触发，而不是按当前分支 head 触发；这样 release 页面和上传的预编译资产始终对齐。
 
 ## 8. 手写逻辑应该放哪
 

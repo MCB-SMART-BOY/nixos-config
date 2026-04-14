@@ -513,6 +513,101 @@ mod tests {
     }
 
     #[test]
+    fn deploy_flow_tty_aborts_before_sync_when_user_declines_first_confirmation() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-confirm-sync-abort")?;
+        let mut app = test_app(tmp_dir.clone());
+        let mut runner = TestFlowRunner::new(tmp_dir);
+        let _ui = App::install_test_ui(true, &["2", "n"]);
+
+        let err = deploy_flow_with_runner(&mut app, &mut runner)
+            .expect_err("first confirmation should abort deploy flow");
+
+        assert!(err.to_string().contains("已退出"));
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prompt_source_strategy",
+                "check_env",
+                "create_temp_dir",
+                "prepare_source_repo",
+                "self_check_repo",
+                "collect_deploy_config",
+                "temp_dns_disable",
+                "remove_dir_all",
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deploy_flow_tty_aborts_before_rebuild_when_user_declines_second_confirmation() -> Result<()>
+    {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-confirm-rebuild-abort")?;
+        let mut app = test_app(tmp_dir.clone());
+        let mut runner = TestFlowRunner::new(tmp_dir);
+        let _ui = App::install_test_ui(true, &["2", "", "n"]);
+
+        let err = deploy_flow_with_runner(&mut app, &mut runner)
+            .expect_err("second confirmation should abort deploy flow");
+
+        assert!(err.to_string().contains("已退出"));
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prompt_source_strategy",
+                "check_env",
+                "create_temp_dir",
+                "prepare_source_repo",
+                "self_check_repo",
+                "collect_deploy_config",
+                "prepare_etc_dir",
+                "sync_repo_to_etc",
+                "temp_dns_disable",
+                "remove_dir_all",
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn deploy_flow_tty_cleanup_failure_after_confirmations_surfaces_aggregate_error() -> Result<()>
+    {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-confirm-cleanup-fail")?;
+        let mut app = test_app(tmp_dir.clone());
+        let mut runner = TestFlowRunner::new(tmp_dir);
+        runner.dns_disable_result = Some(Err(anyhow::anyhow!("dns disable failed")));
+        runner.remove_tmp_result = Some(Err(anyhow::anyhow!("tmp cleanup failed")));
+        let _ui = App::install_test_ui(true, &["2", "", ""]);
+
+        let err = deploy_flow_with_runner(&mut app, &mut runner)
+            .expect_err("cleanup failure after confirmed success should fail deploy flow");
+
+        assert!(err.to_string().contains("部署收尾清理失败"));
+        assert!(err.to_string().contains("dns disable failed"));
+        assert!(err.to_string().contains("tmp cleanup failed"));
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prompt_source_strategy",
+                "check_env",
+                "create_temp_dir",
+                "prepare_source_repo",
+                "self_check_repo",
+                "collect_deploy_config",
+                "prepare_etc_dir",
+                "sync_repo_to_etc",
+                "rebuild_system",
+                "temp_dns_disable",
+                "remove_dir_all",
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
     fn deploy_flow_retries_current_source_after_prepare_failure() -> Result<()> {
         let _guard = test_lock();
         let tmp_dir = create_temp_dir("mcbctl-flow-source-retry")?;
@@ -612,6 +707,80 @@ mod tests {
                 "remove_dir_all",
             ]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn handle_source_prepare_failure_tty_maps_input_1_to_retry() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-menu-retry")?;
+        let mut app = test_app(tmp_dir);
+        let mut runner = RealDeployFlowRunner;
+        let _ui = App::install_test_ui(true, &["1"]);
+
+        let action = runner.handle_source_prepare_failure(&mut app, "clone failed")?;
+
+        assert_eq!(action, SourcePrepareFailureAction::Retry);
+        Ok(())
+    }
+
+    #[test]
+    fn handle_source_prepare_failure_tty_maps_input_2_to_reselect_source() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-menu-reselect")?;
+        let mut app = test_app(tmp_dir);
+        let mut runner = RealDeployFlowRunner;
+        let _ui = App::install_test_ui(true, &["2"]);
+
+        let action = runner.handle_source_prepare_failure(&mut app, "checkout failed")?;
+
+        assert_eq!(action, SourcePrepareFailureAction::ReselectSource);
+        Ok(())
+    }
+
+    #[test]
+    fn handle_source_prepare_failure_tty_maps_input_3_to_exit() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-menu-exit")?;
+        let mut app = test_app(tmp_dir);
+        let mut runner = RealDeployFlowRunner;
+        let _ui = App::install_test_ui(true, &["3"]);
+
+        let action = runner.handle_source_prepare_failure(&mut app, "checkout failed")?;
+
+        assert_eq!(action, SourcePrepareFailureAction::Exit);
+        Ok(())
+    }
+
+    #[test]
+    fn handle_source_prepare_failure_tty_propagates_q_as_exit_error() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-menu-quit")?;
+        let mut app = test_app(tmp_dir);
+        let mut runner = RealDeployFlowRunner;
+        let _ui = App::install_test_ui(true, &["q"]);
+
+        let err = runner
+            .handle_source_prepare_failure(&mut app, "checkout failed")
+            .expect_err("q should abort source failure prompt");
+
+        assert!(err.to_string().contains("已退出"));
+        Ok(())
+    }
+
+    #[test]
+    fn handle_source_prepare_failure_non_tty_bails_immediately() -> Result<()> {
+        let _guard = test_lock();
+        let tmp_dir = create_temp_dir("mcbctl-flow-source-menu-non-tty")?;
+        let mut app = test_app(tmp_dir);
+        let mut runner = RealDeployFlowRunner;
+        let _ui = App::install_test_ui(false, &[]);
+
+        let err = runner
+            .handle_source_prepare_failure(&mut app, "clone failed")
+            .expect_err("non-tty source failure should fail immediately");
+
+        assert!(err.to_string().contains("准备源代码失败：clone failed"));
         Ok(())
     }
 

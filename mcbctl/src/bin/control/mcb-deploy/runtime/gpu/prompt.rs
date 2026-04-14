@@ -140,38 +140,36 @@ impl App {
             } else {
                 &intel_candidates
             };
-            if !candidates.is_empty() {
-                let label = if self.gpu_igpu_vendor == "amd" {
-                    "AMD iGPU Bus ID"
+            let label = if self.gpu_igpu_vendor == "amd" {
+                "AMD iGPU Bus ID"
+            } else {
+                "Intel iGPU Bus ID"
+            };
+            let mut options = candidates.clone();
+            options.push("手动输入".to_string());
+            options.push("返回".to_string());
+            let pick = self.menu_prompt(label, 1, &options)?;
+            if pick == options.len() {
+                return Ok(WizardAction::Back);
+            }
+            if pick == options.len() - 1 {
+                let input = self.prompt_line(&format!("{label}： "))?;
+                let value = input.trim().to_string();
+                if self.gpu_igpu_vendor == "amd" {
+                    self.gpu_amd_bus = value;
+                    self.gpu_intel_bus.clear();
                 } else {
-                    "Intel iGPU Bus ID"
-                };
-                let mut options = candidates.clone();
-                options.push("手动输入".to_string());
-                options.push("返回".to_string());
-                let pick = self.menu_prompt(label, 1, &options)?;
-                if pick == options.len() {
-                    return Ok(WizardAction::Back);
+                    self.gpu_intel_bus = value;
+                    self.gpu_amd_bus.clear();
                 }
-                if pick == options.len() - 1 {
-                    let input = self.prompt_line(&format!("{label}： "))?;
-                    let value = input.trim().to_string();
-                    if self.gpu_igpu_vendor == "amd" {
-                        self.gpu_amd_bus = value;
-                        self.gpu_intel_bus.clear();
-                    } else {
-                        self.gpu_intel_bus = value;
-                        self.gpu_amd_bus.clear();
-                    }
+            } else {
+                let value = candidates[pick - 1].clone();
+                if self.gpu_igpu_vendor == "amd" {
+                    self.gpu_amd_bus = value;
+                    self.gpu_intel_bus.clear();
                 } else {
-                    let value = candidates[pick - 1].clone();
-                    if self.gpu_igpu_vendor == "amd" {
-                        self.gpu_amd_bus = value;
-                        self.gpu_intel_bus.clear();
-                    } else {
-                        self.gpu_intel_bus = value;
-                        self.gpu_amd_bus.clear();
-                    }
+                    self.gpu_intel_bus = value;
+                    self.gpu_amd_bus.clear();
                 }
             }
         } else {
@@ -267,6 +265,67 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn configure_gpu_unknown_topology_allows_manual_bus_ids_without_candidates() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-gpu-prompt-manual-unknown")?;
+        let etc_dir = write_host_gpu_defaults(
+            &repo_dir,
+            r#"{ mcb.hardware.gpu.nvidiaBusId = "PCI:1:0:0"; }"#,
+        )?;
+        let mut app = test_app(repo_dir);
+        app.etc_dir = etc_dir;
+        app.detected_gpu = DetectedGpuProfile::default();
+        let _ui = App::install_test_ui(true, &["3", "1", "1", "1", "PCI:0:2:0", "1", "2", "2"]);
+
+        let action = app.configure_gpu()?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(app.gpu_override);
+        assert!(!app.gpu_override_from_detection);
+        assert_eq!(app.gpu_mode, "hybrid");
+        assert_eq!(app.gpu_igpu_vendor, "intel");
+        assert_eq!(app.gpu_prime_mode, "offload");
+        assert_eq!(app.gpu_intel_bus, "PCI:0:2:0");
+        assert_eq!(app.gpu_nvidia_bus, "PCI:1:0:0");
+        assert_eq!(app.gpu_nvidia_open, "false");
+        assert!(!app.gpu_specialisations_enabled);
+        Ok(())
+    }
+
+    #[test]
+    fn configure_gpu_manual_hybrid_returns_back_from_deep_nested_prompt() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-gpu-prompt-back-deep")?;
+        let etc_dir = write_host_gpu_defaults(
+            &repo_dir,
+            r#"{
+                mcb.hardware.gpu.intelBusId = "PCI:0:2:0";
+                mcb.hardware.gpu.nvidiaBusId = "PCI:1:0:0";
+            }"#,
+        )?;
+        let mut app = test_app(repo_dir);
+        app.etc_dir = etc_dir;
+        app.detected_gpu = DetectedGpuProfile {
+            topology: Some(DetectedGpuTopology::MultiGpu),
+            igpu_vendor: "intel".to_string(),
+            intel_bus: "PCI:0:2:0".to_string(),
+            amd_bus: String::new(),
+            nvidia_bus: "PCI:1:0:0".to_string(),
+        };
+        let _ui = App::install_test_ui(true, &["3", "3", "1", "1", "1", "1", "3"]);
+
+        let action = app.configure_gpu()?;
+
+        assert_eq!(action, WizardAction::Back);
+        assert!(app.gpu_override);
+        assert_eq!(app.gpu_mode, "hybrid");
+        assert_eq!(app.gpu_igpu_vendor, "intel");
+        assert_eq!(app.gpu_prime_mode, "offload");
+        assert_eq!(app.gpu_intel_bus, "PCI:0:2:0");
+        assert_eq!(app.gpu_nvidia_bus, "PCI:1:0:0");
+        assert!(app.gpu_nvidia_open.is_empty());
+        Ok(())
+    }
+
     fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -275,6 +334,14 @@ mod tests {
         let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
         fs::create_dir_all(&root)?;
         Ok(root)
+    }
+
+    fn write_host_gpu_defaults(repo_dir: &Path, body: &str) -> Result<PathBuf> {
+        let etc_dir = repo_dir.join("etc-nixos");
+        let host_dir = etc_dir.join("hosts").join("demo");
+        fs::create_dir_all(&host_dir)?;
+        fs::write(host_dir.join("default.nix"), body)?;
+        Ok(etc_dir)
     }
 
     fn test_app(repo_dir: PathBuf) -> App {

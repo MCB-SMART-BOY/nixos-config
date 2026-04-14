@@ -270,6 +270,20 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn prompt_admin_users_tty_defaults_to_current_primary_user_when_empty() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-prompt-admin-current-primary")?;
+        let mut app = test_app(repo_dir);
+        app.target_users = vec!["charlie".to_string(), "dave".to_string()];
+        let _ui = App::install_test_ui(true, &["5"]);
+
+        let action = app.prompt_admin_users()?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert_eq!(app.target_admin_users, vec!["charlie".to_string()]);
+        Ok(())
+    }
+
     fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

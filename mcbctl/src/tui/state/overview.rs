@@ -224,7 +224,10 @@ impl AppState {
                         target = route.target,
                         reason = route.reason
                     ),
-                    format!("先在 {} 页查看 {focus_label} 附近的摘要并处理受管分片阻塞", route.label),
+                    format!(
+                        "先在 {} 页查看 {focus_label} 附近的摘要并处理受管分片阻塞",
+                        route.label
+                    ),
                 );
             }
             OverviewPrimaryActionKind::OpenAdvancedApply => {
@@ -461,10 +464,22 @@ struct ManagedGuardRoute {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum ManagedGuardFocus {
-    Packages { group: Option<String>, label: &'static str },
-    Home { index: usize, label: &'static str },
-    Users { index: usize, label: &'static str },
-    Hosts { index: usize, label: &'static str },
+    Packages {
+        group: Option<String>,
+        label: &'static str,
+    },
+    Home {
+        index: usize,
+        label: &'static str,
+    },
+    Users {
+        index: usize,
+        label: &'static str,
+    },
+    Hosts {
+        index: usize,
+        label: &'static str,
+    },
 }
 
 fn preferred_managed_guard_route(guards: &[ManagedGuardSnapshot]) -> Option<ManagedGuardRoute> {
@@ -531,12 +546,9 @@ fn preferred_managed_guard_route(guards: &[ManagedGuardSnapshot]) -> Option<Mana
         });
     }
 
-    if let Some(guard) = users_guard.filter(|guard| {
-        guard
-            .errors
-            .iter()
-            .any(|error| is_users_guard_error(error))
-    }) {
+    if let Some(guard) =
+        users_guard.filter(|guard| guard.errors.iter().any(|error| is_users_guard_error(error)))
+    {
         let reason = first_matching_guard_error(&guard.errors, is_users_guard_error);
         return Some(ManagedGuardRoute {
             page: Page::Users,
@@ -578,15 +590,17 @@ fn preferred_managed_guard_route(guards: &[ManagedGuardSnapshot]) -> Option<Mana
         })
 }
 
-fn first_matching_guard_error(
-    errors: &[String],
-    predicate: impl Fn(&str) -> bool,
-) -> String {
+fn first_matching_guard_error(errors: &[String], predicate: impl Fn(&str) -> bool) -> String {
     errors
         .iter()
         .find(|error| predicate(error))
         .cloned()
-        .unwrap_or_else(|| errors.first().cloned().unwrap_or_else(|| "unknown".to_string()))
+        .unwrap_or_else(|| {
+            errors
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string())
+        })
 }
 
 fn is_users_guard_error(error: &str) -> bool {
@@ -802,9 +816,7 @@ mod tests {
 
         assert_eq!(packages.target, "alice");
         assert_eq!(packages.errors.len(), 1);
-        assert!(
-            packages.errors[0].contains("refusing to remove stale unmanaged package file")
-        );
+        assert!(packages.errors[0].contains("refusing to remove stale unmanaged package file"));
 
         std::fs::remove_dir_all(root)?;
         Ok(())

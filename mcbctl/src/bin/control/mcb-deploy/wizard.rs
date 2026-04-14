@@ -220,6 +220,8 @@ mod tests {
         user_dns: BTreeMap<String, u16>,
         gpu_override: bool,
         server_overrides_enabled: bool,
+        server_enable_network_cli: String,
+        server_enable_docker: String,
         host_profile_kind: HostProfileKind,
     }
 
@@ -234,6 +236,8 @@ mod tests {
                 user_dns: app.user_dns.clone(),
                 gpu_override: app.gpu_override,
                 server_overrides_enabled: app.server_overrides_enabled,
+                server_enable_network_cli: app.server_enable_network_cli.clone(),
+                server_enable_docker: app.server_enable_docker.clone(),
                 host_profile_kind: app.host_profile_kind,
             }
         }
@@ -243,11 +247,13 @@ mod tests {
         calls: Vec<&'static str>,
         prepare_host_results: VecDeque<Result<(String, HostProfileKind)>>,
         prompt_users_results: VecDeque<Result<WizardAction>>,
+        prompt_users_targets: VecDeque<Option<Vec<String>>>,
         prompt_admin_results: VecDeque<Result<WizardAction>>,
         per_user_tun_enabled_results: VecDeque<bool>,
         tun_results: VecDeque<Result<WizardAction>>,
         gpu_results: VecDeque<Result<WizardAction>>,
         server_results: VecDeque<Result<WizardAction>>,
+        server_enabled_results: VecDeque<bool>,
         summary_results: VecDeque<Result<WizardAction>>,
         prepare_host_snapshots: Vec<Snapshot>,
         prompt_users_snapshots: Vec<Snapshot>,
@@ -267,11 +273,13 @@ mod tests {
                     HostProfileKind::Desktop,
                 ))]),
                 prompt_users_results: VecDeque::from([Ok(WizardAction::Continue)]),
+                prompt_users_targets: VecDeque::from([None]),
                 prompt_admin_results: VecDeque::from([Ok(WizardAction::Continue)]),
                 per_user_tun_enabled_results: VecDeque::from([false]),
                 tun_results: VecDeque::new(),
                 gpu_results: VecDeque::from([Ok(WizardAction::Continue)]),
                 server_results: VecDeque::new(),
+                server_enabled_results: VecDeque::from([true]),
                 summary_results: VecDeque::from([Ok(WizardAction::Continue)]),
                 prepare_host_snapshots: Vec::new(),
                 prompt_users_snapshots: Vec::new(),
@@ -304,8 +312,13 @@ mod tests {
                 .prompt_users_results
                 .pop_front()
                 .unwrap_or_else(|| Ok(WizardAction::Continue))?;
-            if action == WizardAction::Continue && app.target_users.is_empty() {
-                app.target_users = vec!["mcb".to_string()];
+            let configured_users = self.prompt_users_targets.pop_front().unwrap_or(None);
+            if action == WizardAction::Continue {
+                if let Some(users) = configured_users {
+                    app.target_users = users;
+                } else if app.target_users.is_empty() {
+                    app.target_users = vec!["mcb".to_string()];
+                }
             }
             Ok(action)
         }
@@ -340,8 +353,10 @@ mod tests {
                 .tun_results
                 .pop_front()
                 .unwrap_or_else(|| Ok(WizardAction::Continue))?;
-            app.user_tun.insert("mcb".to_string(), "tun1".to_string());
-            app.user_dns.insert("mcb".to_string(), 1053);
+            for (idx, user) in app.target_users.iter().enumerate() {
+                app.user_tun.insert(user.clone(), format!("tun{}", idx + 1));
+                app.user_dns.insert(user.clone(), 1053 + (idx as u16));
+            }
             Ok(action)
         }
 
@@ -364,8 +379,15 @@ mod tests {
                 .server_results
                 .pop_front()
                 .unwrap_or_else(|| Ok(WizardAction::Continue))?;
-            app.server_overrides_enabled = true;
-            app.server_enable_network_cli = "true".to_string();
+            if action == WizardAction::Continue {
+                if self.server_enabled_results.pop_front().unwrap_or(true) {
+                    app.server_overrides_enabled = true;
+                    app.server_enable_network_cli = "true".to_string();
+                    app.server_enable_docker = "true".to_string();
+                } else {
+                    app.reset_server_overrides();
+                }
+            }
             Ok(action)
         }
 
@@ -448,6 +470,156 @@ mod tests {
         );
         assert!(!runner.prepare_host_snapshots[1].per_user_tun_enabled);
         assert_eq!(app.target_name, "other");
+        Ok(())
+    }
+
+    #[test]
+    fn users_back_restarts_host_selection_with_cleared_user_and_runtime_state() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-wizard-users-back-clears-runtime")?;
+        let mut app = test_app(repo_dir.clone());
+        app.target_users = vec!["old-user".to_string()];
+        app.target_admin_users = vec!["old-admin".to_string()];
+        app.per_user_tun_enabled = true;
+        app.user_tun
+            .insert("old-user".to_string(), "tun9".to_string());
+        app.user_dns.insert("old-user".to_string(), 1053);
+        app.gpu_override = true;
+        app.server_overrides_enabled = true;
+        app.server_enable_network_cli = "true".to_string();
+        app.server_enable_docker = "true".to_string();
+        let mut runner = TestWizardRunner::new();
+        runner.prepare_host_results = VecDeque::from([
+            Ok(("demo".to_string(), HostProfileKind::Server)),
+            Ok(("other".to_string(), HostProfileKind::Desktop)),
+        ]);
+        runner.prompt_users_results =
+            VecDeque::from([Ok(WizardAction::Back), Ok(WizardAction::Continue)]);
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        assert_eq!(runner.prepare_host_snapshots.len(), 2);
+        let cleared = &runner.prepare_host_snapshots[1];
+        assert!(cleared.target_name.is_empty());
+        assert!(cleared.target_users.is_empty());
+        assert!(cleared.target_admin_users.is_empty());
+        assert!(!cleared.per_user_tun_enabled);
+        assert!(cleared.user_tun.is_empty());
+        assert!(cleared.user_dns.is_empty());
+        assert!(!cleared.gpu_override);
+        assert!(!cleared.server_overrides_enabled);
+        assert!(cleared.server_enable_network_cli.is_empty());
+        assert!(cleared.server_enable_docker.is_empty());
+        assert_eq!(cleared.host_profile_kind, HostProfileKind::Unknown);
+        Ok(())
+    }
+
+    #[test]
+    fn admin_back_revisits_users_with_cleared_admins_and_new_primary_user() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-wizard-admin-back-clears-admins")?;
+        let mut app = test_app(repo_dir.clone());
+        let mut runner = TestWizardRunner::new();
+        runner.prompt_users_results =
+            VecDeque::from([Ok(WizardAction::Continue), Ok(WizardAction::Continue)]);
+        runner.prompt_users_targets = VecDeque::from([
+            Some(vec!["alice".to_string(), "bob".to_string()]),
+            Some(vec!["charlie".to_string()]),
+        ]);
+        runner.prompt_admin_results =
+            VecDeque::from([Ok(WizardAction::Back), Ok(WizardAction::Continue)]);
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_gpu",
+                "confirm_summary",
+            ]
+        );
+        assert_eq!(runner.prompt_admin_snapshots.len(), 2);
+        assert_eq!(
+            runner.prompt_admin_snapshots[0].target_users,
+            vec!["alice".to_string(), "bob".to_string()]
+        );
+        assert!(
+            runner.prompt_admin_snapshots[0]
+                .target_admin_users
+                .is_empty()
+        );
+        assert_eq!(
+            runner.prompt_admin_snapshots[1].target_users,
+            vec!["charlie".to_string()]
+        );
+        assert!(
+            runner.prompt_admin_snapshots[1]
+                .target_admin_users
+                .is_empty()
+        );
+        assert_eq!(app.target_users, vec!["charlie".to_string()]);
+        assert_eq!(app.target_admin_users, vec!["charlie".to_string()]);
+        Ok(())
+    }
+
+    #[test]
+    fn tun_reentry_after_users_change_sees_cleared_maps_and_new_user_set() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-wizard-tun-users-change")?;
+        let mut app = test_app(repo_dir.clone());
+        let mut runner = TestWizardRunner::new();
+        runner.prompt_users_results =
+            VecDeque::from([Ok(WizardAction::Continue), Ok(WizardAction::Continue)]);
+        runner.prompt_users_targets = VecDeque::from([
+            Some(vec!["alice".to_string(), "bob".to_string()]),
+            Some(vec!["charlie".to_string()]),
+        ]);
+        runner.prompt_admin_results = VecDeque::from([
+            Ok(WizardAction::Continue),
+            Ok(WizardAction::Back),
+            Ok(WizardAction::Continue),
+        ]);
+        runner.per_user_tun_enabled_results = VecDeque::from([true, true]);
+        runner.tun_results = VecDeque::from([Ok(WizardAction::Back), Ok(WizardAction::Continue)]);
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_per_user_tun",
+                "prompt_admin_users",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_per_user_tun",
+                "configure_gpu",
+                "confirm_summary",
+            ]
+        );
+        assert_eq!(runner.tun_snapshots.len(), 2);
+        assert_eq!(
+            runner.tun_snapshots[0].target_users,
+            vec!["alice".to_string(), "bob".to_string()]
+        );
+        assert_eq!(
+            runner.tun_snapshots[1].target_users,
+            vec!["charlie".to_string()]
+        );
+        assert!(runner.tun_snapshots[1].user_tun.is_empty());
+        assert!(runner.tun_snapshots[1].user_dns.is_empty());
+        assert_eq!(app.target_users, vec!["charlie".to_string()]);
+        assert_eq!(app.user_tun.get("charlie"), Some(&"tun1".to_string()));
+        assert_eq!(app.user_dns.get("charlie"), Some(&1053));
+        assert_eq!(app.user_tun.len(), 1);
+        assert_eq!(app.user_dns.len(), 1);
         Ok(())
     }
 
@@ -570,6 +742,16 @@ mod tests {
         );
         assert_eq!(runner.prompt_admin_snapshots.len(), 2);
         assert!(!runner.prompt_admin_snapshots[1].server_overrides_enabled);
+        assert!(
+            runner.prompt_admin_snapshots[1]
+                .server_enable_network_cli
+                .is_empty()
+        );
+        assert!(
+            runner.prompt_admin_snapshots[1]
+                .server_enable_docker
+                .is_empty()
+        );
         assert_eq!(
             runner.prompt_admin_snapshots[1].target_users,
             vec!["mcb".to_string()]
@@ -578,6 +760,53 @@ mod tests {
             runner.prompt_admin_snapshots[1].target_admin_users,
             vec!["mcb".to_string()]
         );
+        Ok(())
+    }
+
+    #[test]
+    fn summary_back_revisits_server_override_and_can_disable_previous_override() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-wizard-summary-server-loop")?;
+        let mut app = test_app(repo_dir.clone());
+        let mut runner = TestWizardRunner::new();
+        runner.prepare_host_results =
+            VecDeque::from([Ok(("demo".to_string(), HostProfileKind::Server))]);
+        runner.server_results =
+            VecDeque::from([Ok(WizardAction::Continue), Ok(WizardAction::Continue)]);
+        runner.server_enabled_results = VecDeque::from([true, false]);
+        runner.summary_results =
+            VecDeque::from([Ok(WizardAction::Back), Ok(WizardAction::Continue)]);
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_server_overrides",
+                "confirm_summary",
+                "configure_server_overrides",
+                "confirm_summary",
+            ]
+        );
+        assert_eq!(runner.server_snapshots.len(), 2);
+        assert!(!runner.server_snapshots[0].server_overrides_enabled);
+        assert!(runner.server_snapshots[1].server_overrides_enabled);
+        assert_eq!(runner.server_snapshots[1].server_enable_network_cli, "true");
+        assert_eq!(runner.server_snapshots[1].server_enable_docker, "true");
+        assert_eq!(runner.summary_snapshots.len(), 2);
+        assert!(runner.summary_snapshots[0].server_overrides_enabled);
+        assert!(
+            runner.summary_snapshots[1]
+                .server_enable_network_cli
+                .is_empty()
+        );
+        assert!(runner.summary_snapshots[1].server_enable_docker.is_empty());
+        assert!(!app.server_overrides_enabled);
+        assert!(app.server_enable_network_cli.is_empty());
+        assert!(app.server_enable_docker.is_empty());
         Ok(())
     }
 

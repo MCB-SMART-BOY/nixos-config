@@ -86,6 +86,70 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn configure_server_overrides_tty_applies_answer_matrix() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-server-overrides-tty-enable")?;
+        let mut app = test_app(repo_dir);
+        let _ui = App::install_test_ui(
+            true,
+            &["1", "2", "1", "2", "1", "1", "2", "1", "2", "2", "1"],
+        );
+
+        let action = app.configure_server_overrides()?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(app.server_overrides_enabled);
+        assert_eq!(app.server_enable_network_cli, "false");
+        assert_eq!(app.server_enable_network_gui, "true");
+        assert_eq!(app.server_enable_shell_tools, "false");
+        assert_eq!(app.server_enable_wayland_tools, "true");
+        assert_eq!(app.server_enable_system_tools, "true");
+        assert_eq!(app.server_enable_geek_tools, "false");
+        assert_eq!(app.server_enable_gaming, "true");
+        assert_eq!(app.server_enable_insecure_tools, "false");
+        assert_eq!(app.server_enable_docker, "false");
+        assert_eq!(app.server_enable_libvirtd, "true");
+        Ok(())
+    }
+
+    #[test]
+    fn configure_server_overrides_tty_existing_config_clears_stale_values() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-server-overrides-tty-existing")?;
+        let mut app = test_app(repo_dir);
+        app.server_overrides_enabled = true;
+        app.server_enable_network_cli = "true".to_string();
+        app.server_enable_network_gui = "true".to_string();
+        app.server_enable_docker = "false".to_string();
+        let _ui = App::install_test_ui(true, &["2"]);
+
+        let action = app.configure_server_overrides()?;
+
+        assert_eq!(action, WizardAction::Continue);
+        assert!(!app.server_overrides_enabled);
+        assert!(app.server_enable_network_cli.is_empty());
+        assert!(app.server_enable_network_gui.is_empty());
+        assert!(app.server_enable_docker.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn configure_server_overrides_tty_back_preserves_existing_state() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-server-overrides-tty-back")?;
+        let mut app = test_app(repo_dir);
+        app.server_overrides_enabled = true;
+        app.server_enable_network_cli = "true".to_string();
+        app.server_enable_docker = "false".to_string();
+        let _ui = App::install_test_ui(true, &["3"]);
+
+        let action = app.configure_server_overrides()?;
+
+        assert_eq!(action, WizardAction::Back);
+        assert!(app.server_overrides_enabled);
+        assert_eq!(app.server_enable_network_cli, "true");
+        assert_eq!(app.server_enable_docker, "false");
+        Ok(())
+    }
+
     fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
         let unique = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

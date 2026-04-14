@@ -39,23 +39,24 @@ fn finalize_with_cleanup(
     }
 }
 
-fn next_release_version_for_base(base: &str, tag_output: &str) -> String {
-    let mut max = -1i64;
-    for tag in tag_output.lines() {
-        if tag == base {
-            max = 0;
-        } else if let Some(sfx) = tag.strip_prefix(&(base.to_string() + "."))
-            && let Ok(num) = sfx.parse::<i64>()
-            && num > max
-        {
-            max = num;
-        }
-    }
-    if max >= 0 {
-        format!("{base}.{}", max + 1)
+fn default_release_version_for_package_version(package_version: &str) -> String {
+    if package_version.starts_with('v') {
+        package_version.to_string()
     } else {
-        base.to_string()
+        format!("v{package_version}")
     }
+}
+
+fn release_workflow_run_args(workflow: &str, version: &str) -> Vec<String> {
+    vec![
+        "workflow".to_string(),
+        "run".to_string(),
+        workflow.to_string(),
+        "--ref".to_string(),
+        version.to_string(),
+        "-f".to_string(),
+        format!("tag={version}"),
+    ]
 }
 
 fn render_release_notes_from_log(last_tag: &str, log_output: Option<&str>) -> String {
@@ -89,18 +90,7 @@ fn render_release_notes_from_log(last_tag: &str, log_output: Option<&str>) -> St
 
 impl App {
     pub(super) fn default_release_version(&self) -> String {
-        let today = run_capture_allow_fail("date", &["+%Y.%m.%d"])
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| {
-                self.warn("无法读取当前日期，发布版本前缀将回退到 1970.01.01。");
-                "1970.01.01".to_string()
-            });
-        let base = format!("v{today}");
-        let out = run_capture_allow_fail("git", &["tag", "--list", &base, &format!("{base}.*")]);
-        if out.is_none() {
-            self.warn("无法读取现有 release tag，发布版本将按当天基础版本回退。");
-        }
-        next_release_version_for_base(&base, out.as_deref().unwrap_or(""))
+        default_release_version_for_package_version(env!("CARGO_PKG_VERSION"))
     }
 
     pub(super) fn resolve_release_version(&self) -> Result<String> {
@@ -227,17 +217,8 @@ impl App {
         )?;
 
         let workflow = "release-mcbctl.yml";
-        let st = Command::new("gh")
-            .args([
-                "workflow",
-                "run",
-                workflow,
-                "--ref",
-                &self.branch,
-                "-f",
-                &format!("tag={version}"),
-            ])
-            .status()?;
+        let workflow_args = release_workflow_run_args(workflow, &version);
+        let st = Command::new("gh").args(&workflow_args).status()?;
         if !st.success() {
             bail!("gh workflow run {} 失败", workflow);
         }
@@ -252,6 +233,71 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
+
+    fn test_app() -> App {
+        App {
+            repo_dir: PathBuf::from("/tmp/repo"),
+            repo_urls: vec![],
+            branch: "rust脚本分支".to_string(),
+            source_ref: String::new(),
+            allow_remote_head: false,
+            source_commit: String::new(),
+            source_choice_set: false,
+            target_name: String::new(),
+            target_users: Vec::new(),
+            target_admin_users: Vec::new(),
+            deploy_mode: DeployMode::ManageUsers,
+            deploy_mode_set: false,
+            force_remote_source: false,
+            overwrite_mode: OverwriteMode::Ask,
+            overwrite_mode_set: false,
+            per_user_tun_enabled: false,
+            host_profile_kind: HostProfileKind::Unknown,
+            user_tun: BTreeMap::new(),
+            user_dns: BTreeMap::new(),
+            server_overrides_enabled: false,
+            server_enable_network_cli: String::new(),
+            server_enable_network_gui: String::new(),
+            server_enable_shell_tools: String::new(),
+            server_enable_wayland_tools: String::new(),
+            server_enable_system_tools: String::new(),
+            server_enable_geek_tools: String::new(),
+            server_enable_gaming: String::new(),
+            server_enable_insecure_tools: String::new(),
+            server_enable_docker: String::new(),
+            server_enable_libvirtd: String::new(),
+            created_home_users: Vec::new(),
+            gpu_override: false,
+            gpu_override_from_detection: false,
+            gpu_mode: String::new(),
+            gpu_igpu_vendor: String::new(),
+            gpu_prime_mode: String::new(),
+            gpu_intel_bus: String::new(),
+            gpu_amd_bus: String::new(),
+            gpu_nvidia_bus: String::new(),
+            gpu_nvidia_open: String::new(),
+            gpu_specialisations_enabled: false,
+            gpu_specialisations_set: false,
+            gpu_specialisation_modes: Vec::new(),
+            detected_gpu: DetectedGpuProfile::default(),
+            mode: "switch".to_string(),
+            rebuild_upgrade: false,
+            etc_dir: PathBuf::from("/tmp/etc-nixos"),
+            dns_enabled: false,
+            temp_dns_backend: String::new(),
+            temp_dns_backup: None,
+            temp_dns_iface: String::new(),
+            tmp_dir: None,
+            sudo_cmd: None,
+            rootless: false,
+            run_action: RunAction::Release,
+            progress_total: 7,
+            progress_current: 0,
+            git_clone_timeout_sec: 90,
+        }
+    }
 
     #[test]
     fn summarize_cleanup_failures_joins_messages() {
@@ -266,24 +312,6 @@ mod tests {
         assert!(summary.contains("release notes cleanup failed"));
         assert!(summary.contains("remove temp file failed"));
         assert!(summary.contains("another cleanup error"));
-    }
-
-    #[test]
-    fn next_release_version_for_base_picks_next_suffix() {
-        let tags = "v2026.04.14\nv2026.04.14.1\nv2026.04.14.3\nv2026.04.13.9\n";
-
-        assert_eq!(
-            next_release_version_for_base("v2026.04.14", tags),
-            "v2026.04.14.4"
-        );
-    }
-
-    #[test]
-    fn next_release_version_for_base_returns_base_when_no_matching_tag_exists() {
-        assert_eq!(
-            next_release_version_for_base("v2026.04.14", "v2026.04.13\n"),
-            "v2026.04.14"
-        );
     }
 
     #[test]
@@ -302,6 +330,46 @@ mod tests {
         assert_eq!(
             notes,
             "Git log unavailable since v1.0.0; no release notes generated."
+        );
+    }
+
+    #[test]
+    fn default_release_version_for_package_version_adds_v_prefix() {
+        assert_eq!(
+            default_release_version_for_package_version("3.0.0"),
+            "v3.0.0"
+        );
+        assert_eq!(
+            default_release_version_for_package_version("v3.0.0"),
+            "v3.0.0"
+        );
+    }
+
+    #[test]
+    fn app_default_release_version_uses_package_version() {
+        let app = test_app();
+
+        assert_eq!(
+            app.default_release_version(),
+            format!("v{}", env!("CARGO_PKG_VERSION"))
+        );
+    }
+
+    #[test]
+    fn release_workflow_run_args_use_release_tag_as_ref() {
+        let args = release_workflow_run_args("release-mcbctl.yml", "v3.0.0");
+
+        assert_eq!(
+            args,
+            vec![
+                "workflow".to_string(),
+                "run".to_string(),
+                "release-mcbctl.yml".to_string(),
+                "--ref".to_string(),
+                "v3.0.0".to_string(),
+                "-f".to_string(),
+                "tag=v3.0.0".to_string(),
+            ]
         );
     }
 }

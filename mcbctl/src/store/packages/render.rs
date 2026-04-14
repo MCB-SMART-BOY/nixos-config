@@ -18,9 +18,10 @@ pub fn managed_package_guard_errors(
         errors.push(err.to_string());
     }
 
-    if let Err(err) =
-        ensure_existing_managed_file(&managed_dir.join("packages.nix"), "home-packages-aggregator")
-    {
+    if let Err(err) = ensure_existing_managed_file(
+        &managed_dir.join("packages.nix"),
+        "home-packages-aggregator",
+    ) {
         errors.push(err.to_string());
     }
 
@@ -329,7 +330,11 @@ mod tests {
 
         let errors = managed_package_guard_errors(&managed_dir, &catalog, &BTreeMap::new());
         assert_eq!(errors.len(), 2);
-        assert!(errors.iter().any(|err| err.contains("home-packages-aggregator")));
+        assert!(
+            errors
+                .iter()
+                .any(|err| err.contains("home-packages-aggregator"))
+        );
         assert!(
             errors
                 .iter()

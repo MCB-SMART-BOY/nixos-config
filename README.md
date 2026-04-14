@@ -117,7 +117,7 @@ nix run .#update-upstream-apps -- --check
 
 真实硬件配置现在固定落在 `hosts/<host>/hardware-configuration.nix`；仓库根目录的 `hardware-configuration.nix` 已被视为旧路径，可用 `mcbctl migrate-hardware-config` 迁走。
 
-发布主线现在会在创建 GitHub Release 后主动触发 [.github/workflows/release-mcbctl.yml](/home/mcbgaruda/projects/nixos-config/.github/workflows/release-mcbctl.yml)，由各平台 runner 构建并上传 `mcbctl` 的预编译资产。
+发布主线现在默认使用当前 `mcbctl` 包版本作为 release tag，并会在创建 GitHub Release 后主动以该 tag 触发 [.github/workflows/release-mcbctl.yml](/home/mcbgaruda/projects/nixos-config/.github/workflows/release-mcbctl.yml)，由各平台 runner 构建并上传与该 release 对齐的 `mcbctl` 预编译资产。
 
 ## 文档
 

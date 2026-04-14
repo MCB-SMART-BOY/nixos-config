@@ -313,9 +313,11 @@ mod tests {
         let lines = state.package_summary_lines();
 
         assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
-        assert!(lines.iter().any(|line| {
-            line.contains("refusing to remove stale unmanaged package file")
-        }));
+        assert!(
+            lines
+                .iter()
+                .any(|line| { line.contains("refusing to remove stale unmanaged package file") })
+        );
 
         std::fs::remove_dir_all(root)?;
         Ok(())

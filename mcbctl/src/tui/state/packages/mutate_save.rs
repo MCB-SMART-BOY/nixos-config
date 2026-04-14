@@ -18,11 +18,8 @@ impl AppState {
             .join("home/users")
             .join(&user)
             .join("managed");
-        let guard_errors = managed_package_guard_errors(
-            &managed_dir,
-            &self.context.catalog_entries,
-            &selected,
-        );
+        let guard_errors =
+            managed_package_guard_errors(&managed_dir, &self.context.catalog_entries, &selected);
         if !guard_errors.is_empty() {
             self.status = format!("Packages 未写入：{}", guard_errors.join("；"));
             return Ok(());
