@@ -62,6 +62,13 @@ fn previous_runtime_step(app: &App) -> u8 {
     if app.per_user_tun_enabled { 4 } else { 3 }
 }
 
+fn reset_selected_host_state(app: &mut App) {
+    app.target_name.clear();
+    app.host_profile_kind = HostProfileKind::Unknown;
+    app.per_user_tun_enabled = false;
+    app.detected_gpu = DetectedGpuProfile::default();
+}
+
 fn wizard_flow_with_runner<R>(app: &mut App, repo_dir: &Path, runner: &mut R) -> Result<()>
 where
     R: WizardFlowRunner,
@@ -77,7 +84,7 @@ where
                 }
                 2 => match runner.confirm_summary(app, "确认仅更新当前配置并继续？")? {
                     WizardAction::Back => {
-                        app.target_name.clear();
+                        reset_selected_host_state(app);
                         step = 1;
                     }
                     WizardAction::Continue => return Ok(()),
@@ -101,7 +108,7 @@ where
                         app.reset_tun_maps();
                         app.reset_gpu_override();
                         app.reset_server_overrides();
-                        app.target_name.clear();
+                        reset_selected_host_state(app);
                         step = 1;
                         continue;
                     }
@@ -397,6 +404,49 @@ mod tests {
         );
         assert_eq!(runner.prepare_host_snapshots.len(), 2);
         assert!(runner.prepare_host_snapshots[1].target_name.is_empty());
+        assert_eq!(
+            runner.prepare_host_snapshots[1].host_profile_kind,
+            HostProfileKind::Unknown
+        );
+        assert!(!runner.prepare_host_snapshots[1].per_user_tun_enabled);
+        assert_eq!(app.target_name, "other");
+        Ok(())
+    }
+
+    #[test]
+    fn users_back_restarts_host_selection_with_cleared_host_state() -> Result<()> {
+        let repo_dir = create_temp_dir("mcbctl-wizard-users-back")?;
+        let mut app = test_app(repo_dir.clone());
+        let mut runner = TestWizardRunner::new();
+        runner.prepare_host_results = VecDeque::from([
+            Ok(("demo".to_string(), HostProfileKind::Server)),
+            Ok(("other".to_string(), HostProfileKind::Desktop)),
+        ]);
+        runner.prompt_users_results =
+            VecDeque::from([Ok(WizardAction::Back), Ok(WizardAction::Continue)]);
+
+        wizard_flow_with_runner(&mut app, &repo_dir, &mut runner)?;
+
+        assert_eq!(
+            runner.calls,
+            vec![
+                "prepare_host",
+                "prompt_users",
+                "prepare_host",
+                "prompt_users",
+                "prompt_admin_users",
+                "per_user_tun_enabled",
+                "configure_gpu",
+                "confirm_summary",
+            ]
+        );
+        assert_eq!(runner.prepare_host_snapshots.len(), 2);
+        assert!(runner.prepare_host_snapshots[1].target_name.is_empty());
+        assert_eq!(
+            runner.prepare_host_snapshots[1].host_profile_kind,
+            HostProfileKind::Unknown
+        );
+        assert!(!runner.prepare_host_snapshots[1].per_user_tun_enabled);
         assert_eq!(app.target_name, "other");
         Ok(())
     }

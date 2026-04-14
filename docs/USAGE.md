@@ -91,6 +91,8 @@ nix run .#mcbctl -- deploy
 
 - `返回` 现在总是回到上一个真正可交互的步骤，不会因为跳过了 TUN / GPU / server override 而卡在循环里
 - 非交互模式会走保守默认：
+  - `ManageUsers` 优先使用当前仓库作为本地源
+  - `UpdateExisting` 默认改为远端分支 HEAD
   - 选择现有 host
   - 用户默认取 host 配置里可解析的主用户，取不到再回退环境变量和 `home/users/*`
   - 管理员默认取第一个目标用户

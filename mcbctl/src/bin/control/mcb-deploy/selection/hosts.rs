@@ -296,6 +296,53 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn select_host_non_tty_prefers_nixos() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-select-default")?;
+        for name in ["alpha", "nixos"] {
+            fs::create_dir_all(repo_dir.join("hosts").join(name))?;
+        }
+        let mut app = test_app(repo_dir.clone());
+
+        app.select_host(&repo_dir)?;
+
+        assert_eq!(app.target_name, "nixos");
+        Ok(())
+    }
+
+    #[test]
+    fn select_host_non_tty_errors_without_visible_hosts() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-select-empty")?;
+        for name in ["profiles", "templates", "_support"] {
+            fs::create_dir_all(repo_dir.join("hosts").join(name))?;
+        }
+        let mut app = test_app(repo_dir.clone());
+
+        let err = app
+            .select_host(&repo_dir)
+            .expect_err("non-tty host selection should fail without visible hosts");
+
+        assert!(err.to_string().contains("非交互模式下无法推断目标主机"));
+        Ok(())
+    }
+
+    #[test]
+    fn validate_host_rejects_new_host_for_update_existing() -> Result<()> {
+        let repo_dir = create_temp_repo_dir("mcbctl-host-validate-update")?;
+        fs::create_dir_all(repo_dir.join("hosts").join("templates").join("laptop"))?;
+        let mut app = test_app(repo_dir.clone());
+        app.deploy_mode = DeployMode::UpdateExisting;
+        app.target_name = "new-host".to_string();
+        app.host_profile_kind = HostProfileKind::Desktop;
+
+        let err = app
+            .validate_host(&repo_dir)
+            .expect_err("update-existing should reject new host creation");
+
+        assert!(err.to_string().contains("仅更新模式不允许创建新主机"));
+        Ok(())
+    }
+
     fn create_temp_repo_dir(prefix: &str) -> Result<PathBuf> {
         let unique = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -304,5 +351,68 @@ mod tests {
         let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
         fs::create_dir_all(root.join("hosts"))?;
         Ok(root)
+    }
+
+    fn test_app(repo_dir: PathBuf) -> App {
+        App {
+            repo_dir,
+            repo_urls: Vec::new(),
+            branch: "rust脚本分支".to_string(),
+            source_ref: String::new(),
+            allow_remote_head: false,
+            source_commit: String::new(),
+            source_choice_set: false,
+            target_name: String::new(),
+            target_users: Vec::new(),
+            target_admin_users: Vec::new(),
+            deploy_mode: DeployMode::ManageUsers,
+            deploy_mode_set: false,
+            force_remote_source: false,
+            overwrite_mode: OverwriteMode::Ask,
+            overwrite_mode_set: false,
+            per_user_tun_enabled: false,
+            host_profile_kind: HostProfileKind::Unknown,
+            user_tun: BTreeMap::new(),
+            user_dns: BTreeMap::new(),
+            server_overrides_enabled: false,
+            server_enable_network_cli: String::new(),
+            server_enable_network_gui: String::new(),
+            server_enable_shell_tools: String::new(),
+            server_enable_wayland_tools: String::new(),
+            server_enable_system_tools: String::new(),
+            server_enable_geek_tools: String::new(),
+            server_enable_gaming: String::new(),
+            server_enable_insecure_tools: String::new(),
+            server_enable_docker: String::new(),
+            server_enable_libvirtd: String::new(),
+            created_home_users: Vec::new(),
+            gpu_override: false,
+            gpu_override_from_detection: false,
+            gpu_mode: String::new(),
+            gpu_igpu_vendor: String::new(),
+            gpu_prime_mode: String::new(),
+            gpu_intel_bus: String::new(),
+            gpu_amd_bus: String::new(),
+            gpu_nvidia_bus: String::new(),
+            gpu_nvidia_open: String::new(),
+            gpu_specialisations_enabled: false,
+            gpu_specialisations_set: false,
+            gpu_specialisation_modes: Vec::new(),
+            detected_gpu: DetectedGpuProfile::default(),
+            mode: "switch".to_string(),
+            rebuild_upgrade: false,
+            etc_dir: PathBuf::from("/tmp/etc-nixos"),
+            dns_enabled: false,
+            temp_dns_backend: String::new(),
+            temp_dns_backup: None,
+            temp_dns_iface: String::new(),
+            tmp_dir: None,
+            sudo_cmd: None,
+            rootless: false,
+            run_action: RunAction::Deploy,
+            progress_total: 7,
+            progress_current: 0,
+            git_clone_timeout_sec: 90,
+        }
     }
 }

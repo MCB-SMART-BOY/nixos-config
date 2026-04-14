@@ -83,6 +83,8 @@ Rust 侧负责：
 - 因此当 `per-user TUN` 关闭时，从 GPU 返回会直接回到管理员步骤，不会在 `step4 -> step5` 之间打转
 - server host 从 server override 返回时，也会正确退回到 `per-user TUN` 或管理员步骤，而不是在 server override 内部循环
 - 非交互模式会直接采用保守默认：
+  - `ManageUsers` 使用当前仓库本地源
+  - `UpdateExisting` 跟随远端分支 HEAD
   - 已有 host
   - 解析出的默认用户
   - 首个管理员用户
