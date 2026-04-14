@@ -1,13 +1,14 @@
 use anyhow::{Context, Result, bail};
 use mcbctl::domain::tui::DeployAction;
+#[cfg(test)]
+use mcbctl::health::{DoctorToolStatus, assess_doctor_environment};
+use mcbctl::health::{collect_doctor_report, ensure_required_layout, tool_status_label};
 use mcbctl::release_bundle::{ReleaseBundleOptions, build_release_bundle};
 use mcbctl::repo::{
-    audit_repository, ensure_repository_integrity, extract_manual_managed_files,
-    migrate_managed_files, migrate_root_hardware_config, preferred_remote_branch,
+    ensure_repository_integrity, extract_manual_managed_files, migrate_managed_files,
+    migrate_root_hardware_config,
 };
-use mcbctl::store::deploy::{
-    NixosRebuildPlan, host_hardware_config_path, merged_nix_config, run_nixos_rebuild,
-};
+use mcbctl::store::deploy::{NixosRebuildPlan, merged_nix_config, run_nixos_rebuild};
 use mcbctl::tui::state::{AppContext, AppState};
 use mcbctl::{
     command_exists, exit_from_status, find_repo_root, home_dir, run_capture_allow_fail,
@@ -326,159 +327,69 @@ fn run_doctor(args: &[String]) -> Result<()> {
         return Ok(());
     }
     let root = parse_root_arg(args)?;
-    let report = audit_repository(&root)?;
-    let layout_error = ensure_required_layout(&root).err();
-    let tools = DoctorToolStatus::detect();
-    let assessment = assess_doctor_environment(tools);
+    let report = collect_doctor_report(&root)?;
 
     println!("doctor");
-    println!("repo root: {}", root.display());
-    println!("remote branch: {}", preferred_remote_branch(&root));
-    println!("git: {}", tool_status_label(tools.git));
-    println!("nix: {}", tool_status_label(tools.nix));
-    println!("nixos-rebuild: {}", tool_status_label(tools.nixos_rebuild));
-    println!("cargo: {}", tool_status_label(tools.cargo));
-    let current_host = current_host_name();
-    let repo_hardware = current_host
-        .as_deref()
-        .filter(|host| root.join("hosts").join(host).is_dir())
-        .map(|host| {
-            let path = host_hardware_config_path(&root, host);
-            if path.is_file() {
-                format!("present ({})", path.display())
-            } else {
-                format!("missing for {host} (eval fallback active)")
-            }
-        })
-        .unwrap_or_else(|| "unknown (current host not mapped into repo)".to_string());
-    println!("repo hardware config: {repo_hardware}");
+    println!("repo root: {}", report.repo_root.display());
+    println!("remote branch: {}", report.remote_branch);
+    println!("git: {}", tool_status_label(report.tools.git));
+    println!("nix: {}", tool_status_label(report.tools.nix));
+    println!(
+        "nixos-rebuild: {}",
+        tool_status_label(report.tools.nixos_rebuild)
+    );
+    println!("cargo: {}", tool_status_label(report.tools.cargo));
+    println!("repo hardware config: {}", report.repo_hardware);
     println!(
         "legacy root hardware config: {}",
-        if root.join("hardware-configuration.nix").is_file() {
+        if report.legacy_root_hardware {
             "present (run `mcbctl migrate-hardware-config`)"
         } else {
             "absent"
         }
     );
-    println!(
-        "user: {}",
-        run_capture_allow_fail("id", &["-un"])
-            .map(|user| user.trim().to_string())
-            .filter(|user| !user.is_empty())
-            .unwrap_or_else(|| "unknown".to_string())
-    );
-    println!(
-        "uid: {}",
-        run_capture_allow_fail("id", &["-u"])
-            .map(|uid| uid.trim().to_string())
-            .filter(|uid| !uid.is_empty())
-            .unwrap_or_else(|| "unknown".to_string())
-    );
+    println!("user: {}", report.current_user);
+    println!("uid: {}", report.current_uid);
     println!(
         "repo layout: {}",
-        layout_error
+        report
+            .layout_error
             .as_ref()
             .map(|err| format!("failed ({err})"))
             .unwrap_or_else(|| "ok".to_string())
     );
     println!(
         "deployment environment: {}",
-        if assessment.blocking_issues.is_empty() {
+        if report.assessment.blocking_issues.is_empty() {
             "ok"
         } else {
             "failed"
         }
     );
-    for issue in &assessment.blocking_issues {
+    for issue in &report.assessment.blocking_issues {
         println!("- {issue}");
     }
-    if !assessment.warnings.is_empty() {
+    if !report.assessment.warnings.is_empty() {
         println!("environment warnings:");
-        for warning in &assessment.warnings {
+        for warning in &report.assessment.warnings {
             println!("- {warning}");
         }
     }
 
-    if report.is_clean() {
+    if report.integrity_clean {
         println!("repo integrity: ok");
     } else {
         println!("repo integrity: failed");
-        for line in report.render_lines().into_iter().skip(1) {
+        for line in report.integrity_lines.iter().skip(1) {
             println!("{line}");
         }
     }
 
-    let mut failures = Vec::new();
-    if !report.is_clean() {
-        failures.push("repo integrity".to_string());
-    }
-    if let Some(err) = layout_error {
-        failures.push(format!("repo layout: {err}"));
-    }
-    if !assessment.blocking_issues.is_empty() {
-        failures.push(format!(
-            "deployment environment: {}",
-            assessment.blocking_issues.join("；")
-        ));
-    }
+    let failures = report.failure_lines();
     if failures.is_empty() {
         return Ok(());
     }
     bail!("doctor failed: {}", failures.join(" | "))
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-struct DoctorToolStatus {
-    git: bool,
-    nix: bool,
-    nixos_rebuild: bool,
-    cargo: bool,
-}
-
-impl DoctorToolStatus {
-    fn detect() -> Self {
-        Self {
-            git: command_exists("git"),
-            nix: command_exists("nix"),
-            nixos_rebuild: command_exists("nixos-rebuild"),
-            cargo: command_exists("cargo"),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
-struct DoctorAssessment {
-    blocking_issues: Vec<String>,
-    warnings: Vec<String>,
-}
-
-fn assess_doctor_environment(tools: DoctorToolStatus) -> DoctorAssessment {
-    let mut assessment = DoctorAssessment::default();
-    if !tools.nix {
-        assessment
-            .blocking_issues
-            .push("缺少 nix，无法评估或执行 flake。".to_string());
-    }
-    if !tools.nixos_rebuild {
-        assessment
-            .blocking_issues
-            .push("缺少 nixos-rebuild，无法部署或重建系统。".to_string());
-    }
-    if !tools.git {
-        assessment
-            .warnings
-            .push("缺少 git，远端来源、release 与部分追新流程不可用。".to_string());
-    }
-    if !tools.cargo {
-        assessment
-            .warnings
-            .push("缺少 cargo，本机无法直接运行 Rust 开发检查。".to_string());
-    }
-    assessment
-}
-
-fn tool_status_label(is_present: bool) -> &'static str {
-    if is_present { "ok" } else { "missing" }
 }
 
 fn resolve_sudo_mode(mode: SudoMode) -> bool {
@@ -763,27 +674,6 @@ fn run_screenshot_edit(args: &[String]) -> Result<()> {
     } else {
         bail!("swappy failed with {}", swappy_status.code().unwrap_or(1))
     }
-}
-
-fn ensure_required_layout(root: &Path) -> Result<()> {
-    for rel in [
-        "flake.nix",
-        "mcbctl/Cargo.toml",
-        "hosts",
-        "hosts/templates",
-        "modules",
-        "home",
-        "home/templates/users",
-        "catalog",
-        "pkgs",
-        "pkgs/mcbctl/default.nix",
-    ] {
-        let path = root.join(rel);
-        if !path.exists() {
-            bail!("缺少必须保留的仓库边界：{}", path.display());
-        }
-    }
-    Ok(())
 }
 
 fn parse_root_arg(args: &[String]) -> Result<PathBuf> {

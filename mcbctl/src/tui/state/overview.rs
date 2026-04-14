@@ -33,9 +33,47 @@ pub(crate) enum OverviewHostStatus {
     Invalid { errors: Vec<String> },
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) enum OverviewCheckState {
+    #[default]
     NotRun,
+    Running,
+    Healthy {
+        summary: String,
+        details: Vec<String>,
+    },
+    Error {
+        summary: String,
+        details: Vec<String>,
+    },
+}
+
+impl OverviewCheckState {
+    pub(crate) fn summary_label(&self) -> String {
+        match self {
+            OverviewCheckState::NotRun => "未刷新".to_string(),
+            OverviewCheckState::Running => "刷新中".to_string(),
+            OverviewCheckState::Healthy { summary, .. } => summary.clone(),
+            OverviewCheckState::Error { summary, .. } => summary.clone(),
+        }
+    }
+
+    pub(crate) fn detail_lines(&self) -> &[String] {
+        match self {
+            OverviewCheckState::Healthy { details, .. }
+            | OverviewCheckState::Error { details, .. } => details,
+            OverviewCheckState::NotRun | OverviewCheckState::Running => &[],
+        }
+    }
+
+    fn short_outcome(&self) -> &'static str {
+        match self {
+            OverviewCheckState::NotRun => "not-run",
+            OverviewCheckState::Running => "running",
+            OverviewCheckState::Healthy { .. } => "ok",
+            OverviewCheckState::Error { .. } => "failed",
+        }
+    }
 }
 
 impl AppState {
@@ -51,10 +89,41 @@ impl AppState {
             },
             dirty_sections: self.overview_dirty_sections(),
             host_status: self.overview_host_status(),
-            repo_integrity: OverviewCheckState::NotRun,
-            doctor: OverviewCheckState::NotRun,
+            repo_integrity: self.overview_repo_integrity.clone(),
+            doctor: self.overview_doctor.clone(),
             apply: self.apply_model(),
         }
+    }
+
+    pub(crate) fn refresh_overview_repo_integrity(&mut self) {
+        self.overview_repo_integrity = OverviewCheckState::Running;
+        let snapshot = repo_integrity_check_state(&self.context.repo_root);
+        self.status = format!(
+            "Overview: repo-integrity 已刷新（{}）。",
+            snapshot.short_outcome()
+        );
+        self.overview_repo_integrity = snapshot;
+    }
+
+    pub(crate) fn refresh_overview_doctor(&mut self) {
+        self.overview_doctor = OverviewCheckState::Running;
+        let snapshot = doctor_check_state(&self.context.repo_root);
+        self.status = format!("Overview: doctor 已刷新（{}）。", snapshot.short_outcome());
+        self.overview_doctor = snapshot;
+    }
+
+    pub(crate) fn refresh_overview_health(&mut self) {
+        self.overview_repo_integrity = OverviewCheckState::Running;
+        self.overview_doctor = OverviewCheckState::Running;
+        let repo_snapshot = repo_integrity_check_state(&self.context.repo_root);
+        let doctor_snapshot = doctor_check_state(&self.context.repo_root);
+        self.status = format!(
+            "Overview 健康项已刷新：repo-integrity={}，doctor={}。",
+            repo_snapshot.short_outcome(),
+            doctor_snapshot.short_outcome()
+        );
+        self.overview_repo_integrity = repo_snapshot;
+        self.overview_doctor = doctor_snapshot;
     }
 
     fn overview_dirty_sections(&self) -> Vec<OverviewDirtySection> {
@@ -77,6 +146,62 @@ impl AppState {
         } else {
             OverviewHostStatus::Invalid { errors }
         }
+    }
+}
+
+pub(super) fn repo_integrity_check_state(root: &std::path::Path) -> OverviewCheckState {
+    match crate::repo::audit_repository(root) {
+        Ok(report) if report.is_clean() => OverviewCheckState::Healthy {
+            summary: "ok".to_string(),
+            details: Vec::new(),
+        },
+        Ok(report) => OverviewCheckState::Error {
+            summary: format!("failed ({} finding(s))", report.findings.len()),
+            details: report.render_lines().into_iter().skip(1).collect(),
+        },
+        Err(err) => OverviewCheckState::Error {
+            summary: "failed to run repo-integrity".to_string(),
+            details: vec![err.to_string()],
+        },
+    }
+}
+
+fn doctor_check_state(root: &std::path::Path) -> OverviewCheckState {
+    doctor_check_state_from_report(crate::health::collect_doctor_report(root))
+}
+
+fn doctor_check_state_from_report(
+    report: Result<crate::health::DoctorReport>,
+) -> OverviewCheckState {
+    match report {
+        Ok(report) if report.is_healthy() && report.assessment.warnings.is_empty() => {
+            OverviewCheckState::Healthy {
+                summary: "ok".to_string(),
+                details: Vec::new(),
+            }
+        }
+        Ok(report) if report.is_healthy() => OverviewCheckState::Healthy {
+            summary: format!("ok with {} warning(s)", report.assessment.warnings.len()),
+            details: report.assessment.warnings.clone(),
+        },
+        Ok(report) => {
+            let mut details = report.failure_lines();
+            details.extend(
+                report
+                    .assessment
+                    .warnings
+                    .iter()
+                    .map(|warning| format!("warning: {warning}")),
+            );
+            OverviewCheckState::Error {
+                summary: format!("failed ({} issue(s))", details.len()),
+                details,
+            }
+        }
+        Err(err) => OverviewCheckState::Error {
+            summary: "failed to run doctor".to_string(),
+            details: vec![err.to_string()],
+        },
     }
 }
 
@@ -116,7 +241,13 @@ mod tests {
         assert_eq!(model.dirty_sections[0].name, "Packages");
         assert_eq!(model.dirty_sections[0].items, vec!["alice".to_string()]);
         assert_eq!(model.dirty_sections[1].name, "Home");
-        assert_eq!(model.repo_integrity, OverviewCheckState::NotRun);
+        assert_eq!(
+            model.repo_integrity,
+            OverviewCheckState::Healthy {
+                summary: "ok".to_string(),
+                details: Vec::new()
+            }
+        );
         assert_eq!(model.doctor, OverviewCheckState::NotRun);
         assert!(
             model
@@ -236,6 +367,66 @@ mod tests {
         );
     }
 
+    #[test]
+    fn doctor_check_state_surfaces_warnings_without_marking_failure() {
+        let state = doctor_check_state_from_report(Ok(crate::health::DoctorReport {
+            repo_root: PathBuf::from("/repo"),
+            remote_branch: "rust脚本分支".to_string(),
+            tools: crate::health::DoctorToolStatus::default(),
+            repo_hardware: "present".to_string(),
+            legacy_root_hardware: false,
+            current_user: "alice".to_string(),
+            current_uid: "1000".to_string(),
+            layout_error: None,
+            integrity_clean: true,
+            integrity_lines: vec!["repository integrity check passed".to_string()],
+            assessment: crate::health::DoctorAssessment {
+                blocking_issues: Vec::new(),
+                warnings: vec!["缺少 cargo".to_string()],
+            },
+        }));
+
+        assert_eq!(
+            state,
+            OverviewCheckState::Healthy {
+                summary: "ok with 1 warning(s)".to_string(),
+                details: vec!["缺少 cargo".to_string()],
+            }
+        );
+    }
+
+    #[test]
+    fn doctor_check_state_surfaces_failures_and_warnings() {
+        let state = doctor_check_state_from_report(Ok(crate::health::DoctorReport {
+            repo_root: PathBuf::from("/repo"),
+            remote_branch: "rust脚本分支".to_string(),
+            tools: crate::health::DoctorToolStatus::default(),
+            repo_hardware: "missing".to_string(),
+            legacy_root_hardware: true,
+            current_user: "alice".to_string(),
+            current_uid: "1000".to_string(),
+            layout_error: Some("layout broken".to_string()),
+            integrity_clean: true,
+            integrity_lines: vec!["repository integrity check passed".to_string()],
+            assessment: crate::health::DoctorAssessment {
+                blocking_issues: vec!["缺少 nixos-rebuild".to_string()],
+                warnings: vec!["缺少 cargo".to_string()],
+            },
+        }));
+
+        assert_eq!(
+            state,
+            OverviewCheckState::Error {
+                summary: "failed (3 issue(s))".to_string(),
+                details: vec![
+                    "repo layout: layout broken".to_string(),
+                    "deployment environment: 缺少 nixos-rebuild".to_string(),
+                    "warning: 缺少 cargo".to_string(),
+                ],
+            }
+        );
+    }
+
     fn test_state(privilege_mode: &str) -> AppState {
         let mut host_settings_by_name = BTreeMap::new();
         host_settings_by_name.insert(
@@ -309,6 +500,11 @@ mod tests {
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
             actions_focus: 0,
+            overview_repo_integrity: OverviewCheckState::Healthy {
+                summary: "ok".to_string(),
+                details: Vec::new(),
+            },
+            overview_doctor: OverviewCheckState::NotRun,
             status: String::new(),
         }
     }

@@ -105,6 +105,12 @@ fn handle_page_key(
     }
 
     match state.page() {
+        Page::Dashboard => match code {
+            KeyCode::Char('r') => state.refresh_overview_repo_integrity(),
+            KeyCode::Char('d') => state.refresh_overview_doctor(),
+            KeyCode::Char('R') => state.refresh_overview_health(),
+            _ => {}
+        },
         Page::Deploy => match code {
             KeyCode::Down | KeyCode::Char('j') => state.next_deploy_field(),
             KeyCode::Up | KeyCode::Char('k') => state.previous_deploy_field(),
@@ -185,7 +191,6 @@ fn handle_page_key(
             })?,
             _ => {}
         },
-        _ => {}
     }
     Ok(())
 }

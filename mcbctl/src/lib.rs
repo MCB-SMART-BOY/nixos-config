@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 
 pub mod domain;
+pub mod health;
 pub mod release_bundle;
 pub mod repo;
 pub mod store;

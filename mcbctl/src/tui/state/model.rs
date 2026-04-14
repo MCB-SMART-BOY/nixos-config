@@ -100,6 +100,8 @@ pub struct AppState {
     pub home_settings_by_user: BTreeMap<String, HomeManagedSettings>,
     pub home_dirty_users: BTreeSet<String>,
     pub actions_focus: usize,
+    pub(crate) overview_repo_integrity: OverviewCheckState,
+    pub(crate) overview_doctor: OverviewCheckState,
     pub status: String,
 }
 
@@ -151,6 +153,8 @@ impl AppState {
         let home_user_index =
             default_package_user_index(&context, &target_host, &host_settings_by_name);
         let home_settings_by_user = load_home_user_settings(&context.repo_root, &context.users);
+        let overview_repo_integrity =
+            super::overview::repo_integrity_check_state(&context.repo_root);
 
         Self {
             context,
@@ -192,6 +196,8 @@ impl AppState {
             home_settings_by_user,
             home_dirty_users: BTreeSet::new(),
             actions_focus: 0,
+            overview_repo_integrity,
+            overview_doctor: OverviewCheckState::NotRun,
             status: "Packages 现在默认使用 nixpkgs 搜索；本地覆盖与已声明软件可按 f 切回查看。"
                 .to_string(),
         }

@@ -438,6 +438,8 @@ mod tests {
             home_settings_by_user: settings,
             home_dirty_users: BTreeSet::new(),
             actions_focus: 0,
+            overview_repo_integrity: OverviewCheckState::NotRun,
+            overview_doctor: OverviewCheckState::NotRun,
             status: String::new(),
         }
     }

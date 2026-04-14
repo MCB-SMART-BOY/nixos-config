@@ -4,6 +4,28 @@
 
 如果要继续沿部署主线做审计和补测，下一阶段的交互矩阵与命令语义基线见 [DEPLOY_AUDIT_CN.md](/home/mcbgaruda/projects/nixos-config/docs/DEPLOY_AUDIT_CN.md)。
 
+## 0. `Overview` 首页
+
+当前 `Dashboard` 已经演进成 `Overview` 过渡视图，不再只是静态路线图文本。
+
+当前行为：
+
+- 启动时先缓存一次 `repo-integrity` 结果
+- `doctor` 初始保持未刷新，避免 TUI 启动时自动跑更多外部命令
+- `Overview` 页内快捷键：
+  - `r` 刷新 `repo-integrity`
+  - `d` 刷新 `doctor`
+  - `R` 同时刷新两者
+- 刷新结果会进入 `Overview` 缓存，同时写一条状态提示到 TUI 状态栏文案
+
+这意味着首页现在已经能回答：
+
+- 当前 host 是否可用
+- 当前组合能否直接 Apply
+- 当前仓库结构是否健康
+- 当前宿主环境是否具备部署能力
+- 如果不能 Apply，阻塞点是在仓库、宿主环境还是当前配置
+
 ## 1. TUI 写回链
 
 当前写回路径：

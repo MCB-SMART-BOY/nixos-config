@@ -214,6 +214,9 @@ fn centered_rect(width_percent: u16, height_percent: u16, area: Rect) -> Rect {
 
 fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
     let footer = match state.page() {
+        Page::Dashboard => {
+            "Overview: r 刷新 repo-integrity  d 刷新 doctor  R 刷新全部健康项  Tab/Shift-Tab 切页  q 退出"
+        }
         Page::Deploy => {
             "Deploy: j/k 选字段  h/l 或 Enter 调整  x 执行当前部署路径  Tab/Shift-Tab 切页  q 退出"
         }
@@ -243,7 +246,6 @@ fn render_footer(frame: &mut Frame, area: Rect, state: &AppState) {
         Page::Actions => {
             "Actions: j/k 选动作  Enter/Space 打开归宿页  x 直接执行（过渡期）  Tab/Shift-Tab 切页  q 退出"
         }
-        _ => "Tab/Shift-Tab: 切页  q: 退出",
     };
     let help = Paragraph::new(footer).block(Block::default().borders(Borders::ALL).title("Help"));
     frame.render_widget(Clear, area);

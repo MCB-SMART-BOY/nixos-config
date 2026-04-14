@@ -157,6 +157,16 @@ Overview -> Preview Apply -> Apply Current Host
 
 `Overview` v1 不做后台自动轮询。
 
+当前 `Overview` v1 的健康项行为固定为：
+
+- `repo-integrity` 在 TUI 启动时先计算一次并缓存
+- `doctor` 初始为 `NotRun`，只在显式刷新后更新
+- `r`：只刷新 `repo-integrity`
+- `d`：只刷新 `doctor`
+- `R`：顺序刷新两者
+
+这三组键位只更新 `Overview` 健康缓存和状态提示，不额外改变 `Apply` 配置字段。
+
 ### 4.4 `Overview` 主动作
 
 `Overview` 只能有这三个一等动作：
@@ -387,4 +397,3 @@ Overview -> Preview Apply -> Apply Current Host
 - `Actions` 的每个现有动作都有唯一归宿
 - 顶层不再出现 `Dashboard + Overview` 或 `Deploy + Apply` 的长期双轨
 - `Preview Apply` 能显示同步、重建、权限、hardware config 要求
-

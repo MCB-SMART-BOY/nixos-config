@@ -17,12 +17,8 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
             format!("目标主机配置未通过校验：{}", errors.join("；"))
         }
     };
-    let repo_integrity = match overview.repo_integrity {
-        OverviewCheckState::NotRun => "repo-integrity：未刷新".to_string(),
-    };
-    let doctor = match overview.doctor {
-        OverviewCheckState::NotRun => "doctor：未刷新".to_string(),
-    };
+    let repo_integrity = render_check_lines("repo-integrity", &overview.repo_integrity).join("\n");
+    let doctor = render_check_lines("doctor", &overview.doctor).join("\n");
     let apply_status = if overview.apply.can_apply_current_host {
         "当前可直接 Apply"
     } else if !overview.apply.handoffs.is_empty() {
@@ -31,7 +27,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         "当前不能直接 Apply"
     };
     let left = Paragraph::new(format!(
-        "当前主机: {}\n目标主机: {}\n当前用户: {}\n权限模式: {}\n当前仓库: {}\n/etc/nixos: {}\n可用 hosts: {}\n可用用户: {}\n\n{}\n{}\n{}\n状态：{}",
+        "当前主机: {}\n目标主机: {}\n当前用户: {}\n权限模式: {}\n当前仓库: {}\n/etc/nixos: {}\n可用 hosts: {}\n可用用户: {}\n\n{}\n{}\n{}\n状态：{}\n提示：{}",
         overview.context.current_host,
         overview.context.target_host,
         overview.context.current_user,
@@ -43,7 +39,8 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         host_status,
         repo_integrity,
         doctor,
-        apply_status
+        apply_status,
+        state.status
     ))
     .block(Block::default().borders(Borders::ALL).title("Overview Context"))
     .wrap(Wrap { trim: false });
@@ -115,4 +112,12 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     .block(Block::default().borders(Borders::ALL).title("Apply Snapshot"))
     .wrap(Wrap { trim: false });
     frame.render_widget(right, chunks[1]);
+}
+
+fn render_check_lines(label: &str, state: &OverviewCheckState) -> Vec<String> {
+    let mut lines = vec![format!("{label}: {}", state.summary_label())];
+    for detail in state.detail_lines() {
+        lines.push(format!("  - {detail}"));
+    }
+    lines
 }
