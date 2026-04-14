@@ -123,6 +123,7 @@ nix run .#update-upstream-apps -- --check
 - [docs/DETAILS.md](/home/mcbgaruda/projects/nixos-config/docs/DETAILS.md)
 - [docs/DEPLOY_AUDIT_CN.md](/home/mcbgaruda/projects/nixos-config/docs/DEPLOY_AUDIT_CN.md)
 - [docs/UX_MAINLINE_CN.md](/home/mcbgaruda/projects/nixos-config/docs/UX_MAINLINE_CN.md)
+- [docs/UX_SPEC_CN.md](/home/mcbgaruda/projects/nixos-config/docs/UX_SPEC_CN.md)
 - [docs/NETWORK_CN.md](/home/mcbgaruda/projects/nixos-config/docs/NETWORK_CN.md)
 - [docs/SHELL_CN.md](/home/mcbgaruda/projects/nixos-config/docs/SHELL_CN.md)
 - [mcbctl/README.md](/home/mcbgaruda/projects/nixos-config/mcbctl/README.md)

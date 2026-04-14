@@ -2,7 +2,7 @@
 
 这份文档不是历史说明，而是接下来继续收 `mcb-deploy` / `mcbctl deploy` 主线时的工作基线。
 
-如果要从“工程主线”继续往“日用体验主线”推进，产品级方案见 [UX_MAINLINE_CN.md](/home/mcbgaruda/projects/nixos-config/docs/UX_MAINLINE_CN.md)。
+如果要从“工程主线”继续往“日用体验主线”推进，产品级方案见 [UX_MAINLINE_CN.md](/home/mcbgaruda/projects/nixos-config/docs/UX_MAINLINE_CN.md)，去二义性的实现规格见 [UX_SPEC_CN.md](/home/mcbgaruda/projects/nixos-config/docs/UX_SPEC_CN.md)。
 
 目标只有三个：
 
