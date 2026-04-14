@@ -15,7 +15,7 @@ use crate::store::deploy::{
 };
 use crate::store::home::{
     ensure_managed_settings_layout, load_home_user_settings, managed_home_desktop_path,
-    render_managed_desktop_file,
+    render_managed_desktop_file, user_has_custom_noctalia_layout, user_noctalia_override_path,
 };
 use crate::store::hosts::{
     ensure_managed_host_layout, load_host_settings, managed_host_gpu_path,

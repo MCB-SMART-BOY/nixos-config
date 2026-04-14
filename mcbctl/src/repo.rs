@@ -1265,6 +1265,23 @@ mod tests {
     }
 
     #[test]
+    fn migrate_root_hardware_config_rejects_conflicting_destination() -> Result<()> {
+        let root = create_temp_repo()?;
+        let source = root.join("hardware-configuration.nix");
+        let destination = root.join("hosts/demo/hardware-configuration.nix");
+        fs::create_dir_all(destination.parent().expect("destination parent"))?;
+        fs::write(&source, "{ boot.loader = true; }\n")?;
+        fs::write(&destination, "{ boot.loader = false; }\n")?;
+
+        let err = migrate_root_hardware_config(&root, "demo")
+            .expect_err("conflicting destination should be rejected");
+        assert!(err.to_string().contains("已存在且内容不同"));
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
     fn flags_legacy_root_hardware_configuration_path() -> Result<()> {
         let root = create_temp_repo()?;
         fs::write(root.join("hardware-configuration.nix"), "{ ... }: { }\n")?;

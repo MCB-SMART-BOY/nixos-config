@@ -320,3 +320,72 @@ fn chrono_like_millis() -> u128 {
         .map(|d| d.as_millis())
         .unwrap_or(0)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn host_hardware_config_path_uses_per_host_location() {
+        let path = host_hardware_config_path(Path::new("/repo"), "demo");
+        assert_eq!(
+            path,
+            PathBuf::from("/repo/hosts/demo/hardware-configuration.nix")
+        );
+    }
+
+    #[test]
+    fn build_allows_eval_fallback_without_real_hardware_config() -> Result<()> {
+        let root = create_temp_repo()?;
+        let plan = NixosRebuildPlan {
+            action: DeployAction::Build,
+            upgrade: false,
+            flake_root: root.clone(),
+            target_host: "demo".to_string(),
+        };
+
+        ensure_real_hardware_config_for_rebuild(&plan)?;
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn switch_requires_real_hardware_config() -> Result<()> {
+        let root = create_temp_repo()?;
+        let plan = NixosRebuildPlan {
+            action: DeployAction::Switch,
+            upgrade: false,
+            flake_root: root.clone(),
+            target_host: "demo".to_string(),
+        };
+
+        let err = ensure_real_hardware_config_for_rebuild(&plan)
+            .expect_err("switch should require a real host hardware config");
+        assert!(
+            err.to_string()
+                .contains("缺少真实 hardware-configuration.nix")
+        );
+
+        fs::create_dir_all(root.join("hosts/demo"))?;
+        fs::write(host_hardware_config_path(&root, "demo"), "{ ... }: { }\n")?;
+        ensure_real_hardware_config_for_rebuild(&plan)?;
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    fn create_temp_repo() -> Result<PathBuf> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!(
+            "mcbctl-deploy-store-{}-{unique}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+}

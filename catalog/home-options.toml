@@ -1,7 +1,7 @@
 [[option]]
 id = "noctalia.barProfile"
 label = "Noctalia 顶栏"
-description = "控制 Noctalia 顶栏使用的默认 profile。"
+description = "控制 Noctalia 顶栏使用的默认 profile；若用户已有自定义 Noctalia 布局，则此项会锁定为继承。"
 area = "desktop"
 order = 10
 

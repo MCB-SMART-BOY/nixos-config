@@ -27,7 +27,7 @@ impl AppState {
     }
 
     pub fn next_home_field(&mut self) {
-        let len = self.home_options_for_area("desktop").len();
+        let len = self.home_desktop_options().len();
         if len == 0 {
             self.home_focus = 0;
             return;
@@ -36,7 +36,7 @@ impl AppState {
     }
 
     pub fn previous_home_field(&mut self) {
-        let len = self.home_options_for_area("desktop").len();
+        let len = self.home_desktop_options().len();
         if len == 0 {
             self.home_focus = 0;
             return;
@@ -59,9 +59,22 @@ impl AppState {
             return;
         };
 
+        let locked_noctalia_path = if option_id == "noctalia.barProfile" {
+            self.current_home_user_noctalia_override_path()
+                .filter(|path| path.is_file())
+        } else {
+            None
+        };
         let settings = self.home_settings_by_user.entry(user.clone()).or_default();
         match option_id.as_str() {
             "noctalia.barProfile" => {
+                if let Some(path) = locked_noctalia_path {
+                    self.status = format!(
+                        "用户 {user} 的 Noctalia 顶栏由 {} 接管；Home 页不会覆盖它。",
+                        path.display()
+                    );
+                    return;
+                }
                 cycle_enum(&mut settings.bar_profile, &ManagedBarProfile::ALL, delta)
             }
             "desktop.enableZed" => {
@@ -83,17 +96,10 @@ impl AppState {
 
     pub fn home_rows(&self) -> Vec<(String, String)> {
         let settings = self.current_home_settings().cloned().unwrap_or_default();
-        self.home_options_for_area("desktop")
+        self.home_desktop_options()
             .into_iter()
             .map(|option| {
-                let value = match option.id.as_str() {
-                    "noctalia.barProfile" => settings.bar_profile.label().to_string(),
-                    "desktop.enableZed" => settings.enable_zed_entry.label().to_string(),
-                    "desktop.enableYesPlayMusic" => {
-                        settings.enable_yesplaymusic_entry.label().to_string()
-                    }
-                    _ => "未接入".to_string(),
-                };
+                let value = self.home_option_value(option.id.as_str(), &settings);
                 (option.label.clone(), value)
             })
             .collect()
@@ -112,17 +118,12 @@ impl AppState {
         ];
 
         let settings = self.current_home_settings().cloned().unwrap_or_default();
-        let desktop_options = self.home_options_for_area("desktop");
+        let desktop_options = self.home_desktop_options();
         if desktop_options.is_empty() {
             lines.push("当前没有可用的 Home 元数据选项。".to_string());
         } else {
             for option in &desktop_options {
-                let value = match option.id.as_str() {
-                    "noctalia.barProfile" => settings.bar_profile.label(),
-                    "desktop.enableZed" => settings.enable_zed_entry.label(),
-                    "desktop.enableYesPlayMusic" => settings.enable_yesplaymusic_entry.label(),
-                    _ => "未接入",
-                };
+                let value = self.home_option_value(option.id.as_str(), &settings);
                 lines.push(format!("{}：{value}", option.label));
             }
         }
@@ -133,6 +134,14 @@ impl AppState {
             lines.push("状态：当前用户有未保存的 Home 设置修改".to_string());
         } else {
             lines.push("状态：当前用户没有未保存的 Home 设置修改".to_string());
+        }
+        if let Some(path) = self.current_home_user_noctalia_override_path()
+            && path.is_file()
+        {
+            lines.push(format!(
+                "Noctalia：当前用户由 {} 提供自定义布局，Home 页不会覆盖顶栏 profile。",
+                path.display()
+            ));
         }
 
         lines.push(String::new());
@@ -171,6 +180,10 @@ impl AppState {
             .get(&user)
             .cloned()
             .unwrap_or_default();
+        let mut settings = settings;
+        if user_has_custom_noctalia_layout(&self.context.repo_root, &user) {
+            settings.bar_profile = ManagedBarProfile::Inherit;
+        }
         let path = managed_dir.join("settings/desktop.nix");
         write_managed_file(
             &path,
@@ -179,7 +192,19 @@ impl AppState {
             &["# 机器管理的桌面设置分片"],
         )?;
         self.home_dirty_users.remove(&user);
-        self.status = format!("已写入 {}", path.display());
+        self.status = if let Some(override_path) = self.current_home_user_noctalia_override_path() {
+            if override_path.is_file() {
+                format!(
+                    "已写入 {}；Noctalia 顶栏仍由 {} 接管。",
+                    path.display(),
+                    override_path.display()
+                )
+            } else {
+                format!("已写入 {}", path.display())
+            }
+        } else {
+            format!("已写入 {}", path.display())
+        };
         Ok(())
     }
 
@@ -196,8 +221,12 @@ impl AppState {
             .collect()
     }
 
-    fn current_home_option_id(&self) -> Option<&str> {
+    fn home_desktop_options(&self) -> Vec<&HomeOptionMeta> {
         self.home_options_for_area("desktop")
+    }
+
+    fn current_home_option_id(&self) -> Option<&str> {
+        self.home_desktop_options()
             .get(self.home_focus)
             .map(|option| option.id.as_str())
     }
@@ -205,5 +234,27 @@ impl AppState {
     fn home_target_desktop_path(&self) -> Option<PathBuf> {
         let user = self.current_home_user()?;
         Some(managed_home_desktop_path(&self.context.repo_root, user))
+    }
+
+    fn current_home_user_has_custom_noctalia_layout(&self) -> bool {
+        self.current_home_user()
+            .is_some_and(|user| user_has_custom_noctalia_layout(&self.context.repo_root, user))
+    }
+
+    fn current_home_user_noctalia_override_path(&self) -> Option<PathBuf> {
+        let user = self.current_home_user()?;
+        Some(user_noctalia_override_path(&self.context.repo_root, user))
+    }
+
+    fn home_option_value(&self, option_id: &str, settings: &HomeManagedSettings) -> String {
+        match option_id {
+            "noctalia.barProfile" if self.current_home_user_has_custom_noctalia_layout() => {
+                "由自定义布局接管".to_string()
+            }
+            "noctalia.barProfile" => settings.bar_profile.label().to_string(),
+            "desktop.enableZed" => settings.enable_zed_entry.label().to_string(),
+            "desktop.enableYesPlayMusic" => settings.enable_yesplaymusic_entry.label().to_string(),
+            _ => "未接入".to_string(),
+        }
     }
 }

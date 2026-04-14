@@ -28,12 +28,7 @@ in
       left = [
         { id = "Launcher"; }
         { id = "Workspace"; }
-      ];
-      center = [
-        { id = "Clock"; }
-      ];
-      right = [
-        { id = "Tray"; }
+        # 频繁变化的状态拆到时钟两侧，避免右侧过长时挤压中心时间。
         {
           id = "CustomButton";
           icon = "git-branch";
@@ -56,8 +51,8 @@ in
           parseJson = true;
           textIntervalMs = 5000;
           maxTextLength = {
-            horizontal = 8;
-            vertical = 8;
+            horizontal = 6;
+            vertical = 6;
           };
         }
         {
@@ -69,8 +64,8 @@ in
           parseJson = true;
           textIntervalMs = 2000;
           maxTextLength = {
-            horizontal = 20;
-            vertical = 20;
+            horizontal = 12;
+            vertical = 12;
           };
         }
         {
@@ -95,10 +90,15 @@ in
           parseJson = true;
           textIntervalMs = 2000;
           maxTextLength = {
-            horizontal = 6;
-            vertical = 6;
+            horizontal = 5;
+            vertical = 5;
           };
         }
+      ];
+      center = [
+        { id = "Clock"; }
+      ];
+      right = [
         {
           id = "CustomButton";
           icon = "memory-stick";
@@ -108,8 +108,8 @@ in
           parseJson = true;
           textIntervalMs = 3000;
           maxTextLength = {
-            horizontal = 6;
-            vertical = 6;
+            horizontal = 5;
+            vertical = 5;
           };
         }
         {
@@ -121,8 +121,8 @@ in
           parseJson = true;
           textIntervalMs = 5000;
           maxTextLength = {
-            horizontal = 7;
-            vertical = 7;
+            horizontal = 5;
+            vertical = 5;
           };
         }
         {
@@ -134,10 +134,11 @@ in
           parseJson = true;
           textIntervalMs = 30000;
           maxTextLength = {
-            horizontal = 7;
-            vertical = 7;
+            horizontal = 6;
+            vertical = 6;
           };
         }
+        { id = "Tray"; }
         { id = "Volume"; }
         { id = "Brightness"; }
         { id = "Battery"; }
@@ -152,8 +153,8 @@ in
           parseJson = true;
           textIntervalMs = 5000;
           maxTextLength = {
-            horizontal = 10;
-            vertical = 10;
+            horizontal = 8;
+            vertical = 8;
           };
         }
       ] else [ ]) ++ [
@@ -166,8 +167,8 @@ in
           parseJson = true;
           textIntervalMs = 5000;
           maxTextLength = {
-            horizontal = 6;
-            vertical = 6;
+            horizontal = 5;
+            vertical = 5;
           };
         }
         {

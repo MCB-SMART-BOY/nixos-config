@@ -75,6 +75,14 @@ pub fn managed_home_desktop_path(repo_root: &Path, user: &str) -> PathBuf {
         .join("managed/settings/desktop.nix")
 }
 
+pub fn user_noctalia_override_path(repo_root: &Path, user: &str) -> PathBuf {
+    repo_root.join("home/users").join(user).join("noctalia.nix")
+}
+
+pub fn user_has_custom_noctalia_layout(repo_root: &Path, user: &str) -> bool {
+    user_noctalia_override_path(repo_root, user).is_file()
+}
+
 pub fn render_managed_desktop_file(settings: &HomeManagedSettings) -> String {
     let mut lines = vec![
         "# 机器管理的桌面设置分片（由 mcbctl 维护）。".to_string(),
@@ -189,5 +197,74 @@ fn parse_bar_profile_marker(content: &str, key: &str) -> ManagedBarProfile {
         Some("default") => ManagedBarProfile::Default,
         Some("none") => ManagedBarProfile::None,
         _ => ManagedBarProfile::Inherit,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::render_managed_file;
+    use anyhow::Result;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn load_user_managed_settings_reads_markers_from_managed_file() -> Result<()> {
+        let root = create_temp_repo()?;
+        let path = managed_home_desktop_path(&root, "demo");
+        fs::create_dir_all(path.parent().expect("desktop parent"))?;
+        let content = render_managed_file(
+            "home-settings-desktop",
+            &render_managed_desktop_file(&HomeManagedSettings {
+                bar_profile: ManagedBarProfile::Default,
+                enable_zed_entry: ManagedToggle::Enabled,
+                enable_yesplaymusic_entry: ManagedToggle::Disabled,
+            }),
+        );
+        fs::write(&path, content)?;
+
+        let settings = load_user_managed_settings(&root, "demo");
+        assert_eq!(settings.bar_profile, ManagedBarProfile::Default);
+        assert_eq!(settings.enable_zed_entry, ManagedToggle::Enabled);
+        assert_eq!(settings.enable_yesplaymusic_entry, ManagedToggle::Disabled);
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn custom_noctalia_layout_detection_uses_user_override_path() -> Result<()> {
+        let root = create_temp_repo()?;
+        let override_path = user_noctalia_override_path(&root, "demo");
+        fs::create_dir_all(override_path.parent().expect("override parent"))?;
+        fs::write(&override_path, "{ ... }: { }\n")?;
+
+        assert!(user_has_custom_noctalia_layout(&root, "demo"));
+        assert!(!user_has_custom_noctalia_layout(&root, "other"));
+
+        fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn render_managed_desktop_file_omits_inherit_bar_profile_assignment() {
+        let rendered = render_managed_desktop_file(&HomeManagedSettings {
+            bar_profile: ManagedBarProfile::Inherit,
+            enable_zed_entry: ManagedToggle::Enabled,
+            enable_yesplaymusic_entry: ManagedToggle::Inherit,
+        });
+
+        assert!(!rendered.contains("mcb.noctalia.barProfile"));
+        assert!(rendered.contains("mcb.desktopEntries.enableZed = lib.mkForce true;"));
+    }
+
+    fn create_temp_repo() -> Result<PathBuf> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root =
+            std::env::temp_dir().join(format!("mcbctl-home-store-{}-{unique}", std::process::id()));
+        fs::create_dir_all(&root)?;
+        Ok(root)
     }
 }
