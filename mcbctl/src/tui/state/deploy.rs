@@ -202,3 +202,177 @@ impl AppState {
             && self.context.privilege_mode != "rootless"
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn current_repo_switch_uses_sync_plan_and_etc_rebuild_target() {
+        let state = test_state("/repo", "/etc/nixos", "sudo-available");
+
+        assert!(state.can_execute_deploy_directly());
+        let sync = state
+            .deploy_sync_plan_for_execution()
+            .expect("current repo switch should sync into /etc/nixos");
+        assert_eq!(sync.source_dir, PathBuf::from("/repo"));
+        assert_eq!(sync.destination_dir, PathBuf::from("/etc/nixos"));
+        assert!(sync.delete_extra);
+
+        let rebuild = state
+            .deploy_rebuild_plan_for_execution()
+            .expect("current repo switch should produce rebuild plan");
+        assert_eq!(rebuild.action, DeployAction::Switch);
+        assert_eq!(rebuild.flake_root, PathBuf::from("/etc/nixos"));
+        assert_eq!(rebuild.target_host, "demo");
+    }
+
+    #[test]
+    fn rootless_build_stays_on_repo_and_skips_sync() {
+        let mut state = test_state("/repo", "/etc/nixos", "rootless");
+        state.deploy_action = DeployAction::Build;
+
+        assert!(state.can_execute_deploy_directly());
+        assert!(state.deploy_sync_plan_for_execution().is_none());
+
+        let rebuild = state
+            .deploy_rebuild_plan_for_execution()
+            .expect("rootless build should still produce rebuild plan");
+        assert_eq!(rebuild.action, DeployAction::Build);
+        assert_eq!(rebuild.flake_root, PathBuf::from("/repo"));
+    }
+
+    #[test]
+    fn remote_sources_fall_back_to_wizard() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.deploy_source = DeploySource::RemoteHead;
+
+        assert!(!state.can_execute_deploy_directly());
+        assert!(state.deploy_sync_plan_for_execution().is_none());
+        assert!(state.deploy_rebuild_plan_for_execution().is_none());
+    }
+
+    #[test]
+    fn execute_deploy_rejects_unsaved_changes_before_other_checks() {
+        let mut state = test_state("/definitely/missing/repo", "/etc/nixos", "sudo-available");
+        state.home_dirty_users.insert("alice".to_string());
+        state.package_dirty_users.insert("alice".to_string());
+
+        let err = state
+            .execute_deploy()
+            .expect_err("unsaved changes should block execution immediately");
+        let text = err.to_string();
+        assert!(text.contains("仍有未保存修改"));
+        assert!(text.contains("Packages: alice"));
+        assert!(text.contains("Home: alice"));
+    }
+
+    #[test]
+    fn execute_deploy_rejects_rootless_non_build_before_external_commands() -> Result<()> {
+        let repo_root = create_temp_dir("mcbctl-deploy-state")?;
+        let mut state = test_state(
+            repo_root.to_string_lossy().as_ref(),
+            "/etc/nixos",
+            "rootless",
+        );
+        state.deploy_action = DeployAction::Switch;
+
+        let err = state
+            .execute_deploy()
+            .expect_err("rootless direct switch should be rejected");
+        assert!(
+            err.to_string()
+                .contains("rootless 模式下当前页只能直接执行 build")
+        );
+
+        std::fs::remove_dir_all(repo_root)?;
+        Ok(())
+    }
+
+    fn test_state(repo_root: &str, etc_root: &str, privilege_mode: &str) -> AppState {
+        let context = AppContext {
+            repo_root: PathBuf::from(repo_root),
+            etc_root: PathBuf::from(etc_root),
+            current_host: "demo".to_string(),
+            current_system: "x86_64-linux".to_string(),
+            current_user: "alice".to_string(),
+            privilege_mode: privilege_mode.to_string(),
+            hosts: vec!["demo".to_string()],
+            users: vec!["alice".to_string()],
+            catalog_path: PathBuf::from("catalog/packages"),
+            catalog_groups_path: PathBuf::from("catalog/groups.toml"),
+            catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_entries: Vec::new(),
+            catalog_groups: BTreeMap::new(),
+            catalog_home_options: Vec::new(),
+            catalog_categories: Vec::new(),
+            catalog_sources: Vec::new(),
+        };
+
+        let mut host_settings_by_name = BTreeMap::new();
+        host_settings_by_name.insert("demo".to_string(), valid_host_settings());
+
+        AppState {
+            context,
+            active_page: 0,
+            deploy_focus: 0,
+            target_host: "demo".to_string(),
+            deploy_task: DeployTask::DirectDeploy,
+            deploy_source: DeploySource::CurrentRepo,
+            deploy_action: DeployAction::Switch,
+            flake_update: false,
+            show_advanced: false,
+            users_focus: 0,
+            hosts_focus: 0,
+            users_text_mode: None,
+            hosts_text_mode: None,
+            host_text_input: String::new(),
+            host_settings_by_name,
+            host_dirty_user_hosts: BTreeSet::new(),
+            host_dirty_runtime_hosts: BTreeSet::new(),
+            package_user_index: 0,
+            package_mode: PackageDataMode::Search,
+            package_cursor: 0,
+            package_category_index: 0,
+            package_group_filter: None,
+            package_source_filter: None,
+            package_search: String::new(),
+            package_search_result_indices: Vec::new(),
+            package_local_entry_ids: BTreeSet::new(),
+            package_search_mode: false,
+            package_group_create_mode: false,
+            package_group_rename_mode: false,
+            package_group_rename_source: String::new(),
+            package_group_input: String::new(),
+            package_user_selections: BTreeMap::new(),
+            package_dirty_users: BTreeSet::new(),
+            home_user_index: 0,
+            home_focus: 0,
+            home_settings_by_user: BTreeMap::new(),
+            home_dirty_users: BTreeSet::new(),
+            actions_focus: 0,
+            status: String::new(),
+        }
+    }
+
+    fn valid_host_settings() -> HostManagedSettings {
+        HostManagedSettings {
+            primary_user: "alice".to_string(),
+            users: vec!["alice".to_string()],
+            admin_users: vec!["alice".to_string()],
+            ..HostManagedSettings::default()
+        }
+    }
+
+    fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+}
