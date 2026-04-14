@@ -33,11 +33,23 @@ enum ScreenshotMode {
     Region,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum SudoMode {
     Auto,
     Always,
     Never,
+}
+
+#[derive(Clone, Debug)]
+struct RebuildRequest {
+    plan: NixosRebuildPlan,
+    sudo_mode: SudoMode,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BuildHostRequest {
+    build_target: String,
+    dry_run: bool,
 }
 
 fn main() {
@@ -275,64 +287,8 @@ fn run_rebuild(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let action = match args[0].as_str() {
-        "switch" => DeployAction::Switch,
-        "test" => DeployAction::Test,
-        "boot" => DeployAction::Boot,
-        "build" => DeployAction::Build,
-        other => bail!("不支持的 rebuild 模式：{other}"),
-    };
-
-    let mut host = None;
-    let mut flake_root = None;
-    let mut upgrade = false;
-    let mut sudo_mode = SudoMode::Auto;
-    let mut idx = 1usize;
-    while idx < args.len() {
-        match args[idx].as_str() {
-            "--flake" => {
-                let Some(value) = args.get(idx + 1) else {
-                    bail!("--flake 缺少路径");
-                };
-                flake_root = Some(PathBuf::from(value));
-                idx += 2;
-            }
-            "--upgrade" => {
-                upgrade = true;
-                idx += 1;
-            }
-            "--sudo" => {
-                sudo_mode = SudoMode::Always;
-                idx += 1;
-            }
-            "--no-sudo" => {
-                sudo_mode = SudoMode::Never;
-                idx += 1;
-            }
-            other if other.starts_with('-') => bail!("不支持的参数：{other}"),
-            other => {
-                if host.replace(other.to_string()).is_some() {
-                    bail!("只能指定一个目标主机");
-                }
-                idx += 1;
-            }
-        }
-    }
-
-    let target_host =
-        host.unwrap_or_else(|| current_host_name().unwrap_or_else(|| "<hostname>".to_string()));
-    if target_host == "<hostname>" {
-        bail!("无法推断主机名，请显式传入 host");
-    }
-
-    let plan = NixosRebuildPlan {
-        action,
-        upgrade,
-        flake_root: flake_root.unwrap_or_else(default_flake_root),
-        target_host,
-    };
-
-    let status = run_nixos_rebuild(&plan, resolve_sudo_mode(sudo_mode))?;
+    let request = parse_rebuild_request(args, current_host_name(), default_flake_root())?;
+    let status = run_nixos_rebuild(&request.plan, resolve_sudo_mode(request.sudo_mode))?;
     if status.success() {
         Ok(())
     } else {
@@ -348,61 +304,8 @@ fn run_build_host(args: &[String]) -> Result<()> {
         return Ok(());
     }
 
-    let mut host = None;
-    let mut flake_root = None;
-    let mut dry_run = false;
-    let mut target = None;
-    let mut idx = 0usize;
-    while idx < args.len() {
-        match args[idx].as_str() {
-            "--flake" => {
-                let Some(value) = args.get(idx + 1) else {
-                    bail!("--flake 缺少路径");
-                };
-                flake_root = Some(PathBuf::from(value));
-                idx += 2;
-            }
-            "--dry-run" => {
-                dry_run = true;
-                idx += 1;
-            }
-            "--target" => {
-                let Some(value) = args.get(idx + 1) else {
-                    bail!("--target 缺少 flake 引用");
-                };
-                target = Some(value.to_string());
-                idx += 2;
-            }
-            other if other.starts_with('-') => bail!("不支持的参数：{other}"),
-            other => {
-                if host.replace(other.to_string()).is_some() {
-                    bail!("只能指定一个目标主机");
-                }
-                idx += 1;
-            }
-        }
-    }
-
-    if target.is_some() && (host.is_some() || flake_root.is_some()) {
-        bail!("--target 不能和 host/--flake 同时使用");
-    }
-
-    let build_target = if let Some(target) = target {
-        target
-    } else {
-        let target_host =
-            host.unwrap_or_else(|| current_host_name().unwrap_or_else(|| "<hostname>".to_string()));
-        if target_host == "<hostname>" {
-            bail!("无法推断主机名，请显式传入 host 或 --target");
-        }
-        format!(
-            "{}#nixosConfigurations.{}.config.system.build.toplevel",
-            flake_root.unwrap_or_else(default_flake_root).display(),
-            target_host
-        )
-    };
-
-    run_nix_build_target(&build_target, dry_run)
+    let request = parse_build_host_request(args, current_host_name(), default_flake_root())?;
+    run_nix_build_target(&request.build_target, request.dry_run)
 }
 
 fn run_lint_repo(args: &[String]) -> Result<()> {
@@ -526,6 +429,150 @@ fn default_flake_root() -> PathBuf {
         return etc_nixos;
     }
     find_repo_root().unwrap_or_else(|_| preferred_terminal_repo_dir())
+}
+
+fn parse_rebuild_request(
+    args: &[String],
+    current_host: Option<String>,
+    fallback_flake_root: PathBuf,
+) -> Result<RebuildRequest> {
+    let Some(mode) = args.first() else {
+        bail!("缺少 rebuild 模式");
+    };
+    let action = parse_rebuild_action(mode)?;
+
+    let mut host = None;
+    let mut flake_root = None;
+    let mut upgrade = false;
+    let mut sudo_mode = SudoMode::Auto;
+    let mut idx = 1usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--flake" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--flake 缺少路径");
+                };
+                flake_root = Some(PathBuf::from(value));
+                idx += 2;
+            }
+            "--upgrade" => {
+                upgrade = true;
+                idx += 1;
+            }
+            "--sudo" => {
+                sudo_mode = SudoMode::Always;
+                idx += 1;
+            }
+            "--no-sudo" => {
+                sudo_mode = SudoMode::Never;
+                idx += 1;
+            }
+            other if other.starts_with('-') => bail!("不支持的参数：{other}"),
+            other => {
+                if host.replace(other.to_string()).is_some() {
+                    bail!("只能指定一个目标主机");
+                }
+                idx += 1;
+            }
+        }
+    }
+
+    let target_host = resolve_required_host(host, current_host, "无法推断主机名，请显式传入 host")?;
+    Ok(RebuildRequest {
+        plan: NixosRebuildPlan {
+            action,
+            upgrade,
+            flake_root: flake_root.unwrap_or(fallback_flake_root),
+            target_host,
+        },
+        sudo_mode,
+    })
+}
+
+fn parse_build_host_request(
+    args: &[String],
+    current_host: Option<String>,
+    fallback_flake_root: PathBuf,
+) -> Result<BuildHostRequest> {
+    let mut host = None;
+    let mut flake_root = None;
+    let mut dry_run = false;
+    let mut target = None;
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--flake" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--flake 缺少路径");
+                };
+                flake_root = Some(PathBuf::from(value));
+                idx += 2;
+            }
+            "--dry-run" => {
+                dry_run = true;
+                idx += 1;
+            }
+            "--target" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--target 缺少 flake 引用");
+                };
+                target = Some(value.to_string());
+                idx += 2;
+            }
+            other if other.starts_with('-') => bail!("不支持的参数：{other}"),
+            other => {
+                if host.replace(other.to_string()).is_some() {
+                    bail!("只能指定一个目标主机");
+                }
+                idx += 1;
+            }
+        }
+    }
+
+    if target.is_some() && (host.is_some() || flake_root.is_some()) {
+        bail!("--target 不能和 host/--flake 同时使用");
+    }
+
+    let build_target = if let Some(target) = target {
+        target
+    } else {
+        let target_host = resolve_required_host(
+            host,
+            current_host,
+            "无法推断主机名，请显式传入 host 或 --target",
+        )?;
+        format!(
+            "{}#nixosConfigurations.{}.config.system.build.toplevel",
+            flake_root.unwrap_or(fallback_flake_root).display(),
+            target_host
+        )
+    };
+
+    Ok(BuildHostRequest {
+        build_target,
+        dry_run,
+    })
+}
+
+fn parse_rebuild_action(mode: &str) -> Result<DeployAction> {
+    match mode {
+        "switch" => Ok(DeployAction::Switch),
+        "test" => Ok(DeployAction::Test),
+        "boot" => Ok(DeployAction::Boot),
+        "build" => Ok(DeployAction::Build),
+        other => bail!("不支持的 rebuild 模式：{other}"),
+    }
+}
+
+fn resolve_required_host(
+    explicit_host: Option<String>,
+    current_host: Option<String>,
+    missing_message: &str,
+) -> Result<String> {
+    explicit_host
+        .or(current_host)
+        .filter(|host| !host.trim().is_empty() && host != "<hostname>")
+        .ok_or_else(|| anyhow::anyhow!(missing_message.to_string()))
 }
 
 fn run_nix_build_target(target: &str, dry_run: bool) -> Result<()> {
@@ -925,4 +972,178 @@ fn default_release_bundle_version() -> String {
                 .filter(|value| !value.is_empty())
         })
         .unwrap_or_else(|| "dev".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_rebuild_request_parses_flags_and_host() -> Result<()> {
+        let request = parse_rebuild_request(
+            &[
+                "switch".to_string(),
+                "demo".to_string(),
+                "--upgrade".to_string(),
+                "--sudo".to_string(),
+                "--flake".to_string(),
+                "/tmp/flake".to_string(),
+            ],
+            Some("ignored".to_string()),
+            PathBuf::from("/fallback"),
+        )?;
+
+        assert_eq!(request.plan.action, DeployAction::Switch);
+        assert!(request.plan.upgrade);
+        assert_eq!(request.plan.target_host, "demo");
+        assert_eq!(request.plan.flake_root, PathBuf::from("/tmp/flake"));
+        assert_eq!(request.sudo_mode, SudoMode::Always);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_rebuild_request_uses_detected_host_when_missing() -> Result<()> {
+        let request = parse_rebuild_request(
+            &["build".to_string()],
+            Some("nixos".to_string()),
+            PathBuf::from("/repo"),
+        )?;
+
+        assert_eq!(request.plan.action, DeployAction::Build);
+        assert_eq!(request.plan.target_host, "nixos");
+        assert_eq!(request.plan.flake_root, PathBuf::from("/repo"));
+        assert_eq!(request.sudo_mode, SudoMode::Auto);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_rebuild_request_rejects_multiple_hosts() {
+        let err = parse_rebuild_request(
+            &[
+                "switch".to_string(),
+                "host-a".to_string(),
+                "host-b".to_string(),
+            ],
+            None,
+            PathBuf::from("/repo"),
+        )
+        .expect_err("multiple hosts should be rejected");
+        assert!(err.to_string().contains("只能指定一个目标主机"));
+    }
+
+    #[test]
+    fn parse_rebuild_request_requires_host_when_undetectable() {
+        let err = parse_rebuild_request(&["switch".to_string()], None, PathBuf::from("/repo"))
+            .expect_err("missing host should be rejected");
+        assert!(err.to_string().contains("无法推断主机名"));
+    }
+
+    #[test]
+    fn parse_build_host_request_builds_default_target() -> Result<()> {
+        let request = parse_build_host_request(
+            &["demo".to_string(), "--dry-run".to_string()],
+            Some("ignored".to_string()),
+            PathBuf::from("/repo"),
+        )?;
+
+        assert_eq!(
+            request.build_target,
+            "/repo#nixosConfigurations.demo.config.system.build.toplevel"
+        );
+        assert!(request.dry_run);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_build_host_request_accepts_explicit_target() -> Result<()> {
+        let request = parse_build_host_request(
+            &[
+                "--target".to_string(),
+                ".#nixosConfigurations.demo.config.system.build.toplevel".to_string(),
+            ],
+            None,
+            PathBuf::from("/repo"),
+        )?;
+
+        assert_eq!(
+            request.build_target,
+            ".#nixosConfigurations.demo.config.system.build.toplevel"
+        );
+        assert!(!request.dry_run);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_build_host_request_rejects_target_with_host_or_flake() {
+        let err = parse_build_host_request(
+            &[
+                "--target".to_string(),
+                ".#foo".to_string(),
+                "--flake".to_string(),
+                "/repo".to_string(),
+            ],
+            None,
+            PathBuf::from("/fallback"),
+        )
+        .expect_err("explicit target should not allow host or flake");
+        assert!(
+            err.to_string()
+                .contains("--target 不能和 host/--flake 同时使用")
+        );
+    }
+
+    #[test]
+    fn parse_build_host_request_requires_target_or_host_when_undetectable() {
+        let err = parse_build_host_request(&[], None, PathBuf::from("/repo"))
+            .expect_err("missing target should be rejected");
+        assert!(err.to_string().contains("无法推断主机名"));
+    }
+
+    #[test]
+    fn resolve_required_host_prefers_explicit_value() -> Result<()> {
+        let host = resolve_required_host(
+            Some("explicit".to_string()),
+            Some("detected".to_string()),
+            "missing",
+        )?;
+        assert_eq!(host, "explicit");
+        Ok(())
+    }
+
+    #[test]
+    fn infer_only_repo_host_ignores_support_directories() -> Result<()> {
+        let root = create_temp_repo()?;
+        for name in ["_support", "profiles", "templates", "demo"] {
+            std::fs::create_dir_all(root.join("hosts").join(name))?;
+        }
+
+        assert_eq!(infer_only_repo_host(&root), Some("demo".to_string()));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn infer_only_repo_host_returns_none_for_multiple_hosts() -> Result<()> {
+        let root = create_temp_repo()?;
+        for name in ["demo-a", "demo-b"] {
+            std::fs::create_dir_all(root.join("hosts").join(name))?;
+        }
+
+        assert_eq!(infer_only_repo_host(&root), None);
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    fn create_temp_repo() -> Result<PathBuf> {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root =
+            std::env::temp_dir().join(format!("mcbctl-cli-parse-{}-{unique}", std::process::id()));
+        std::fs::create_dir_all(root.join("hosts"))?;
+        Ok(root)
+    }
 }
