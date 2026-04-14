@@ -18,8 +18,15 @@ impl App {
         None
     }
 
-    pub(crate) fn extract_user_from_file(file: &Path) -> Option<String> {
-        let text = fs::read_to_string(file).ok()?;
+    pub(crate) fn extract_user_from_file(file: &Path) -> Result<Option<String>> {
+        let text = match fs::read_to_string(file) {
+            Ok(text) => text,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(err) => {
+                return Err(err)
+                    .with_context(|| format!("读取默认用户候选文件 {} 失败", file.display()));
+            }
+        };
         for line in text.lines() {
             let l = strip_comment(line);
             if l.contains("mcb.user")
@@ -27,17 +34,17 @@ impl App {
                 && l.contains('"')
                 && let Some(v) = first_quoted(l)
             {
-                return Some(v);
+                return Ok(Some(v));
             }
             if l.trim_start().starts_with("user")
                 && l.contains('=')
                 && l.contains('"')
                 && let Some(v) = first_quoted(l)
             {
-                return Some(v);
+                return Ok(Some(v));
             }
         }
-        None
+        Ok(None)
     }
 
     pub(crate) fn resolve_default_user(&self) -> String {
@@ -69,8 +76,10 @@ impl App {
                 .join("default.nix"),
         );
         for file in files {
-            if let Some(v) = Self::extract_user_from_file(&file) {
-                return v;
+            match Self::extract_user_from_file(&file) {
+                Ok(Some(v)) => return v,
+                Ok(None) => {}
+                Err(err) => self.warn(&err.to_string()),
             }
         }
         for key in ["SUDO_USER", "USER", "LOGNAME"] {
@@ -113,5 +122,117 @@ impl App {
         }
         users.sort();
         users
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extract_user_from_file_returns_none_for_missing_file() -> Result<()> {
+        let temp_root = create_temp_dir("mcbctl-default-user-missing")?;
+        let missing = temp_root.join("missing.nix");
+
+        assert_eq!(App::extract_user_from_file(&missing)?, None);
+        Ok(())
+    }
+
+    #[test]
+    fn extract_user_from_file_reports_unreadable_path() -> Result<()> {
+        let temp_root = create_temp_dir("mcbctl-default-user-unreadable")?;
+        let directory = temp_root.join("candidate.nix");
+        fs::create_dir_all(&directory)?;
+
+        let err = App::extract_user_from_file(&directory)
+            .expect_err("directories should not be treated as missing files");
+
+        assert!(err.to_string().contains("读取默认用户候选文件"));
+        Ok(())
+    }
+
+    #[test]
+    fn resolve_default_user_skips_unreadable_candidate_files() -> Result<()> {
+        let temp_root = create_temp_dir("mcbctl-default-user-fallback")?;
+        let host_dir = temp_root.join("hosts/demo");
+        fs::create_dir_all(host_dir.join("local.nix"))?;
+        fs::write(host_dir.join("default.nix"), r#"{ mcb.user = "alice"; }"#)?;
+        let app = test_app(temp_root.clone());
+
+        assert_eq!(app.resolve_default_user(), "alice");
+        Ok(())
+    }
+
+    fn create_temp_dir(prefix: &str) -> Result<PathBuf> {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_nanos())
+            .unwrap_or(0);
+        let root = std::env::temp_dir().join(format!("{prefix}-{}-{unique}", std::process::id()));
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn test_app(tmp_dir: PathBuf) -> App {
+        App {
+            repo_dir: tmp_dir.clone(),
+            repo_urls: Vec::new(),
+            branch: "rust脚本分支".to_string(),
+            source_ref: String::new(),
+            allow_remote_head: false,
+            source_commit: String::new(),
+            source_choice_set: false,
+            target_name: "demo".to_string(),
+            target_users: Vec::new(),
+            target_admin_users: Vec::new(),
+            deploy_mode: DeployMode::ManageUsers,
+            deploy_mode_set: false,
+            force_remote_source: false,
+            overwrite_mode: OverwriteMode::Ask,
+            overwrite_mode_set: false,
+            per_user_tun_enabled: false,
+            host_profile_kind: HostProfileKind::Desktop,
+            user_tun: BTreeMap::new(),
+            user_dns: BTreeMap::new(),
+            server_overrides_enabled: false,
+            server_enable_network_cli: String::new(),
+            server_enable_network_gui: String::new(),
+            server_enable_shell_tools: String::new(),
+            server_enable_wayland_tools: String::new(),
+            server_enable_system_tools: String::new(),
+            server_enable_geek_tools: String::new(),
+            server_enable_gaming: String::new(),
+            server_enable_insecure_tools: String::new(),
+            server_enable_docker: String::new(),
+            server_enable_libvirtd: String::new(),
+            created_home_users: Vec::new(),
+            gpu_override: false,
+            gpu_override_from_detection: false,
+            gpu_mode: String::new(),
+            gpu_igpu_vendor: String::new(),
+            gpu_prime_mode: String::new(),
+            gpu_intel_bus: String::new(),
+            gpu_amd_bus: String::new(),
+            gpu_nvidia_bus: String::new(),
+            gpu_nvidia_open: String::new(),
+            gpu_specialisations_enabled: false,
+            gpu_specialisations_set: false,
+            gpu_specialisation_modes: Vec::new(),
+            detected_gpu: DetectedGpuProfile::default(),
+            mode: "switch".to_string(),
+            rebuild_upgrade: false,
+            etc_dir: PathBuf::from("/tmp/etc-nixos"),
+            dns_enabled: false,
+            temp_dns_backend: String::new(),
+            temp_dns_backup: None,
+            temp_dns_iface: String::new(),
+            tmp_dir: Some(tmp_dir),
+            sudo_cmd: None,
+            rootless: false,
+            run_action: RunAction::Deploy,
+            progress_total: 7,
+            progress_current: 0,
+            git_clone_timeout_sec: 90,
+        }
     }
 }
