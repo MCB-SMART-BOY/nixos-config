@@ -330,6 +330,7 @@ mod tests {
             hosts_text_mode: None,
             host_text_input: String::new(),
             host_settings_by_name,
+            host_settings_errors_by_name: BTreeMap::new(),
             host_dirty_user_hosts: BTreeSet::new(),
             host_dirty_runtime_hosts: BTreeSet::new(),
             package_user_index: 0,

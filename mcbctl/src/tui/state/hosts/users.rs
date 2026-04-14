@@ -2,7 +2,19 @@ use super::*;
 
 impl AppState {
     pub fn users_rows(&self) -> Vec<(String, String)> {
-        let settings = self.current_host_settings().cloned().unwrap_or_default();
+        let Some(settings) = self.current_host_settings().cloned() else {
+            let unavailable = self
+                .current_host_unavailable_value()
+                .unwrap_or_else(|| "不可用".to_string());
+            return vec![
+                ("主机".to_string(), self.target_host.clone()),
+                ("主用户".to_string(), unavailable.clone()),
+                ("托管用户".to_string(), unavailable.clone()),
+                ("管理员".to_string(), unavailable.clone()),
+                ("主机角色".to_string(), unavailable.clone()),
+                ("用户 linger".to_string(), unavailable),
+            ];
+        };
         vec![
             ("主机".to_string(), self.target_host.clone()),
             ("主用户".to_string(), settings.primary_user),
@@ -29,10 +41,14 @@ impl AppState {
             ),
         ];
 
-        if self.host_dirty_user_hosts.contains(&self.target_host) {
-            lines.push("状态：当前主机的用户结构分片有未保存修改".to_string());
+        if let Some(message) = self.current_host_settings_unavailable_message() {
+            lines.push(format!("状态：{message}"));
         } else {
-            lines.push("状态：当前主机的用户结构分片没有未保存修改".to_string());
+            if self.host_dirty_user_hosts.contains(&self.target_host) {
+                lines.push("状态：当前主机的用户结构分片有未保存修改".to_string());
+            } else {
+                lines.push("状态：当前主机的用户结构分片没有未保存修改".to_string());
+            }
         }
 
         let errors = self.current_host_user_validation_errors();
@@ -69,6 +85,9 @@ impl AppState {
         match self.users_focus {
             0 => self.switch_target_host(delta),
             1 => {
+                if self.block_when_current_host_settings_unavailable("无法调整主用户") {
+                    return;
+                }
                 let candidates = self
                     .current_host_settings()
                     .map(|settings| {
@@ -90,16 +109,24 @@ impl AppState {
                 let Some(next) = cycle_string_value(&current, &candidates, delta) else {
                     return;
                 };
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.primary_user = next.clone();
-                    if !settings.users.contains(&next) {
-                        settings.users.insert(0, next.clone());
-                    }
+                let Some(settings) = self.current_host_settings_mut() else {
+                    self.status = format!(
+                        "无法调整主用户：{}",
+                        self.host_settings_unavailable_message(&self.target_host)
+                    );
+                    return;
+                };
+                settings.primary_user = next.clone();
+                if !settings.users.contains(&next) {
+                    settings.users.insert(0, next.clone());
                 }
                 self.host_dirty_user_hosts.insert(self.target_host.clone());
                 self.status = format!("当前主用户已切换为：{next}");
             }
             4 => {
+                if self.block_when_current_host_settings_unavailable("无法调整主机角色") {
+                    return;
+                }
                 let options = vec!["desktop".to_string(), "server".to_string()];
                 let current = self
                     .current_host_settings()
@@ -108,16 +135,26 @@ impl AppState {
                 let Some(next) = cycle_string_value(&current, &options, delta) else {
                     return;
                 };
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.host_role = next.clone();
-                }
+                let Some(settings) = self.current_host_settings_mut() else {
+                    self.status = format!(
+                        "无法调整主机角色：{}",
+                        self.host_settings_unavailable_message(&self.target_host)
+                    );
+                    return;
+                };
+                settings.host_role = next.clone();
                 self.host_dirty_user_hosts.insert(self.target_host.clone());
                 self.status = format!("当前主机角色已切换为：{next}");
             }
             5 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.user_linger = !settings.user_linger;
-                }
+                let Some(settings) = self.current_host_settings_mut() else {
+                    self.status = format!(
+                        "无法调整 user linger：{}",
+                        self.host_settings_unavailable_message(&self.target_host)
+                    );
+                    return;
+                };
+                settings.user_linger = !settings.user_linger;
                 self.host_dirty_user_hosts.insert(self.target_host.clone());
                 self.status = "当前主机的 user linger 已切换。".to_string();
             }
@@ -127,7 +164,10 @@ impl AppState {
 
     pub fn open_users_text_edit(&mut self) {
         let Some(settings) = self.current_host_settings().cloned() else {
-            self.status = "当前主机没有可编辑的用户结构。".to_string();
+            self.status = format!(
+                "无法编辑用户结构：{}",
+                self.host_settings_unavailable_message(&self.target_host)
+            );
             return;
         };
 
@@ -197,7 +237,10 @@ impl AppState {
         let Some(settings) = self.current_host_settings_mut() else {
             self.users_text_mode = None;
             self.host_text_input.clear();
-            self.status = "当前主机没有可编辑的用户结构。".to_string();
+            self.status = format!(
+                "无法确认用户结构编辑：{}",
+                self.host_settings_unavailable_message(&self.target_host)
+            );
             return;
         };
 
@@ -228,6 +271,9 @@ impl AppState {
     }
 
     fn current_host_user_validation_errors(&self) -> Vec<String> {
+        if let Some(error) = self.current_host_settings_unavailable_message() {
+            return vec![error];
+        }
         let Some(settings) = self.current_host_settings() else {
             return vec!["当前主机没有可用设置。".to_string()];
         };
@@ -346,6 +392,23 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn adjust_users_field_refuses_to_modify_unavailable_host_settings() {
+        let mut state = test_state(Path::new("/repo"));
+        state.host_settings_by_name.clear();
+        state.host_settings_errors_by_name.insert(
+            "demo".to_string(),
+            "nix eval for host demo failed".to_string(),
+        );
+        state.users_focus = 1;
+
+        state.adjust_users_field(1);
+
+        assert!(!state.host_dirty_user_hosts.contains("demo"));
+        assert!(state.status.contains("无法调整主用户"));
+        assert!(state.status.contains("配置读取失败"));
+    }
+
     fn test_state(root: &Path) -> AppState {
         let mut host_settings_by_name = BTreeMap::new();
         host_settings_by_name.insert("demo".to_string(), valid_host_settings());
@@ -383,6 +446,7 @@ mod tests {
             hosts_text_mode: None,
             host_text_input: String::new(),
             host_settings_by_name,
+            host_settings_errors_by_name: BTreeMap::new(),
             host_dirty_user_hosts: BTreeSet::new(),
             host_dirty_runtime_hosts: BTreeSet::new(),
             package_user_index: 0,

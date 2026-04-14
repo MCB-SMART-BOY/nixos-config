@@ -1,8 +1,15 @@
 use crate::domain::tui::HostManagedSettings;
-use crate::run_capture;
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::process::Command;
+
+#[derive(Clone, Debug, Default)]
+pub struct LoadedHostSettings {
+    pub settings_by_name: BTreeMap<String, HostManagedSettings>,
+    pub errors_by_name: BTreeMap<String, String>,
+}
 
 #[derive(Clone, Debug, Default, Deserialize)]
 struct EvaluatedNixSettings {
@@ -128,20 +135,24 @@ struct EvaluatedMcbConfig {
     virtualisation: EvaluatedVirtualisation,
 }
 
-pub fn load_host_settings(
-    repo_root: &Path,
-    hosts: &[String],
-) -> BTreeMap<String, HostManagedSettings> {
-    let mut settings = BTreeMap::new();
+pub fn load_host_settings(repo_root: &Path, hosts: &[String]) -> LoadedHostSettings {
+    let mut loaded = LoadedHostSettings::default();
 
     for host in hosts {
-        settings.insert(host.clone(), load_single_host_settings(repo_root, host));
+        match load_single_host_settings(repo_root, host) {
+            Ok(settings) => {
+                loaded.settings_by_name.insert(host.clone(), settings);
+            }
+            Err(err) => {
+                loaded.errors_by_name.insert(host.clone(), err.to_string());
+            }
+        }
     }
 
-    settings
+    loaded
 }
 
-fn load_single_host_settings(repo_root: &Path, host: &str) -> HostManagedSettings {
+fn load_single_host_settings(repo_root: &Path, host: &str) -> Result<HostManagedSettings> {
     let flake_ref = format!(
         "path:{}#nixosConfigurations.{host}.config.mcb",
         repo_root.display()
@@ -154,14 +165,25 @@ fn load_single_host_settings(repo_root: &Path, host: &str) -> HostManagedSetting
         flake_ref.as_str(),
     ];
 
-    let Ok(output) = run_capture("nix", &args) else {
-        return HostManagedSettings::default();
-    };
-    let Ok(parsed) = serde_json::from_str::<EvaluatedMcbConfig>(&output) else {
-        return HostManagedSettings::default();
-    };
+    let output = Command::new("nix")
+        .args(args)
+        .output()
+        .with_context(|| format!("failed to run nix eval for host {host}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            bail!(
+                "nix eval for host {host} exited with {}",
+                output.status.code().unwrap_or(1)
+            );
+        }
+        bail!("nix eval for host {host} failed: {stderr}");
+    }
+    let parsed =
+        serde_json::from_str::<EvaluatedMcbConfig>(&String::from_utf8_lossy(&output.stdout))
+            .with_context(|| format!("failed to parse evaluated host config for {host}"))?;
 
-    host_settings_from_eval(parsed)
+    Ok(host_settings_from_eval(parsed))
 }
 
 fn host_settings_from_eval(value: EvaluatedMcbConfig) -> HostManagedSettings {

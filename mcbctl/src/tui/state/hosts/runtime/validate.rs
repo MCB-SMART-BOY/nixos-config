@@ -2,6 +2,9 @@ use super::*;
 
 impl AppState {
     pub(super) fn current_host_runtime_validation_errors(&self) -> Vec<String> {
+        if let Some(error) = self.current_host_settings_unavailable_message() {
+            return vec![error];
+        }
         let Some(settings) = self.current_host_settings() else {
             return vec!["当前主机没有可用设置。".to_string()];
         };

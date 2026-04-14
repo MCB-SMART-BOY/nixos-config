@@ -327,43 +327,17 @@ fn run_doctor(args: &[String]) -> Result<()> {
     }
     let root = parse_root_arg(args)?;
     let report = audit_repository(&root)?;
-    ensure_required_layout(&root)?;
+    let layout_error = ensure_required_layout(&root).err();
+    let tools = DoctorToolStatus::detect();
+    let assessment = assess_doctor_environment(tools);
 
     println!("doctor");
     println!("repo root: {}", root.display());
     println!("remote branch: {}", preferred_remote_branch(&root));
-    println!(
-        "git: {}",
-        if command_exists("git") {
-            "ok"
-        } else {
-            "missing"
-        }
-    );
-    println!(
-        "nix: {}",
-        if command_exists("nix") {
-            "ok"
-        } else {
-            "missing"
-        }
-    );
-    println!(
-        "nixos-rebuild: {}",
-        if command_exists("nixos-rebuild") {
-            "ok"
-        } else {
-            "missing"
-        }
-    );
-    println!(
-        "cargo: {}",
-        if command_exists("cargo") {
-            "ok"
-        } else {
-            "missing"
-        }
-    );
+    println!("git: {}", tool_status_label(tools.git));
+    println!("nix: {}", tool_status_label(tools.nix));
+    println!("nixos-rebuild: {}", tool_status_label(tools.nixos_rebuild));
+    println!("cargo: {}", tool_status_label(tools.cargo));
     let current_host = current_host_name();
     let repo_hardware = current_host
         .as_deref()
@@ -400,17 +374,111 @@ fn run_doctor(args: &[String]) -> Result<()> {
             .filter(|uid| !uid.is_empty())
             .unwrap_or_else(|| "unknown".to_string())
     );
+    println!(
+        "repo layout: {}",
+        layout_error
+            .as_ref()
+            .map(|err| format!("failed ({err})"))
+            .unwrap_or_else(|| "ok".to_string())
+    );
+    println!(
+        "deployment environment: {}",
+        if assessment.blocking_issues.is_empty() {
+            "ok"
+        } else {
+            "failed"
+        }
+    );
+    for issue in &assessment.blocking_issues {
+        println!("- {issue}");
+    }
+    if !assessment.warnings.is_empty() {
+        println!("environment warnings:");
+        for warning in &assessment.warnings {
+            println!("- {warning}");
+        }
+    }
 
     if report.is_clean() {
         println!("repo integrity: ok");
-        return Ok(());
+    } else {
+        println!("repo integrity: failed");
+        for line in report.render_lines().into_iter().skip(1) {
+            println!("{line}");
+        }
     }
 
-    println!("repo integrity: failed");
-    for line in report.render_lines().into_iter().skip(1) {
-        println!("{line}");
+    let mut failures = Vec::new();
+    if !report.is_clean() {
+        failures.push("repo integrity".to_string());
     }
-    bail!("doctor failed")
+    if let Some(err) = layout_error {
+        failures.push(format!("repo layout: {err}"));
+    }
+    if !assessment.blocking_issues.is_empty() {
+        failures.push(format!(
+            "deployment environment: {}",
+            assessment.blocking_issues.join("；")
+        ));
+    }
+    if failures.is_empty() {
+        return Ok(());
+    }
+    bail!("doctor failed: {}", failures.join(" | "))
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct DoctorToolStatus {
+    git: bool,
+    nix: bool,
+    nixos_rebuild: bool,
+    cargo: bool,
+}
+
+impl DoctorToolStatus {
+    fn detect() -> Self {
+        Self {
+            git: command_exists("git"),
+            nix: command_exists("nix"),
+            nixos_rebuild: command_exists("nixos-rebuild"),
+            cargo: command_exists("cargo"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct DoctorAssessment {
+    blocking_issues: Vec<String>,
+    warnings: Vec<String>,
+}
+
+fn assess_doctor_environment(tools: DoctorToolStatus) -> DoctorAssessment {
+    let mut assessment = DoctorAssessment::default();
+    if !tools.nix {
+        assessment
+            .blocking_issues
+            .push("缺少 nix，无法评估或执行 flake。".to_string());
+    }
+    if !tools.nixos_rebuild {
+        assessment
+            .blocking_issues
+            .push("缺少 nixos-rebuild，无法部署或重建系统。".to_string());
+    }
+    if !tools.git {
+        assessment
+            .warnings
+            .push("缺少 git，远端来源、release 与部分追新流程不可用。".to_string());
+    }
+    if !tools.cargo {
+        assessment
+            .warnings
+            .push("缺少 cargo，本机无法直接运行 Rust 开发检查。".to_string());
+    }
+    assessment
+}
+
+fn tool_status_label(is_present: bool) -> &'static str {
+    if is_present { "ok" } else { "missing" }
 }
 
 fn resolve_sudo_mode(mode: SudoMode) -> bool {
@@ -1134,6 +1202,56 @@ mod tests {
 
         std::fs::remove_dir_all(root)?;
         Ok(())
+    }
+
+    #[test]
+    fn assess_doctor_environment_requires_nix_and_nixos_rebuild() {
+        let assessment = assess_doctor_environment(DoctorToolStatus {
+            git: true,
+            nix: false,
+            nixos_rebuild: false,
+            cargo: true,
+        });
+
+        assert_eq!(assessment.blocking_issues.len(), 2);
+        assert!(
+            assessment
+                .blocking_issues
+                .iter()
+                .any(|issue| issue.contains("缺少 nix"))
+        );
+        assert!(
+            assessment
+                .blocking_issues
+                .iter()
+                .any(|issue| issue.contains("缺少 nixos-rebuild"))
+        );
+        assert!(assessment.warnings.is_empty());
+    }
+
+    #[test]
+    fn assess_doctor_environment_only_warns_for_git_and_cargo() {
+        let assessment = assess_doctor_environment(DoctorToolStatus {
+            git: false,
+            nix: true,
+            nixos_rebuild: true,
+            cargo: false,
+        });
+
+        assert!(assessment.blocking_issues.is_empty());
+        assert_eq!(assessment.warnings.len(), 2);
+        assert!(
+            assessment
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("缺少 git"))
+        );
+        assert!(
+            assessment
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("缺少 cargo"))
+        );
     }
 
     fn create_temp_repo() -> Result<PathBuf> {

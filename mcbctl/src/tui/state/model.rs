@@ -76,6 +76,7 @@ pub struct AppState {
     pub hosts_text_mode: Option<HostsTextMode>,
     pub host_text_input: String,
     pub host_settings_by_name: BTreeMap<String, HostManagedSettings>,
+    pub host_settings_errors_by_name: BTreeMap<String, String>,
     pub host_dirty_user_hosts: BTreeSet<String>,
     pub host_dirty_runtime_hosts: BTreeSet<String>,
     pub package_user_index: usize,
@@ -137,7 +138,9 @@ impl AppState {
             }
         }
         refresh_local_catalog_indexes(&mut context, &package_local_entry_ids);
-        let host_settings_by_name = load_host_settings(&context.repo_root, &context.hosts);
+        let loaded_host_settings = load_host_settings(&context.repo_root, &context.hosts);
+        let host_settings_by_name = loaded_host_settings.settings_by_name;
+        let host_settings_errors_by_name = loaded_host_settings.errors_by_name;
         let package_user_index =
             default_package_user_index(&context, &target_host, &host_settings_by_name);
         let package_user_selections = load_package_user_selections(
@@ -165,6 +168,7 @@ impl AppState {
             hosts_text_mode: None,
             host_text_input: String::new(),
             host_settings_by_name,
+            host_settings_errors_by_name,
             host_dirty_user_hosts: BTreeSet::new(),
             host_dirty_runtime_hosts: BTreeSet::new(),
             package_user_index,

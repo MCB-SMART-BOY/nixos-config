@@ -11,6 +11,7 @@ pub fn write_grouped_managed_packages(
     selected: &BTreeMap<String, String>,
 ) -> Result<()> {
     let grouped_dir = managed_dir.join("packages");
+    ensure_selected_entries_known(catalog, selected)?;
     let grouped_entries = selected_entries_by_group(catalog, selected);
 
     let mut stale_files = fs::read_dir(&grouped_dir)
@@ -46,6 +47,29 @@ pub fn write_grouped_managed_packages(
     }
 
     Ok(())
+}
+
+fn ensure_selected_entries_known(
+    catalog: &[CatalogEntry],
+    selected: &BTreeMap<String, String>,
+) -> Result<()> {
+    let known_ids = catalog
+        .iter()
+        .map(|entry| entry.id.as_str())
+        .collect::<BTreeSet<_>>();
+    let unknown = selected
+        .keys()
+        .filter(|id| !known_ids.contains(id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    if unknown.is_empty() {
+        return Ok(());
+    }
+
+    anyhow::bail!(
+        "refusing to write package selections with unknown catalog ids: {}",
+        unknown.join(", ")
+    )
 }
 
 fn ensure_stale_package_file_is_managed(path: &Path) -> Result<()> {
@@ -176,6 +200,38 @@ mod tests {
         assert!(
             err.to_string()
                 .contains("refusing to remove stale unmanaged package file")
+        );
+
+        fs::remove_dir_all(&dir)?;
+        Ok(())
+    }
+
+    #[test]
+    fn write_grouped_managed_packages_rejects_unknown_selected_ids() -> Result<()> {
+        let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
+        let dir = std::env::temp_dir().join(format!("mcbctl-packages-{unique}"));
+        let managed_dir = dir.join("managed");
+        fs::create_dir_all(managed_dir.join("packages"))?;
+
+        let catalog = vec![CatalogEntry {
+            id: "hello".to_string(),
+            name: "Hello".to_string(),
+            category: "cli".to_string(),
+            group: Some("misc".to_string()),
+            expr: "pkgs.hello".to_string(),
+            description: None,
+            keywords: Vec::new(),
+            source: Some("nixpkgs".to_string()),
+            platforms: Vec::new(),
+            desktop_entry_flag: None,
+        }];
+        let selected = BTreeMap::from([("missing".to_string(), "misc".to_string())]);
+
+        let err = write_grouped_managed_packages(&managed_dir, &catalog, &selected)
+            .expect_err("unknown selected ids should block package save");
+        assert!(
+            err.to_string()
+                .contains("refusing to write package selections with unknown catalog ids")
         );
 
         fs::remove_dir_all(&dir)?;

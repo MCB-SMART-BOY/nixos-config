@@ -34,37 +34,28 @@ impl AppState {
                 });
             }
             8 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.enable_proxy_dns = !settings.enable_proxy_dns;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "全局代理 DNS 开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.enable_proxy_dns,
+                    "全局代理 DNS 开关已切换。",
+                );
             }
             11 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.per_user_tun_enable = !settings.per_user_tun_enable;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "Per-user TUN 开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.per_user_tun_enable,
+                    "Per-user TUN 开关已切换。",
+                );
             }
             12 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.per_user_tun_compat_global_service_socket =
-                        !settings.per_user_tun_compat_global_service_socket;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "兼容全局服务 Socket 开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.per_user_tun_compat_global_service_socket,
+                    "兼容全局服务 Socket 开关已切换。",
+                );
             }
             13 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.per_user_tun_redirect_dns = !settings.per_user_tun_redirect_dns;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "Per-user DNS 重定向开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.per_user_tun_redirect_dns,
+                    "Per-user DNS 重定向开关已切换。",
+                );
             }
             18 => {
                 let options = vec!["igpu".to_string(), "hybrid".to_string(), "dgpu".to_string()];
@@ -89,36 +80,28 @@ impl AppState {
                 });
             }
             24 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.gpu_nvidia_open = !settings.gpu_nvidia_open;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "NVIDIA Open 开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.gpu_nvidia_open,
+                    "NVIDIA Open 开关已切换。",
+                );
             }
             25 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.gpu_specialisations_enable = !settings.gpu_specialisations_enable;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "GPU 特化开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.gpu_specialisations_enable,
+                    "GPU 特化开关已切换。",
+                );
             }
             27 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.docker_enable = !settings.docker_enable;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "Docker 开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.docker_enable,
+                    "Docker 开关已切换。",
+                );
             }
             28 => {
-                if let Some(settings) = self.current_host_settings_mut() {
-                    settings.libvirtd_enable = !settings.libvirtd_enable;
-                }
-                self.host_dirty_runtime_hosts
-                    .insert(self.target_host.clone());
-                self.status = "Libvirtd 开关已切换。".to_string();
+                self.toggle_current_host_bool_field(
+                    |settings| &mut settings.libvirtd_enable,
+                    "Libvirtd 开关已切换。",
+                );
             }
             _ => {}
         }
@@ -126,7 +109,10 @@ impl AppState {
 
     pub fn open_hosts_text_edit(&mut self) {
         let Some(settings) = self.current_host_settings().cloned() else {
-            self.status = "当前主机没有可编辑的主机设置。".to_string();
+            self.status = format!(
+                "无法编辑主机设置：{}",
+                self.host_settings_unavailable_message(&self.target_host)
+            );
             return;
         };
 
@@ -238,20 +224,46 @@ impl AppState {
     where
         F: FnMut(&mut HostManagedSettings) -> &mut String,
     {
-        let current = self
-            .current_host_settings()
-            .cloned()
-            .map(|mut settings| field(&mut settings).clone())
-            .unwrap_or_default();
+        let Some(mut current_settings) = self.current_host_settings().cloned() else {
+            self.status = format!(
+                "无法调整当前主机字段：{}",
+                self.host_settings_unavailable_message(&self.target_host)
+            );
+            return;
+        };
+        let current = field(&mut current_settings).clone();
         let Some(next) = cycle_string_value(&current, options, delta) else {
             return;
         };
-        if let Some(settings) = self.current_host_settings_mut() {
-            *field(settings) = next.clone();
-        }
+        let Some(settings) = self.current_host_settings_mut() else {
+            self.status = format!(
+                "无法调整当前主机字段：{}",
+                self.host_settings_unavailable_message(&self.target_host)
+            );
+            return;
+        };
+        *field(settings) = next.clone();
         self.host_dirty_runtime_hosts
             .insert(self.target_host.clone());
         self.status = format!("当前字段已切换为：{next}");
+    }
+
+    fn toggle_current_host_bool_field<F>(&mut self, mut field: F, message: &str)
+    where
+        F: FnMut(&mut HostManagedSettings) -> &mut bool,
+    {
+        let Some(settings) = self.current_host_settings_mut() else {
+            self.status = format!(
+                "无法调整当前主机字段：{}",
+                self.host_settings_unavailable_message(&self.target_host)
+            );
+            return;
+        };
+        let value = field(settings);
+        *value = !*value;
+        self.host_dirty_runtime_hosts
+            .insert(self.target_host.clone());
+        self.status = message.to_string();
     }
 
     fn confirm_hosts_text_edit(&mut self) {
@@ -263,7 +275,10 @@ impl AppState {
         let Some(settings) = self.current_host_settings_mut() else {
             self.hosts_text_mode = None;
             self.host_text_input.clear();
-            self.status = "当前主机没有可编辑的主机设置。".to_string();
+            self.status = format!(
+                "无法确认主机设置编辑：{}",
+                self.host_settings_unavailable_message(&self.target_host)
+            );
             return;
         };
 
@@ -385,6 +400,23 @@ mod tests {
         assert_eq!(state.status, "主机字段已更新。");
     }
 
+    #[test]
+    fn adjust_hosts_field_refuses_to_modify_unavailable_host_settings() {
+        let mut state = test_state(Path::new("/repo"));
+        state.host_settings_by_name.clear();
+        state.host_settings_errors_by_name.insert(
+            "demo".to_string(),
+            "nix eval for host demo failed".to_string(),
+        );
+        state.hosts_focus = 4;
+
+        state.adjust_hosts_field(1);
+
+        assert!(!state.host_dirty_runtime_hosts.contains("demo"));
+        assert!(state.status.contains("无法调整当前主机字段"));
+        assert!(state.status.contains("配置读取失败"));
+    }
+
     fn test_state(root: &Path) -> AppState {
         let mut host_settings_by_name = BTreeMap::new();
         host_settings_by_name.insert("demo".to_string(), valid_host_settings());
@@ -422,6 +454,7 @@ mod tests {
             hosts_text_mode: None,
             host_text_input: String::new(),
             host_settings_by_name,
+            host_settings_errors_by_name: BTreeMap::new(),
             host_dirty_user_hosts: BTreeSet::new(),
             host_dirty_runtime_hosts: BTreeSet::new(),
             package_user_index: 0,

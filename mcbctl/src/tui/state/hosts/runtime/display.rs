@@ -2,7 +2,42 @@ use super::*;
 
 impl AppState {
     pub fn hosts_rows(&self) -> Vec<(String, String)> {
-        let settings = self.current_host_settings().cloned().unwrap_or_default();
+        let Some(settings) = self.current_host_settings().cloned() else {
+            let unavailable = self
+                .current_host_unavailable_value()
+                .unwrap_or_else(|| "不可用".to_string());
+            return vec![
+                ("主机".to_string(), self.target_host.clone()),
+                ("缓存策略".to_string(), unavailable.clone()),
+                ("自定义 substituters".to_string(), unavailable.clone()),
+                ("自定义 trusted keys".to_string(), unavailable.clone()),
+                ("代理模式".to_string(), unavailable.clone()),
+                ("代理 URL".to_string(), unavailable.clone()),
+                ("主 TUN 接口".to_string(), unavailable.clone()),
+                ("额外 TUN 接口".to_string(), unavailable.clone()),
+                ("全局代理 DNS".to_string(), unavailable.clone()),
+                ("代理 DNS 地址".to_string(), unavailable.clone()),
+                ("代理 DNS 端口".to_string(), unavailable.clone()),
+                ("Per-user TUN".to_string(), unavailable.clone()),
+                ("兼容全局服务 Socket".to_string(), unavailable.clone()),
+                ("Per-user DNS 重定向".to_string(), unavailable.clone()),
+                ("用户接口映射".to_string(), unavailable.clone()),
+                ("用户 DNS 端口".to_string(), unavailable.clone()),
+                ("路由表基值".to_string(), unavailable.clone()),
+                ("规则优先级基值".to_string(), unavailable.clone()),
+                ("GPU 模式".to_string(), unavailable.clone()),
+                ("iGPU 厂商".to_string(), unavailable.clone()),
+                ("PRIME 模式".to_string(), unavailable.clone()),
+                ("Intel Bus ID".to_string(), unavailable.clone()),
+                ("AMD Bus ID".to_string(), unavailable.clone()),
+                ("NVIDIA Bus ID".to_string(), unavailable.clone()),
+                ("NVIDIA Open".to_string(), unavailable.clone()),
+                ("GPU 特化".to_string(), unavailable.clone()),
+                ("特化模式".to_string(), unavailable.clone()),
+                ("Docker".to_string(), unavailable.clone()),
+                ("Libvirtd".to_string(), unavailable),
+            ];
+        };
         vec![
             ("主机".to_string(), self.target_host.clone()),
             ("缓存策略".to_string(), settings.cache_profile),
@@ -114,10 +149,14 @@ impl AppState {
             }
         }
 
-        if self.host_dirty_runtime_hosts.contains(&self.target_host) {
-            lines.push("状态：当前主机的运行时分片有未保存修改".to_string());
+        if let Some(message) = self.current_host_settings_unavailable_message() {
+            lines.push(format!("状态：{message}"));
         } else {
-            lines.push("状态：当前主机的运行时分片没有未保存修改".to_string());
+            if self.host_dirty_runtime_hosts.contains(&self.target_host) {
+                lines.push("状态：当前主机的运行时分片有未保存修改".to_string());
+            } else {
+                lines.push("状态：当前主机的运行时分片没有未保存修改".to_string());
+            }
         }
 
         let errors = self.current_host_runtime_validation_errors();
