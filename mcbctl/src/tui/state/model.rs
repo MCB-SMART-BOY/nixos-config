@@ -72,6 +72,15 @@ impl UiFeedback {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ScopedFeedbackSnapshot {
+    pub(crate) active: bool,
+    pub(crate) feedback: Option<UiFeedback>,
+    pub(crate) message: String,
+    pub(crate) next_step: String,
+    pub(crate) latest_result_text: String,
+}
+
 #[derive(Clone, Debug)]
 pub struct AppContext {
     pub repo_root: PathBuf,
@@ -135,15 +144,25 @@ impl AppContext {
 pub struct AppState {
     pub context: AppContext,
     pub active_page: usize,
+    pub active_edit_page: usize,
     pub deploy_focus: usize,
+    pub advanced_deploy_focus: usize,
     pub target_host: String,
     pub deploy_task: DeployTask,
     pub deploy_source: DeploySource,
+    pub deploy_source_ref: String,
     pub deploy_action: DeployAction,
     pub flake_update: bool,
+    pub advanced_target_host: String,
+    pub advanced_deploy_task: DeployTask,
+    pub advanced_deploy_source: DeploySource,
+    pub advanced_deploy_source_ref: String,
+    pub advanced_deploy_action: DeployAction,
+    pub advanced_flake_update: bool,
     pub show_advanced: bool,
     pub users_focus: usize,
     pub hosts_focus: usize,
+    pub deploy_text_mode: Option<DeployTextMode>,
     pub users_text_mode: Option<UsersTextMode>,
     pub hosts_text_mode: Option<HostsTextMode>,
     pub host_text_input: String,
@@ -237,13 +256,23 @@ impl AppState {
         Self {
             context,
             active_page: 0,
+            active_edit_page: 0,
             deploy_focus: 0,
-            target_host,
+            advanced_deploy_focus: 0,
+            target_host: target_host.clone(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source,
+            deploy_source_ref: String::new(),
             deploy_action,
             flake_update: false,
+            advanced_target_host: target_host,
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: deploy_source,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: deploy_action,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,
@@ -281,32 +310,118 @@ impl AppState {
         }
     }
 
+    pub fn top_level_page(&self) -> TopLevelPage {
+        TopLevelPage::ALL[self.active_page]
+    }
+
+    pub fn edit_page(&self) -> Page {
+        Page::EDIT_ALL[self.active_edit_page]
+    }
+
     pub fn page(&self) -> Page {
-        Page::ALL[self.active_page]
+        match self.top_level_page() {
+            TopLevelPage::Overview => Page::Dashboard,
+            TopLevelPage::Edit => self.edit_page(),
+            TopLevelPage::Apply => Page::Deploy,
+            TopLevelPage::Advanced => Page::Advanced,
+            TopLevelPage::Inspect => Page::Inspect,
+        }
+    }
+
+    pub(crate) fn advanced_workspace_visible(&self) -> bool {
+        self.page() == Page::Advanced || self.show_advanced
+    }
+
+    pub(crate) fn advanced_path_active(&self) -> bool {
+        self.advanced_workspace_visible()
+    }
+
+    pub(crate) fn open_overview(&mut self) {
+        self.set_top_level_page(TopLevelPage::Overview);
+    }
+
+    pub(crate) fn open_edit_page(&mut self, page: Page) {
+        if let Some(index) = Page::EDIT_ALL
+            .iter()
+            .position(|candidate| *candidate == page)
+        {
+            self.active_edit_page = index;
+        }
+        self.set_top_level_page(TopLevelPage::Edit);
+    }
+
+    pub(crate) fn open_apply(&mut self) {
+        self.set_top_level_page(TopLevelPage::Apply);
+    }
+
+    pub(crate) fn open_advanced(&mut self) {
+        self.set_top_level_page(TopLevelPage::Advanced);
+    }
+
+    pub(crate) fn open_inspect(&mut self) {
+        self.set_top_level_page(TopLevelPage::Inspect);
+    }
+
+    pub(crate) fn set_top_level_page(&mut self, page: TopLevelPage) {
+        if let Some(index) = TopLevelPage::ALL
+            .iter()
+            .position(|candidate| *candidate == page)
+        {
+            self.active_page = index;
+        }
+
+        match page {
+            TopLevelPage::Overview | TopLevelPage::Edit => {}
+            TopLevelPage::Apply => self.show_advanced = false,
+            TopLevelPage::Advanced => self.ensure_advanced_action_focus(),
+            TopLevelPage::Inspect => self.ensure_inspect_action_focus(),
+        }
     }
 
     pub(crate) fn set_page(&mut self, page: Page) {
-        if let Some(index) = Page::ALL.iter().position(|candidate| *candidate == page) {
-            self.active_page = index;
+        match page {
+            Page::Dashboard => self.open_overview(),
+            Page::Deploy => self.open_apply(),
+            Page::Advanced => self.open_advanced(),
+            Page::Inspect => self.open_inspect(),
+            Page::Packages | Page::Home | Page::Users | Page::Hosts => self.open_edit_page(page),
+            Page::Actions => self.open_advanced(),
         }
     }
 
     pub fn next_page(&mut self) {
-        self.active_page = (self.active_page + 1) % Page::ALL.len();
+        let next = (self.active_page + 1) % TopLevelPage::ALL.len();
+        self.set_top_level_page(TopLevelPage::ALL[next]);
     }
 
     pub fn previous_page(&mut self) {
-        self.active_page = if self.active_page == 0 {
-            Page::ALL.len() - 1
+        let previous = if self.active_page == 0 {
+            TopLevelPage::ALL.len() - 1
         } else {
             self.active_page - 1
         };
+        self.set_top_level_page(TopLevelPage::ALL[previous]);
+    }
+
+    pub fn next_edit_page(&mut self) {
+        self.active_edit_page = (self.active_edit_page + 1) % Page::EDIT_ALL.len();
+        self.set_top_level_page(TopLevelPage::Edit);
+    }
+
+    pub fn previous_edit_page(&mut self) {
+        self.active_edit_page = if self.active_edit_page == 0 {
+            Page::EDIT_ALL.len() - 1
+        } else {
+            self.active_edit_page - 1
+        };
+        self.set_top_level_page(TopLevelPage::Edit);
     }
 
     pub fn captures_text_input(&self) -> bool {
         self.package_search_mode
             || self.package_group_create_mode
             || self.package_group_rename_mode
+            || self.deploy_text_mode.is_some()
             || self.users_text_mode.is_some()
             || self.hosts_text_mode.is_some()
     }
@@ -325,6 +440,10 @@ impl AppState {
 
     pub fn active_users_text_mode(&self) -> Option<UsersTextMode> {
         self.users_text_mode
+    }
+
+    pub fn active_deploy_text_mode(&self) -> Option<DeployTextMode> {
+        self.deploy_text_mode
     }
 
     pub fn active_hosts_text_mode(&self) -> Option<HostsTextMode> {
@@ -353,6 +472,35 @@ impl AppState {
         next_step: impl Into<String>,
     ) {
         self.set_feedback(UiFeedback::with_next_step(level, scope, message, next_step));
+    }
+
+    pub(crate) fn scoped_feedback_snapshot(
+        &self,
+        scope: UiFeedbackScope,
+        fallback_next_step: String,
+        fallback_latest_result_text: &'static str,
+    ) -> ScopedFeedbackSnapshot {
+        if self.feedback.scope == scope {
+            ScopedFeedbackSnapshot {
+                active: true,
+                feedback: Some(self.feedback.clone()),
+                message: self.feedback.message.clone(),
+                next_step: self
+                    .feedback
+                    .next_step
+                    .clone()
+                    .unwrap_or(fallback_next_step),
+                latest_result_text: self.status.clone(),
+            }
+        } else {
+            ScopedFeedbackSnapshot {
+                active: false,
+                feedback: None,
+                message: String::new(),
+                next_step: fallback_next_step,
+                latest_result_text: fallback_latest_result_text.to_string(),
+            }
+        }
     }
 }
 
@@ -403,5 +551,96 @@ mod tests {
             state.status,
             "当前组合不能直接 Apply。 下一步：打开 Apply 查看 blocker"
         );
+    }
+
+    #[test]
+    fn scoped_feedback_snapshot_prefers_matching_scope_and_keeps_fallbacks_for_others() {
+        let mut state = AppState::new(AppContext {
+            repo_root: PathBuf::from("/repo"),
+            etc_root: PathBuf::from("/etc/nixos"),
+            current_host: "demo".to_string(),
+            current_system: "x86_64-linux".to_string(),
+            current_user: "alice".to_string(),
+            privilege_mode: "sudo-available".to_string(),
+            hosts: vec!["demo".to_string()],
+            users: vec!["alice".to_string()],
+            catalog_path: PathBuf::from("catalog/packages"),
+            catalog_groups_path: PathBuf::from("catalog/groups.toml"),
+            catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_entries: Vec::new(),
+            catalog_groups: BTreeMap::new(),
+            catalog_home_options: Vec::new(),
+            catalog_categories: Vec::new(),
+            catalog_sources: Vec::new(),
+        });
+
+        state.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Inspect,
+            "flake check 已完成。",
+            "留在 Inspect 复查健康详情",
+        );
+
+        let active = state.scoped_feedback_snapshot(
+            UiFeedbackScope::Inspect,
+            "fallback next step".to_string(),
+            "无",
+        );
+        assert!(active.active);
+        assert_eq!(active.message, "flake check 已完成。");
+        assert_eq!(active.next_step, "留在 Inspect 复查健康详情");
+        assert_eq!(
+            active.latest_result_text,
+            "flake check 已完成。 下一步：留在 Inspect 复查健康详情"
+        );
+        assert!(active.feedback.is_some());
+
+        let inactive = state.scoped_feedback_snapshot(
+            UiFeedbackScope::Apply,
+            "fallback next step".to_string(),
+            "暂无",
+        );
+        assert!(!inactive.active);
+        assert_eq!(inactive.message, "");
+        assert_eq!(inactive.next_step, "fallback next step");
+        assert_eq!(inactive.latest_result_text, "暂无");
+        assert!(inactive.feedback.is_none());
+    }
+
+    #[test]
+    fn top_level_shell_uses_edit_leaf_and_advanced_workspace() {
+        let mut state = AppState::new(AppContext {
+            repo_root: PathBuf::from("/repo"),
+            etc_root: PathBuf::from("/etc/nixos"),
+            current_host: "demo".to_string(),
+            current_system: "x86_64-linux".to_string(),
+            current_user: "alice".to_string(),
+            privilege_mode: "sudo-available".to_string(),
+            hosts: vec!["demo".to_string()],
+            users: vec!["alice".to_string()],
+            catalog_path: PathBuf::from("catalog/packages"),
+            catalog_groups_path: PathBuf::from("catalog/groups.toml"),
+            catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_entries: Vec::new(),
+            catalog_groups: BTreeMap::new(),
+            catalog_home_options: Vec::new(),
+            catalog_categories: Vec::new(),
+            catalog_sources: Vec::new(),
+        });
+
+        state.open_edit_page(Page::Users);
+        assert_eq!(state.top_level_page(), TopLevelPage::Edit);
+        assert_eq!(state.page(), Page::Users);
+
+        state.open_advanced();
+        assert_eq!(state.top_level_page(), TopLevelPage::Advanced);
+        assert_eq!(state.page(), Page::Advanced);
+        assert!(state.advanced_workspace_visible());
+        assert!(!state.show_advanced);
+
+        state.open_apply();
+        assert_eq!(state.top_level_page(), TopLevelPage::Apply);
+        assert_eq!(state.page(), Page::Deploy);
+        assert!(!state.show_advanced);
     }
 }

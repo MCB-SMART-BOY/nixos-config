@@ -1,6 +1,12 @@
 use super::*;
 
 impl App {
+    fn current_local_source_detail(&self) -> PathBuf {
+        self.source_dir_override
+            .clone()
+            .unwrap_or_else(|| self.etc_dir.clone())
+    }
+
     pub(super) fn print_summary(&mut self) {
         self.section("部署概要");
         for line in self.build_deploy_plan().summary_lines() {
@@ -182,7 +188,7 @@ impl App {
             } else {
                 DeploySource::RemotePinned
             }
-        } else if self.etc_dir == self.repo_dir {
+        } else if self.source_dir_override.is_some() || self.etc_dir == self.repo_dir {
             DeploySource::EtcNixos
         } else {
             DeploySource::CurrentRepo
@@ -202,7 +208,9 @@ impl App {
             DeploySource::CurrentRepo => self
                 .detect_local_repo_dir()
                 .map(|path| path.display().to_string()),
-            DeploySource::EtcNixos => Some(self.etc_dir.display().to_string()),
+            DeploySource::EtcNixos => {
+                Some(self.current_local_source_detail().display().to_string())
+            }
         }
     }
 

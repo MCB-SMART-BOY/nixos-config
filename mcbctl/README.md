@@ -29,25 +29,30 @@
 - `src/bin/noctalia/`
 - `src/bin/update/`
 
-## TUI 页面
+## TUI 区域
 
-`mcbctl` 当前负责这些页面：
+`mcbctl` 当前顶层 shell 固定成 5 个区域：
 
 - `Overview`
+- `Edit`
 - `Apply`
+- `Advanced`
 - `Inspect`
-- `Packages`
-- `Home`
-- `Users`
-- `Hosts`
-- `Actions`
 
 其中：
 
 - `Overview` 负责健康总览、dirty 状态和推荐主动作
+- `Edit` 承接 `Packages / Home / Users / Hosts` 四个受管编辑页
 - `Apply` 负责当前 host 的默认应用路径和执行预览
+- `Advanced` 现在已经是独立顶层区域，默认承接高级动作与复杂部署入口；它也有独立的 `Page::Advanced` 叶子和按键分支，不再与 `Apply` 共用同一个叶子页；进入后会优先显示推荐高级动作和返回路径，并让左侧预览、中间上下文、右下角详情、动作列表都按当前高级动作自适应；仓库维护动作现在走独立的仓库摘要，不再复用 deploy 参数或 Apply 告警；完整向导的参数焦点和参数值都已经独立，不再和 `Apply` 串用，`RemotePinned` 还会额外维护一个 `固定 ref`；进入 `mcb-deploy` 时也会显式传递这组 handoff 参数
 - `Inspect` 负责健康详情和检查命令
-- `Actions` 当前是过渡入口页，不是长期职责终点
+
+`Edit` 区内的具体写回页仍然是：
+
+- `Packages`
+- `Home`
+- `Users`
+- `Hosts`
 
 写回位置：
 

@@ -178,7 +178,7 @@ Overview -> Preview Apply -> Apply Current Host
 次级动作只能放在第二层：
 
 - `Open Edit`
-- `Open Advanced Deploy`
+- `Open Advanced`
 - `Open Inspect`
 
 ### 4.5 `Save Dirty Pages` 的 v1 语义
@@ -207,18 +207,31 @@ Overview -> Preview Apply -> Apply Current Host
 
 ### 5.1 `Apply` 页必须暴露的模型
 
-`Apply` v1 必须始终可见这 8 项：
+`Apply` v1 必须始终可见这 9 项：
 
 | 字段 | 真值来源 | 说明 |
 |---|---|---|
 | target host | `target_host` | 当前默认作用对象 |
 | task | `deploy_task` | 只作说明，不改变 `Apply Current Host` 的 blocker 规则 |
 | source | `deploy_source` | 决定 direct apply 还是 handoff |
+| pinned ref | `deploy_source_ref` | 仅当 `source == RemotePinned` 时可编辑；为空时禁止启动 deploy wizard |
 | action | `deploy_action` | `switch / test / boot / build` |
 | flake update | `flake_update` | 是否在 rebuild 前执行 upgrade |
-| advanced flag | `show_advanced` | 打开时必须 handoff，不允许 direct apply |
+| area switch | `Page::Advanced` / `show_advanced` | `Enter` 进入顶层 `Advanced`，或从兼容区返回 `Apply` |
 | sync preview | `deploy_sync_plan_for_execution()` | 是否需要把 repo 同步到 `/etc/nixos` |
 | rebuild preview | `deploy_rebuild_plan_for_execution()` | 预览实际 `nixos-rebuild` 调用 |
+
+`show_advanced` 只表示 Apply 内兼容高级工作区已打开；顶层 `Advanced` 由 `Page::Advanced` 单独承载。该 flag 打开时必须 handoff，不允许 direct apply。
+
+当前 `Advanced Wizard` 还额外维护一组独立于 `Apply` 的 handoff snapshot：
+- `advanced_target_host`
+- `advanced_deploy_task`
+- `advanced_deploy_source`
+- `advanced_deploy_source_ref`
+- `advanced_deploy_action`
+- `advanced_flake_update`
+
+这组值进入 `mcb-deploy` 时必须序列化成内部参数，不允许再回退到读取 `Apply` 页的同名字段。
 
 ### 5.2 `Apply` 的状态分类
 
@@ -251,9 +264,9 @@ Overview -> Preview Apply -> Apply Current Host
 
 | 条件 | 当前真值来源 | 分类 | 主按钮文案 | 说明 |
 |---|---|---|---|---|
-| `deploy_source == RemotePinned` | `can_execute_deploy_directly()` | `handoff` | `Open Advanced Deploy` | 远端固定版本不走 direct apply |
-| `deploy_source == RemoteHead` | `can_execute_deploy_directly()` | `handoff` | `Open Advanced Deploy` | 远端最新版本不走 direct apply |
-| `show_advanced == true` | `can_execute_deploy_directly()` | `handoff` | `Open Advanced Deploy` | 用户显式要求高级路径 |
+| `deploy_source == RemotePinned` | `can_execute_deploy_directly()` | `handoff` | `Open Advanced` | 远端固定版本不走 direct apply |
+| `deploy_source == RemoteHead` | `can_execute_deploy_directly()` | `handoff` | `Open Advanced` | 远端最新版本不走 direct apply |
+| `show_advanced == true` | `can_execute_deploy_directly()` | `handoff` | `Open Advanced` | 仅表示 Apply 内兼容高级工作区已打开；顶层 `Advanced` 本身不再依赖这个 flag |
 
 `handoff` 不应显示为失败，也不应显示为 warning。
 
@@ -287,7 +300,7 @@ Overview -> Preview Apply -> Apply Current Host
 
 - `Run Preview`
 - `Apply Current Host`
-- `Open Advanced Deploy`
+- `Open Advanced`
 - `Back`
 
 按钮规则固定为：
@@ -296,7 +309,7 @@ Overview -> Preview Apply -> Apply Current Host
 |---|---|---|
 | `Run Preview` | 总是可见 | 仅在 `target_host` 为空时禁用 |
 | `Apply Current Host` | 仅在 direct apply 路径下可见 | 任一 `block` 存在时禁用 |
-| `Open Advanced Deploy` | 总是可见 | 不禁用 |
+| `Open Advanced` | 总是可见 | 不禁用 |
 | `Back` | 总是可见 | 不禁用 |
 
 ## 6. `Actions` 拆分规格
@@ -375,7 +388,7 @@ Overview -> Preview Apply -> Apply Current Host
 2. `Apply Current Host`
 3. `Save Dirty Pages`
 
-`Open Advanced Deploy` 不能和 `Apply Current Host` 抢同一层级的视觉权重。
+`Open Advanced` 不能和 `Apply Current Host` 抢同一层级的视觉权重。
 
 ## 9. v1 实施顺序
 

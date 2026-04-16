@@ -198,7 +198,7 @@ impl AppState {
                 };
                 Some(plan.command_preview(self.should_use_sudo()))
             }
-            ActionItem::LaunchDeployWizard => Some("mcb-deploy".to_string()),
+            ActionItem::LaunchDeployWizard => Some(self.current_deploy_wizard_command_preview()),
         }
     }
 }
@@ -305,13 +305,23 @@ mod tests {
                 catalog_sources: Vec::new(),
             },
             active_page: 0,
+            active_edit_page: 0,
             deploy_focus: 0,
+            advanced_deploy_focus: 0,
             target_host: "demo".to_string(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source: DeploySource::CurrentRepo,
+            deploy_source_ref: String::new(),
             deploy_action: DeployAction::Switch,
             flake_update: false,
+            advanced_target_host: "demo".to_string(),
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: DeploySource::CurrentRepo,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: DeployAction::Switch,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,

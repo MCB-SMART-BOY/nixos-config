@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::tui::state::AppState;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};

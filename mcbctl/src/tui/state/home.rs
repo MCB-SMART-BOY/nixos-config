@@ -1,6 +1,14 @@
 use super::*;
 
 impl AppState {
+    pub(crate) fn home_page_model(&self) -> EditPageModel {
+        EditPageModel {
+            rows: self.home_rows(),
+            selected: self.home_focus,
+            summary: self.home_summary_model(),
+        }
+    }
+
     pub fn current_home_user(&self) -> Option<&str> {
         self.context
             .users
@@ -94,19 +102,26 @@ impl AppState {
         self.status = format!("已更新用户 {user} 的 Home 结构化设置。");
     }
 
-    pub fn home_rows(&self) -> Vec<(String, String)> {
+    pub(crate) fn home_rows(&self) -> Vec<EditRow> {
         let settings = self.current_home_settings().cloned().unwrap_or_default();
         self.home_desktop_options()
             .into_iter()
             .map(|option| {
                 let value = self.home_option_value(option.id.as_str(), &settings);
-                (option.label.clone(), value)
+                EditRow {
+                    label: option.label.clone(),
+                    value,
+                }
             })
             .collect()
     }
 
-    pub fn home_summary_lines(&self) -> Vec<String> {
-        let mut lines = vec![
+    fn current_home_row(&self) -> Option<EditRow> {
+        self.home_rows().get(self.home_focus).cloned()
+    }
+
+    pub(crate) fn home_summary_model(&self) -> EditSummaryModel {
+        let header_lines = vec![
             format!(
                 "当前用户：{}",
                 self.current_home_user().unwrap_or("无可用用户")
@@ -116,60 +131,81 @@ impl AppState {
                 display_path(self.home_target_desktop_path())
             ),
         ];
-
+        let focused_row = self.current_home_row();
         let settings = self.current_home_settings().cloned().unwrap_or_default();
         let desktop_options = self.home_desktop_options();
+        let mut field_lines = Vec::new();
         if desktop_options.is_empty() {
-            lines.push("当前没有可用的 Home 元数据选项。".to_string());
+            field_lines.push("当前没有可用的 Home 元数据选项。".to_string());
         } else {
             for option in &desktop_options {
                 let value = self.home_option_value(option.id.as_str(), &settings);
-                lines.push(format!("{}：{value}", option.label));
+                field_lines.push(format!("{}：{value}", option.label));
             }
         }
 
-        if let Some(user) = self.current_home_user()
+        let status = if let Some(user) = self.current_home_user()
             && self.home_dirty_users.contains(user)
         {
-            lines.push("状态：当前用户有未保存的 Home 设置修改".to_string());
+            "状态：当前用户有未保存的 Home 设置修改".to_string()
         } else {
-            lines.push("状态：当前用户没有未保存的 Home 设置修改".to_string());
-        }
+            "状态：当前用户没有未保存的 Home 设置修改".to_string()
+        };
         let guard_errors = self.current_home_managed_guard_errors();
-        if self.current_home_user().is_none() {
-            lines.push("受管保护：无可用目标".to_string());
-        } else if guard_errors.is_empty() {
-            lines.push("受管保护：通过".to_string());
-        } else {
-            lines.push("受管保护：存在问题".to_string());
-            for err in guard_errors {
-                lines.push(format!("- {err}"));
+        let managed_guard = if self.current_home_user().is_none() {
+            EditCheckModel {
+                summary: "受管保护：无可用目标".to_string(),
+                details: Vec::new(),
             }
-        }
+        } else if guard_errors.is_empty() {
+            EditCheckModel {
+                summary: "受管保护：通过".to_string(),
+                details: Vec::new(),
+            }
+        } else {
+            EditCheckModel {
+                summary: "受管保护：存在问题".to_string(),
+                details: guard_errors
+                    .into_iter()
+                    .map(|err| format!("- {err}"))
+                    .collect(),
+            }
+        };
+        let mut notes = Vec::new();
         if let Some(path) = self.current_home_user_noctalia_override_path()
             && path.is_file()
         {
-            lines.push(format!(
+            notes.push(format!(
                 "Noctalia：当前用户由 {} 提供自定义布局，Home 页不会覆盖顶栏 profile。",
                 path.display()
             ));
         }
 
-        lines.push(String::new());
-        lines.push("当前阶段已接入的结构化设置：".to_string());
+        notes.push(String::new());
+        notes.push("当前阶段已接入的结构化设置：".to_string());
         for option in desktop_options {
             if let Some(description) = &option.description {
-                lines.push(format!("- {}：{description}", option.label));
+                notes.push(format!("- {}：{description}", option.label));
             } else {
-                lines.push(format!("- {}", option.label));
+                notes.push(format!("- {}", option.label));
             }
         }
-        lines.push(String::new());
-        lines.push(
+        notes.push(String::new());
+        notes.push(
             "这些内容只会写入 managed/settings/desktop.nix，不会直接改你的手写 config/。"
                 .to_string(),
         );
-        lines
+        EditSummaryModel {
+            header_lines,
+            focused_row,
+            field_lines,
+            detail: EditDetailModel {
+                status,
+                validation: None,
+                managed_guard,
+                notes,
+            },
+        }
     }
 
     pub fn save_current_home_settings(&mut self) -> Result<()> {
@@ -322,7 +358,23 @@ mod tests {
         );
 
         let rows = state.home_rows();
-        assert_eq!(rows[0].1, "由自定义布局接管");
+        assert_eq!(rows[0].value, "由自定义布局接管");
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn home_page_model_assembles_rows_selection_and_summary() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-page-model")?;
+        let mut state = test_state(&root);
+        state.home_focus = 1;
+
+        let model = state.home_page_model();
+
+        assert_eq!(model.selected, 1);
+        assert_eq!(model.rows.len(), state.home_rows().len());
+        assert_eq!(model.summary.focused_row, model.rows.get(1).cloned());
 
         std::fs::remove_dir_all(root)?;
         Ok(())
@@ -412,13 +464,33 @@ mod tests {
         )?;
         let state = test_state(&root);
 
-        let lines = state.home_summary_lines();
+        let lines = state.home_summary_model().lines();
 
         assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
         assert!(
             lines
                 .iter()
                 .any(|line| line.contains("home-settings-session"))
+        );
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn home_summary_lines_surface_current_focus_row() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-focus-summary")?;
+        let mut state = test_state(&root);
+        state.home_focus = 1;
+
+        let model = state.home_summary_model();
+
+        assert_eq!(
+            model.focused_row,
+            Some(EditRow {
+                label: "Zed 桌面入口".to_string(),
+                value: "跟随现有".to_string(),
+            })
         );
 
         std::fs::remove_dir_all(root)?;
@@ -488,13 +560,23 @@ mod tests {
                 catalog_sources: Vec::new(),
             },
             active_page: 0,
+            active_edit_page: 0,
             deploy_focus: 0,
+            advanced_deploy_focus: 0,
             target_host: "demo".to_string(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source: DeploySource::CurrentRepo,
+            deploy_source_ref: String::new(),
             deploy_action: DeployAction::Switch,
             flake_update: false,
+            advanced_target_host: "demo".to_string(),
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: DeploySource::CurrentRepo,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: DeployAction::Switch,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,

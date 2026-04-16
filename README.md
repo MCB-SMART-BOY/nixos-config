@@ -45,15 +45,17 @@ nix run .#mcbctl -- build-host --dry-run
 ## TUI 边界
 
 - `Overview`：汇总当前 host、repo / doctor 健康、dirty 状态和推荐主动作
+- `Edit`：承接 `Packages / Home / Users / Hosts` 四个受管编辑页
 - `Apply`：承接当前 host 的默认应用路径，显示执行门槛、预览和高级 handoff
+- `Advanced`：承接高级部署与维护入口；现在已经是独立顶层区域，也有独立的 `Page::Advanced` 叶子和按键分支，不再和 `Apply` 共用同一个叶子页，也不再依赖 `show_advanced` 这个 Apply 兼容布尔开关来表示“我正在 Advanced”；进入后会显示推荐高级动作、进入原因和完成后的返回路径；左侧预览、中间上下文、右下角详情都会按当前高级动作自适应，仓库维护看 `Maintenance Summary + Maintenance Preview + Repository Context + Maintenance Detail`，并使用独立的仓库心智模型，不再复用 deploy 参数或 Apply 告警；完整向导才看 `Advanced Summary + Deploy Preview + Deploy Parameters + Deploy Wizard Detail`，而且它自己的参数焦点和参数值现在都和 `Apply` 分离，`RemotePinned` 也有独立的 `固定 ref` 输入；进入 `mcb-deploy` 时会通过内部 handoff 参数显式带入 `host / mode / action / source / ref / upgrade`；动作列表也会按推荐分组优先级自动排序；`x/X` 默认执行当前高级动作，`b` 返回 `Apply`
 - `Inspect`：承接 `repo-integrity`、`doctor`、`flake check`、上游 pin 检查等检查动作
 - `Packages`：写 `home/users/<user>/managed/packages/*.nix`
 - `Home`：写 `home/users/<user>/managed/settings/desktop.nix`
 - `Users`：写 `hosts/<host>/managed/users.nix`
 - `Hosts`：写 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`
-- `Actions`：过渡入口页；把历史杂糅动作按 `Inspect / Apply / Advanced` 归宿重新分发
 
-这些页面保持当前职责边界，不通过 shell 函数补业务逻辑。`Actions` 当前仍保留，但定位已经变成迁移期入口，而不是长期主页面。
+当前顶层 shell 已经固定成 `Overview / Edit / Apply / Advanced / Inspect` 五个区域；`Actions` 只作为迁移期内部模块保留，不再是长期顶层页。
+这些区域继续保持当前职责边界，不通过 shell 函数补业务逻辑。
 
 ## Managed 写回规则
 
@@ -88,7 +90,8 @@ nix run .#mcbctl -- build-host --dry-run
 - `nix run .#mcbctl`
 - `nix run .#mcbctl -- deploy`
 - `nix run .#mcb-deploy`
-- `Overview / Apply / Inspect / Packages / Home / Users / Hosts / Actions`
+- `Overview / Edit / Apply / Advanced / Inspect`
+- `Edit` 内含 `Packages / Home / Users / Hosts`
 - `hosts/templates/` 与 `home/templates/users/`
 - `mcb.hardware.gpu = igpu | hybrid | dgpu`
 - `mcb.proxyMode = "tun" | "http" | "off"` 与 per-user TUN

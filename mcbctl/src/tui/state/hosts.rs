@@ -59,6 +59,24 @@ impl AppState {
         self.host_managed_guard_errors(&self.target_host)
     }
 
+    pub(crate) fn current_host_users_managed_guard_errors(&self) -> Vec<String> {
+        self.current_host_managed_guard_errors()
+            .into_iter()
+            .filter(|error| error.contains("host-users") || error.contains("host-managed-default"))
+            .collect()
+    }
+
+    pub(crate) fn current_host_runtime_managed_guard_errors(&self) -> Vec<String> {
+        self.current_host_managed_guard_errors()
+            .into_iter()
+            .filter(|error| {
+                error.contains("host-network")
+                    || error.contains("host-gpu")
+                    || error.contains("host-virtualization")
+            })
+            .collect()
+    }
+
     pub(super) fn block_when_current_host_settings_unavailable(&mut self, action: &str) -> bool {
         let Some(message) = self.current_host_settings_unavailable_message() else {
             return false;
@@ -235,13 +253,23 @@ mod tests {
                 catalog_sources: Vec::new(),
             },
             active_page: 0,
+            active_edit_page: 0,
             deploy_focus: 0,
+            advanced_deploy_focus: 0,
             target_host: "demo".to_string(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source: DeploySource::CurrentRepo,
+            deploy_source_ref: String::new(),
             deploy_action: DeployAction::Switch,
             flake_update: false,
+            advanced_target_host: "demo".to_string(),
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: DeploySource::CurrentRepo,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: DeployAction::Switch,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,

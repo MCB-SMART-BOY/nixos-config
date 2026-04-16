@@ -1,4 +1,7 @@
-use crate::tui::state::{AppState, InspectModel, ManagedGuardSnapshot, OverviewCheckState};
+use crate::tui::state::{
+    AppState, InspectCommandDetailModel, InspectHealthFocus, InspectModel, ManagedGuardSnapshot,
+    OverviewCheckState,
+};
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::prelude::{Color, Modifier, Style};
@@ -6,6 +9,10 @@ use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wra
 
 pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     let inspect = state.inspect_model();
+    render_with_model(frame, area, &inspect);
+}
+
+fn render_with_model(frame: &mut Frame, area: Rect, inspect: &InspectModel) {
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(38), Constraint::Percentage(62)])
@@ -24,7 +31,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect::<Vec<_>>();
     let mut list_state = ListState::default();
-    list_state.select(Some(state.selected_inspect_row_index()));
+    list_state.select(Some(inspect.selected_index));
     let list = List::new(rows)
         .block(
             Block::default()
@@ -45,7 +52,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .constraints([Constraint::Length(16), Constraint::Min(9)])
         .split(chunks[1]);
     frame.render_widget(
-        Paragraph::new(render_health_detail_lines(&inspect))
+        Paragraph::new(render_health_detail_lines(inspect))
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -55,7 +62,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         right[0],
     );
     frame.render_widget(
-        Paragraph::new(render_command_detail_lines(state, &inspect))
+        Paragraph::new(render_command_detail_lines(&inspect.detail))
             .block(
                 Block::default()
                     .borders(Borders::ALL)
@@ -68,29 +75,33 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
 
 fn render_health_detail_lines(inspect: &InspectModel) -> String {
     let mut lines = Vec::new();
-    lines.extend(render_check_lines(
-        "repo-integrity",
-        &inspect.repo_integrity,
-    ));
-    lines.extend(render_check_lines("doctor", &inspect.doctor));
+    match inspect.health_focus {
+        InspectHealthFocus::RepoIntegrity => {
+            lines.extend(render_check_lines(
+                "repo-integrity",
+                &inspect.repo_integrity,
+            ));
+            lines.extend(render_check_lines("doctor", &inspect.doctor));
+        }
+        InspectHealthFocus::Doctor => {
+            lines.extend(render_check_lines("doctor", &inspect.doctor));
+            lines.extend(render_check_lines(
+                "repo-integrity",
+                &inspect.repo_integrity,
+            ));
+        }
+    }
     lines.extend(render_managed_guard_lines(&inspect.managed_guards, true));
     lines.join("\n")
 }
 
-fn render_command_detail_lines(state: &AppState, inspect: &InspectModel) -> String {
-    let command = &inspect.commands[state.selected_inspect_row_index()];
-    let latest_result = inspect
-        .latest_result
-        .as_ref()
-        .map(|feedback| feedback.legacy_status_text())
-        .unwrap_or_else(|| "无".to_string());
-
+fn render_command_detail_lines(detail: &InspectCommandDetailModel) -> String {
     [
-        format!("当前命令：{}", command.label),
-        format!("分组：{}", command.group),
+        format!("当前命令：{}", detail.label),
+        format!("分组：{}", detail.group),
         format!(
             "状态：{}",
-            if command.available {
+            if detail.available {
                 "可执行"
             } else {
                 "需切换场景"
@@ -98,10 +109,10 @@ fn render_command_detail_lines(state: &AppState, inspect: &InspectModel) -> Stri
         ),
         format!(
             "命令预览：{}",
-            command.preview.as_deref().unwrap_or("无预览")
+            detail.preview.as_deref().unwrap_or("无预览")
         ),
-        format!("最近结果：{latest_result}"),
-        format!("当前页：{}", state.page().title()),
+        format!("最近结果：{}", detail.latest_result),
+        format!("当前页：{}", detail.page_title),
         "操作：j/k 选择命令  r/d/R 刷新健康项  x 直接执行当前 inspect 命令".to_string(),
     ]
     .join("\n")
@@ -151,13 +162,13 @@ fn render_managed_guard_lines(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::tui::{ActionItem, DeployAction, DeploySource, DeployTask, Page};
+    use crate::domain::tui::ActionItem;
     use crate::tui::state::{
-        AppContext, AppState, ManagedGuardSnapshot, OverviewCheckState, UiFeedback,
-        UiFeedbackLevel, UiFeedbackScope,
+        ManagedGuardSnapshot, OverviewCheckState, UiFeedback, UiFeedbackLevel, UiFeedbackScope,
     };
-    use std::collections::{BTreeMap, BTreeSet};
-    use std::path::PathBuf;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use ratatui::buffer::Buffer;
 
     #[test]
     fn health_detail_lines_include_repo_and_doctor_sections() {
@@ -174,10 +185,9 @@ mod tests {
 
     #[test]
     fn command_detail_lines_show_preview_and_latest_result() {
-        let state = test_state();
         let inspect = test_inspect_model();
 
-        let text = render_command_detail_lines(&state, &inspect);
+        let text = render_command_detail_lines(&inspect.detail);
 
         assert!(text.contains("当前命令：flake check"));
         assert!(text.contains("命令预览：nix flake check path:/repo"));
@@ -187,6 +197,7 @@ mod tests {
 
     fn test_inspect_model() -> InspectModel {
         InspectModel {
+            health_focus: InspectHealthFocus::RepoIntegrity,
             repo_integrity: OverviewCheckState::Error {
                 summary: "failed (1 finding(s))".to_string(),
                 details: vec!["- [rule] path: detail".to_string()],
@@ -225,6 +236,16 @@ mod tests {
                     preview: Some("update-upstream-apps --check".to_string()),
                 },
             ],
+            selected_index: 0,
+            detail: crate::tui::state::InspectCommandDetailModel {
+                action: ActionItem::FlakeCheck,
+                group: "Repo Checks",
+                label: "flake check",
+                available: true,
+                preview: Some("nix flake check path:/repo".to_string()),
+                latest_result: "flake check 已完成。".to_string(),
+                page_title: "Inspect",
+            },
             latest_result: Some(UiFeedback::new(
                 UiFeedbackLevel::Success,
                 UiFeedbackScope::Inspect,
@@ -234,71 +255,98 @@ mod tests {
         }
     }
 
-    fn test_state() -> AppState {
-        AppState {
-            context: AppContext {
-                repo_root: PathBuf::from("/repo"),
-                etc_root: PathBuf::from("/etc/nixos"),
-                current_host: "demo".to_string(),
-                current_system: "x86_64-linux".to_string(),
-                current_user: "alice".to_string(),
-                privilege_mode: "sudo-available".to_string(),
-                hosts: vec!["demo".to_string()],
-                users: vec!["alice".to_string()],
-                catalog_path: PathBuf::from("catalog/packages"),
-                catalog_groups_path: PathBuf::from("catalog/groups.toml"),
-                catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
-                catalog_entries: Vec::new(),
-                catalog_groups: BTreeMap::new(),
-                catalog_home_options: Vec::new(),
-                catalog_categories: Vec::new(),
-                catalog_sources: Vec::new(),
-            },
-            active_page: Page::ALL
-                .iter()
-                .position(|page| *page == Page::Inspect)
-                .expect("inspect page index"),
-            deploy_focus: 0,
-            target_host: "demo".to_string(),
-            deploy_task: DeployTask::DirectDeploy,
-            deploy_source: DeploySource::CurrentRepo,
-            deploy_action: DeployAction::Switch,
-            flake_update: false,
-            show_advanced: false,
-            users_focus: 0,
-            hosts_focus: 0,
-            users_text_mode: None,
-            hosts_text_mode: None,
-            host_text_input: String::new(),
-            host_settings_by_name: BTreeMap::new(),
-            host_settings_errors_by_name: BTreeMap::new(),
-            host_dirty_user_hosts: BTreeSet::new(),
-            host_dirty_runtime_hosts: BTreeSet::new(),
-            package_user_index: 0,
-            package_mode: crate::domain::tui::PackageDataMode::Search,
-            package_cursor: 0,
-            package_category_index: 0,
-            package_group_filter: None,
-            package_source_filter: None,
-            package_search: String::new(),
-            package_search_result_indices: Vec::new(),
-            package_local_entry_ids: BTreeSet::new(),
-            package_search_mode: false,
-            package_group_create_mode: false,
-            package_group_rename_mode: false,
-            package_group_rename_source: String::new(),
-            package_group_input: String::new(),
-            package_user_selections: BTreeMap::new(),
-            package_dirty_users: BTreeSet::new(),
-            home_user_index: 0,
-            home_focus: 0,
-            home_settings_by_user: BTreeMap::new(),
-            home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
-            overview_repo_integrity: OverviewCheckState::NotRun,
-            overview_doctor: OverviewCheckState::NotRun,
-            feedback: UiFeedback::default(),
-            status: String::new(),
-        }
+    #[test]
+    fn command_detail_lines_follow_selected_inspect_command() {
+        let mut inspect = test_inspect_model();
+        inspect.selected_index = 1;
+        inspect.detail = crate::tui::state::InspectCommandDetailModel {
+            action: ActionItem::UpdateUpstreamCheck,
+            group: "Upstream Pins",
+            label: "check upstream pins",
+            available: true,
+            preview: Some("update-upstream-apps --check".to_string()),
+            latest_result: "check upstream pins 已完成。".to_string(),
+            page_title: "Inspect",
+        };
+
+        let text = render_command_detail_lines(&inspect.detail);
+
+        assert!(text.contains("当前命令：check upstream pins"));
+        assert!(text.contains("分组：Upstream Pins"));
+        assert!(text.contains("命令预览：update-upstream-apps --check"));
+        assert!(text.contains("最近结果：check upstream pins 已完成。"));
+    }
+
+    #[test]
+    fn render_inspect_page_surfaces_repo_integrity_failure_and_flake_check_detail() {
+        let inspect = test_inspect_model();
+
+        let text = render_view_text(120, 40, |frame| {
+            render_with_model(frame, Rect::new(0, 0, 120, 40), &inspect)
+        });
+
+        assert!(text.contains("Inspect Commands"));
+        assert!(text.contains("Health Details"));
+        assert!(text.contains("Command Detail"));
+        assert!(text.contains("repo-integrity: failed (1 finding(s))"));
+        assert!(text.contains("doctor: ok with 1 warning(s)"));
+        assert!(text.contains("save-guards: 1 blocked target(s)"));
+        assert!(text.contains("flake check"));
+        assert!(text.contains("nix flake check path:/repo"));
+    }
+
+    #[test]
+    fn render_inspect_page_keeps_doctor_failure_and_flake_check_detail_aligned() {
+        let mut inspect = test_inspect_model();
+        inspect.health_focus = InspectHealthFocus::Doctor;
+        inspect.repo_integrity = OverviewCheckState::Healthy {
+            summary: "ok".to_string(),
+            details: Vec::new(),
+        };
+        inspect.doctor = OverviewCheckState::Error {
+            summary: "failed (1 check(s))".to_string(),
+            details: vec!["缺少 nixos-rebuild".to_string()],
+        };
+
+        let text = render_view_text(120, 40, |frame| {
+            render_with_model(frame, Rect::new(0, 0, 120, 40), &inspect)
+        });
+
+        assert!(text.contains("repo-integrity: ok"));
+        assert!(text.contains("doctor: failed (1 check(s))"));
+        assert!(text.contains("flake check"));
+        assert!(text.contains("nix flake check path:/repo"));
+        assert!(text.contains("check upstream pins"));
+        let doctor_pos = text
+            .find("doctor: failed (1 check(s))")
+            .expect("doctor section should render");
+        let repo_pos = text
+            .find("repo-integrity: ok")
+            .expect("repo section should render");
+        assert!(doctor_pos < repo_pos);
+    }
+
+    fn render_view_text(
+        width: u16,
+        height: u16,
+        render: impl FnOnce(&mut ratatui::Frame<'_>),
+    ) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
+        terminal
+            .draw(|frame| render(frame))
+            .expect("test terminal draw should succeed");
+        buffer_to_string(terminal.backend().buffer())
+    }
+
+    fn buffer_to_string(buffer: &Buffer) -> String {
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }

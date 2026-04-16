@@ -306,6 +306,9 @@ impl App {
     }
 
     pub(crate) fn prompt_rebuild_upgrade(&mut self) -> Result<()> {
+        if self.rebuild_upgrade_set {
+            return Ok(());
+        }
         if !self.is_tty() {
             self.rebuild_upgrade = false;
             return Ok(());

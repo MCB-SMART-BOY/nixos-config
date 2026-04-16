@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use super::*;
 use crate::domain::tui::ActionDestination;
 
@@ -77,43 +79,35 @@ impl AppState {
         let action = self.current_action_item();
         match action.destination() {
             ActionDestination::Inspect => {
-                self.set_page(Page::Inspect);
-                self.ensure_inspect_action_focus();
+                let feedback = self.actions_inspect_route_feedback(action);
+                self.open_inspect();
                 self.set_feedback_with_next_step(
                     UiFeedbackLevel::Info,
                     UiFeedbackScope::Inspect,
-                    format!(
-                        "{} 归属 Inspect；已跳到 Inspect 页查看健康详情和命令预览。",
-                        action.label()
-                    ),
-                    "在 Inspect 里查看详情或直接执行当前检查命令",
+                    feedback.message,
+                    feedback.next_step,
                 );
             }
             ActionDestination::Apply => {
-                self.set_page(Page::Deploy);
-                self.show_advanced = false;
+                let feedback = self.actions_apply_route_feedback(action);
+                self.open_apply();
                 self.set_feedback_with_next_step(
                     UiFeedbackLevel::Info,
                     UiFeedbackScope::Apply,
-                    format!(
-                        "{} 归属 Apply；已跳到 Apply 页查看当前主机预览和执行门槛。",
-                        action.label()
-                    ),
-                    "在 Apply 里查看预览后再执行",
+                    feedback.message,
+                    feedback.next_step,
                 );
             }
             ActionDestination::Advanced => {
-                self.set_page(Page::Deploy);
-                self.show_advanced = true;
-                self.ensure_advanced_action_focus();
+                self.sync_advanced_deploy_parameters_from_apply();
+                self.focus_advanced_action(action);
+                self.open_advanced();
+                let feedback = self.actions_advanced_route_feedback(action);
                 self.set_feedback_with_next_step(
                     UiFeedbackLevel::Info,
                     UiFeedbackScope::Advanced,
-                    format!(
-                        "{} 归属 Advanced；已跳到 Apply 页的 Advanced Workspace。",
-                        action.label()
-                    ),
-                    "在 Apply 的 Advanced Workspace 里选择并执行高级动作",
+                    feedback.message,
+                    feedback.next_step,
                 );
             }
         }
@@ -154,7 +148,7 @@ impl AppState {
         lines.push("当前页说明：".to_string());
         lines.push("- 当前页是过渡入口：先按 Inspect / Apply / Advanced 给动作分组。".to_string());
         lines.push("- 当前页现在只做跳转，不再直接执行动作。".to_string());
-        lines.push("- Advanced 动作会进入 Apply 页里的 Advanced Workspace。".to_string());
+        lines.push("- Advanced 动作会进入独立的 Advanced 区，而不是继续停在 Apply。".to_string());
         lines
     }
 }
@@ -163,9 +157,7 @@ fn action_transition_hint(action: ActionItem) -> &'static str {
     match action.destination() {
         ActionDestination::Inspect => "默认行为：Enter/Space/x 打开 Inspect，不在当前页直接执行。",
         ActionDestination::Apply => "默认行为：Enter/Space/x 打开 Apply，不在当前页直接执行。",
-        ActionDestination::Advanced => {
-            "默认行为：Enter/Space/x 打开 Apply 页里的 Advanced Workspace。"
-        }
+        ActionDestination::Advanced => "默认行为：Enter/Space/x 打开 Advanced 区。",
     }
 }
 
@@ -238,7 +230,7 @@ mod tests {
                 .iter()
                 .any(|line| line.contains("分组：Repository Maintenance"))
         );
-        assert!(lines.iter().any(|line| line.contains("Advanced Workspace")));
+        assert!(lines.iter().any(|line| line.contains("打开 Advanced 区")));
     }
 
     #[test]
@@ -272,16 +264,130 @@ mod tests {
         apply.open_current_action_destination();
         assert_eq!(apply.page(), Page::Deploy);
         assert!(!apply.show_advanced);
-        assert!(apply.status.contains("Apply"));
-        assert!(apply.status.contains("Apply 页"));
+        assert_eq!(apply.feedback.scope, UiFeedbackScope::Apply);
+        assert!(apply.feedback.message.contains("Apply"));
+        assert!(apply.feedback.message.contains("sync to /etc/nixos"));
 
         let mut advanced = test_state("sudo-available");
         advanced.actions_focus = 4;
         advanced.open_current_action_destination();
-        assert_eq!(advanced.page(), Page::Deploy);
-        assert!(advanced.show_advanced);
-        assert!(advanced.status.contains("Advanced"));
-        assert!(advanced.status.contains("Advanced Workspace"));
+        assert_eq!(advanced.page(), Page::Advanced);
+        assert!(advanced.advanced_workspace_visible());
+        assert!(!advanced.show_advanced);
+        assert_eq!(advanced.current_advanced_action(), ActionItem::FlakeUpdate);
+        assert!(advanced.status.contains("对准 flake update"));
+    }
+
+    #[test]
+    fn open_current_action_destination_keeps_selected_maintenance_action_with_wizard_recommendation()
+     {
+        let mut state = test_state("sudo-available");
+        state.actions_focus = 4;
+        state.deploy_source = DeploySource::RemoteHead;
+
+        state.open_current_action_destination();
+
+        assert_eq!(state.page(), Page::Advanced);
+        assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Advanced);
+        assert_eq!(
+            state.feedback.message,
+            "flake update 归属 Advanced；已跳到 Advanced，并定位到 flake update；默认推荐是 launch deploy wizard。推荐原因：当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+        );
+        assert_eq!(
+            state.feedback.next_step.as_deref(),
+            Some(
+                "在 Advanced 里先看摘要里的“推荐动作：launch deploy wizard”；如无特殊目的，先切过去。"
+            )
+        );
+    }
+
+    #[test]
+    fn open_current_action_destination_routes_wizard_with_aligned_focus_and_next_step() {
+        let mut state = test_state("sudo-available");
+        state.actions_focus = 6;
+        state.deploy_source = DeploySource::RemotePinned;
+        state.deploy_source_ref = "v5.0.0".to_string();
+        state.deploy_focus = 6;
+
+        state.open_current_action_destination();
+
+        assert_eq!(state.page(), Page::Advanced);
+        assert_eq!(
+            state.current_advanced_action(),
+            ActionItem::LaunchDeployWizard
+        );
+        assert_eq!(state.advanced_deploy_focus, 3);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Advanced);
+        assert_eq!(
+            state.feedback.message,
+            "launch deploy wizard 归属 Advanced；已跳到 Advanced，并对准 launch deploy wizard。推荐原因：当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+        );
+        assert_eq!(
+            state.feedback.next_step.as_deref(),
+            Some("在 Advanced 里先确认 Deploy Parameters，再执行 launch deploy wizard")
+        );
+    }
+
+    #[test]
+    fn open_current_action_destination_routes_inspect_with_active_health_reason() {
+        let mut state = test_state("sudo-available");
+        state.overview_doctor = OverviewCheckState::Error {
+            summary: "failed (missing nixos-rebuild)".to_string(),
+            details: vec!["- deployment environment: missing nixos-rebuild".to_string()],
+        };
+
+        state.open_current_action_destination();
+
+        assert_eq!(state.page(), Page::Inspect);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Inspect);
+        assert_eq!(
+            state.feedback.message,
+            "flake check 归属 Inspect；当前应先处理 doctor（failed (missing nixos-rebuild)）。"
+        );
+        assert_eq!(
+            state.feedback.next_step.as_deref(),
+            Some("在 Inspect 先看 doctor 详情；如需仓库校验，再执行 flake check")
+        );
+    }
+
+    #[test]
+    fn open_current_action_destination_routes_inspect_without_active_health_reason() {
+        let mut state = test_state("sudo-available");
+
+        state.open_current_action_destination();
+
+        assert_eq!(state.page(), Page::Inspect);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Inspect);
+        assert_eq!(
+            state.feedback.message,
+            "flake check 归属 Inspect；已跳到 Inspect 页查看健康详情和命令预览。"
+        );
+        assert_eq!(
+            state.feedback.next_step.as_deref(),
+            Some("在 Inspect 查看健康详情和检查命令")
+        );
+    }
+
+    #[test]
+    fn open_current_action_destination_routes_apply_with_handoff_feedback() {
+        let mut state = test_state("sudo-available");
+        state.actions_focus = 2;
+        state.deploy_source = DeploySource::RemotePinned;
+        state.deploy_source_ref = "v5.0.0".to_string();
+
+        state.open_current_action_destination();
+
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
+        assert_eq!(
+            state.feedback.message,
+            "sync to /etc/nixos 归属 Apply；当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+        );
+        assert_eq!(
+            state.feedback.next_step.as_deref(),
+            Some("在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard")
+        );
     }
 
     fn test_state(privilege_mode: &str) -> AppState {
@@ -305,13 +411,23 @@ mod tests {
                 catalog_sources: Vec::new(),
             },
             active_page: 0,
+            active_edit_page: 0,
             deploy_focus: 0,
+            advanced_deploy_focus: 0,
             target_host: "demo".to_string(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source: DeploySource::CurrentRepo,
+            deploy_source_ref: String::new(),
             deploy_action: DeployAction::Switch,
             flake_update: false,
+            advanced_target_host: "demo".to_string(),
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: DeploySource::CurrentRepo,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: DeployAction::Switch,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,

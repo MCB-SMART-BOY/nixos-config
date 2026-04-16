@@ -1,6 +1,6 @@
 use crate::tui::state::{
-    AppState, ManagedGuardSnapshot, OverviewCheckState, OverviewHostStatus, OverviewModel,
-    OverviewPrimaryActionKind,
+    AppState, ManagedGuardSnapshot, OverviewCheckState, OverviewHealthFocus, OverviewHostStatus,
+    OverviewModel, OverviewPrimaryActionKind,
 };
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -25,14 +25,6 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         .constraints([Constraint::Length(9), Constraint::Min(12)])
         .split(root[1]);
 
-    let feedback_message = if !state.feedback.message.is_empty() {
-        state.feedback.message.clone()
-    } else if !state.status.is_empty() {
-        state.status.clone()
-    } else {
-        "无".to_string()
-    };
-
     frame.render_widget(
         Paragraph::new(render_context_lines(
             &overview,
@@ -54,17 +46,13 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         left[1],
     );
     frame.render_widget(
-        Paragraph::new(render_primary_action_lines(
-            &overview,
-            &feedback_message,
-            state.feedback.next_step.as_deref(),
-        ))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Primary Action"),
-        )
-        .wrap(Wrap { trim: false }),
+        Paragraph::new(render_primary_action_lines(&overview))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Primary Action"),
+            )
+            .wrap(Wrap { trim: false }),
         left[2],
     );
     frame.render_widget(
@@ -108,34 +96,37 @@ fn render_health_lines(overview: &OverviewModel) -> String {
         }
     };
     let mut lines = vec![host_status];
-    lines.extend(render_check_lines(
-        "repo-integrity",
-        &overview.repo_integrity,
-    ));
-    lines.extend(render_check_lines("doctor", &overview.doctor));
+    match overview.health_focus {
+        OverviewHealthFocus::RepoIntegrity => {
+            lines.extend(render_check_lines(
+                "repo-integrity",
+                &overview.repo_integrity,
+            ));
+            lines.extend(render_check_lines("doctor", &overview.doctor));
+        }
+        OverviewHealthFocus::Doctor => {
+            lines.extend(render_check_lines("doctor", &overview.doctor));
+            lines.extend(render_check_lines(
+                "repo-integrity",
+                &overview.repo_integrity,
+            ));
+        }
+    }
     lines.extend(render_managed_guard_lines(&overview.managed_guards, false));
     lines.join("\n")
 }
 
-fn render_primary_action_lines(
-    overview: &OverviewModel,
-    feedback_message: &str,
-    feedback_next_step: Option<&str>,
-) -> String {
-    let mut lines = vec![
+fn render_primary_action_lines(overview: &OverviewModel) -> String {
+    [
         format!(
             "主动作：{}",
             overview_primary_action_label(overview.primary_action.kind)
         ),
         format!("原因：{}", overview.primary_action.reason),
-        format!("最近提示：{feedback_message}"),
-    ];
-    if let Some(next_step) = feedback_next_step
-        && !next_step.is_empty()
-    {
-        lines.push(format!("下一步：{next_step}"));
-    }
-    lines.join("\n")
+        format!("最近提示：{}", overview.primary_action.recent_feedback),
+        format!("下一步：{}", overview.primary_action.next_step),
+    ]
+    .join("\n")
 }
 
 fn render_dirty_lines(overview: &OverviewModel) -> String {
@@ -152,13 +143,6 @@ fn render_dirty_lines(overview: &OverviewModel) -> String {
 }
 
 fn render_apply_lines(overview: &OverviewModel) -> String {
-    let apply_status = if overview.apply.can_apply_current_host {
-        "当前可直接 Apply"
-    } else if !overview.apply.handoffs.is_empty() {
-        "当前组合需要交给 Advanced"
-    } else {
-        "当前不能直接 Apply"
-    };
     let sync_preview = overview
         .apply
         .sync_preview
@@ -168,7 +152,7 @@ fn render_apply_lines(overview: &OverviewModel) -> String {
         .apply
         .rebuild_preview
         .clone()
-        .unwrap_or_else(|| "当前组合会转交给 Advanced Deploy".to_string());
+        .unwrap_or_else(|| overview.apply_summary.preview_command_fallback.clone());
     let blockers = if overview.apply.blockers.is_empty() {
         "无".to_string()
     } else {
@@ -186,7 +170,9 @@ fn render_apply_lines(overview: &OverviewModel) -> String {
     };
 
     [
-        format!("状态：{apply_status}"),
+        format!("状态：{}", overview.apply_summary.status),
+        format!("最近结果：{}", overview.apply_summary.latest_result),
+        format!("下一步：{}", overview.apply_summary.next_step),
         format!("来源：{}", overview.apply.source.label()),
         format!("动作：{}", overview.apply.action.label()),
         format!(
@@ -271,8 +257,8 @@ mod tests {
     use super::*;
     use crate::domain::tui::{DeployAction, DeploySource, DeployTask};
     use crate::tui::state::{
-        ApplyModel, ManagedGuardSnapshot, OverviewContext, OverviewDirtySection,
-        OverviewPrimaryAction,
+        ApplyModel, ManagedGuardSnapshot, OverviewApplySummaryModel, OverviewContext,
+        OverviewDirtySection, OverviewPrimaryAction,
     };
     use std::path::PathBuf;
 
@@ -291,6 +277,14 @@ mod tests {
             "Review Save Guards"
         );
         assert_eq!(
+            overview_primary_action_label(OverviewPrimaryActionKind::OpenAdvancedApply),
+            "Open Advanced"
+        );
+        assert_eq!(
+            overview_primary_action_label(OverviewPrimaryActionKind::ReviewApply),
+            "Open Apply"
+        );
+        assert_eq!(
             overview_primary_action_label(OverviewPrimaryActionKind::ApplyCurrentHost),
             "Apply Current Host"
         );
@@ -300,30 +294,55 @@ mod tests {
     fn primary_action_lines_show_reason_and_next_step() {
         let overview = test_overview_model(OverviewPrimaryActionKind::OpenAdvancedApply);
 
-        let text = render_primary_action_lines(
-            &overview,
-            "当前组合需要交给 Advanced。",
-            Some("打开 Advanced 完成复杂部署"),
-        );
+        let text = render_primary_action_lines(&overview);
 
         assert!(text.contains("主动作：Open Advanced"));
-        assert!(text.contains("原因：远端最新版本必须交给 Advanced Deploy 处理。"));
-        assert!(text.contains("最近提示：当前组合需要交给 Advanced。"));
-        assert!(text.contains("下一步：打开 Advanced 完成复杂部署"));
+        assert!(text.contains(
+            "原因：当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+        ));
+        assert!(text.contains(
+            "最近提示：当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+        ));
+        assert!(text.contains(
+            "下一步：在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard"
+        ));
     }
 
     #[test]
     fn apply_lines_surface_readiness_blockers_and_handoffs() {
         let mut overview = test_overview_model(OverviewPrimaryActionKind::ReviewApply);
         overview.apply.can_apply_current_host = false;
+        overview.apply.rebuild_preview = None;
         overview.apply.blockers = vec!["仍有未保存修改".to_string()];
-        overview.apply.handoffs = vec!["远端最新版本必须交给 Advanced Deploy 处理。".to_string()];
+        overview.apply.handoffs = vec![
+            "当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。".to_string(),
+        ];
+        overview.apply_summary = OverviewApplySummaryModel {
+            status: "当前组合应转交给 Advanced".to_string(),
+            preview_command_fallback: "当前组合会转交给 Advanced 执行 launch deploy wizard"
+                .to_string(),
+            next_step:
+                "在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard"
+                    .to_string(),
+            latest_result:
+                "Apply 已执行完成：switch nixos。 下一步：回到 Overview 检查健康和下一步"
+                    .to_string(),
+        };
 
         let text = render_apply_lines(&overview);
 
-        assert!(text.contains("状态：当前组合需要交给 Advanced"));
+        assert!(text.contains("状态：当前组合应转交给 Advanced"));
+        assert!(text.contains(
+            "最近结果：Apply 已执行完成：switch nixos。 下一步：回到 Overview 检查健康和下一步"
+        ));
+        assert!(text.contains(
+            "下一步：在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard"
+        ));
+        assert!(text.contains("命令预览：当前组合会转交给 Advanced 执行 launch deploy wizard"));
         assert!(text.contains("阻塞项：仍有未保存修改"));
-        assert!(text.contains("交接项：远端最新版本必须交给 Advanced Deploy 处理。"));
+        assert!(text.contains(
+            "交接项：当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+        ));
         assert!(text.contains("同步预览：sudo rsync"));
     }
 
@@ -360,6 +379,31 @@ mod tests {
         assert!(text.contains("Home[alice]: ok"));
     }
 
+    #[test]
+    fn health_lines_prioritize_doctor_when_doctor_is_active_failure() {
+        let mut overview = test_overview_model(OverviewPrimaryActionKind::ReviewInspect);
+        overview.health_focus = OverviewHealthFocus::Doctor;
+        overview.repo_integrity = OverviewCheckState::Healthy {
+            summary: "ok".to_string(),
+            details: Vec::new(),
+        };
+        overview.doctor = OverviewCheckState::Error {
+            summary: "failed (1 check(s))".to_string(),
+            details: vec!["缺少 nixos-rebuild".to_string()],
+        };
+
+        let text = render_health_lines(&overview);
+        let doctor_pos = text
+            .find("doctor: failed (1 check(s))")
+            .expect("doctor section should render");
+        let repo_pos = text
+            .find("repo-integrity: ok")
+            .expect("repo-integrity section should render");
+
+        assert!(doctor_pos < repo_pos);
+        assert!(text.contains("缺少 nixos-rebuild"));
+    }
+
     fn test_overview_model(primary_action: OverviewPrimaryActionKind) -> OverviewModel {
         OverviewModel {
             context: OverviewContext {
@@ -375,6 +419,7 @@ mod tests {
                 items: vec!["alice".to_string()],
             }],
             host_status: OverviewHostStatus::Ready,
+            health_focus: OverviewHealthFocus::RepoIntegrity,
             repo_integrity: OverviewCheckState::Healthy {
                 summary: "ok".to_string(),
                 details: Vec::new(),
@@ -413,6 +458,7 @@ mod tests {
                 target_host: "nixos".to_string(),
                 task: DeployTask::DirectDeploy,
                 source: DeploySource::CurrentRepo,
+                source_detail: None,
                 action: DeployAction::Switch,
                 flake_update: false,
                 advanced: false,
@@ -424,12 +470,28 @@ mod tests {
                 can_apply_current_host: true,
                 blockers: Vec::new(),
                 warnings: vec!["当前组合会使用 sudo -E 执行受权命令。".to_string()],
-                handoffs: vec!["远端最新版本必须交给 Advanced Deploy 处理。".to_string()],
+                handoffs: vec![
+                    "当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+                        .to_string(),
+                ],
                 infos: vec!["检测 hostname：nixos".to_string()],
+            },
+            apply_summary: OverviewApplySummaryModel {
+                status: "当前可直接 Apply".to_string(),
+                preview_command_fallback: "当前组合可直接执行 Apply".to_string(),
+                next_step: "在 Apply 查看预览，或按 a / x 直接运行".to_string(),
+                latest_result: "暂无".to_string(),
             },
             primary_action: OverviewPrimaryAction {
                 kind: primary_action,
-                reason: "远端最新版本必须交给 Advanced Deploy 处理。".to_string(),
+                reason: "当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+                    .to_string(),
+                recent_feedback:
+                    "当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+                        .to_string(),
+                next_step:
+                    "在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard"
+                        .to_string(),
             },
         }
     }

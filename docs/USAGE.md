@@ -16,14 +16,21 @@ nix run .#mcbctl -- deploy --help
 nix run .#mcb-deploy -- --help
 ```
 
-## 2. TUI 页面
+## 2. TUI 顶层区域
 
 - `Overview`
   汇总当前 host、repo / doctor 健康、dirty 状态和推荐主动作
+- `Edit`
+  承接 `Packages / Home / Users / Hosts` 四个受管编辑页
 - `Apply`
   做当前 host 的默认应用预览、同步和 `nixos-rebuild`
+- `Advanced`
+  承接高级部署与维护入口；现在已经是独立顶层区域，进入后会显示推荐高级动作、进入原因和完成后的返回路径；左侧预览和中间面板都会按当前高级动作自适应，仓库维护看 `Maintenance Preview + Repository Context`，完整向导才看 `Deploy Preview + Deploy Parameters`，其中 `RemotePinned` 会额外显示 `固定 ref` 输入；`x/X` 默认执行当前高级动作，`b` 返回 `Apply`
 - `Inspect`
   看健康详情，并执行 `flake check` / 上游 pin 检查等 Inspect 动作
+
+`Edit` 区内的具体写回页仍然是：
+
 - `Packages`
   写 `home/users/<user>/managed/packages/*.nix`
 - `Home`
@@ -32,19 +39,21 @@ nix run .#mcb-deploy -- --help
   写 `hosts/<host>/managed/users.nix`
 - `Hosts`
   写 `hosts/<host>/managed/network.nix`、`gpu.nix`、`virtualization.nix`
-- `Actions`
-  迁移期入口页，把历史动作按 `Inspect / Apply / Advanced` 分组跳转
 
 当前页语义补充：
 
+- `Tab / Shift-Tab`：现在只在 `Overview / Edit / Apply / Advanced / Inspect` 五个顶层区域间切换
+- `Edit`：顶部现在有可见的 `Packages / Home / Users / Hosts` 子导航；`1/2/3/4` 依次切页，子导航下面会汇总当前目标和四页 dirty
+- `Edit`：区域摘要现在会给出唯一推荐下一步，优先指出“当前页先保存”还是“先切到哪一页处理 dirty / 受管保护”
 - `Overview`：`Enter` 打开推荐主动作，`a` 尝试直接执行当前 Apply，`p` 打开 Apply，`i` 打开 Inspect，`r/d/R` 刷新健康项
 - `Overview`：健康区现在也会汇总 `Packages / Home / Users / Hosts` 的 `受管保护` 快照，进入具体页面前就能看到哪个目标会阻塞保存
 - `Overview`：当推荐主动作变成 `Review Save Guards` 时，`Enter` 会直接跳到最该先处理的页面；host runtime 分片问题优先跳 `Hosts`，host users/default 问题优先跳 `Users`
 - `Overview`：跳过去后还会把左侧焦点尽量落到最相关的字段或组过滤，而不是只切页
-- `Apply`：左侧先看执行门槛和命令预览，右侧再调整高级字段；打开高级模式后，右下角会出现 `Advanced Workspace`，可用 `J/K` 选高级动作、`X` 执行；`x` 仍按当前 Apply 路径处理
+- `Apply`：左侧先看执行门槛和命令预览，右侧再调整 `Apply Controls`；`x` 按当前默认 Apply 路径处理
+- `Advanced`：左侧先看区域摘要和动作预览，再决定当前高级动作；现在它已经走独立的 `Page::Advanced` 叶子和独立按键分支，不再与 `Apply` 共用同一个叶子页，也不再依赖 `show_advanced` 这个 Apply 兼容布尔开关来表示“当前在 Advanced”；摘要会说明“当前任务 / 推荐动作 / 为什么在这里做 / 做完后回哪”；仓库维护动作会显示 `Maintenance Summary + Maintenance Preview + Repository Context + Maintenance Detail`，并且不再复用 deploy 参数或 Apply 告警；完整向导动作会显示 `Advanced Summary + Deploy Preview + Deploy Parameters + Deploy Wizard Detail`，而且这些参数现在不只焦点独立，`host / mode / action / source / ref / upgrade` 这组值也会独立保存；当来源是 `RemotePinned` 时，`Deploy Parameters` 会额外要求填写 `固定 ref`，并在进入 `mcb-deploy` 时用内部参数显式带过去；动作列表会按推荐分组优先级自动排序；`J/K` 选高级动作，`x/X` 执行，`b` 返回 `Apply`
 - `Inspect`：`j/k` 选检查动作，`r/d/R` 刷新健康项，`x` 执行当前 Inspect 动作；右上角 `Health Details` 现在会带上四条写回链的 `受管保护` 快照和阻塞细节
 - `Packages / Home / Users / Hosts`：右侧摘要现在会提前显示 `受管保护` 状态；如果同一 `managed` 子树里已有损坏分片，或者 `managed/packages/` 里混入了非受管陈旧组文件，会先在页面里提示
-- `Actions`：`Enter/Space/x` 现在都只打开归宿页；`Advanced` 动作会跳到 Apply 页里的 `Advanced Workspace`
+- 历史 `Actions` 已降为迁移期内部模块，不再作为顶层区域继续暴露
 
 ## 3. 保存规则
 

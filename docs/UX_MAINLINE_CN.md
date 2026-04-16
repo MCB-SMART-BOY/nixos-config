@@ -132,7 +132,7 @@
 | [Preview Apply] [Apply Current Host] [Save Dirty Pages]      |
 +---------------------------------------------------------------+
 | Secondary Actions                                             |
-| [Open Edit] [Advanced Deploy] [Inspect] [Help]               |
+| [Open Edit] [Advanced] [Inspect] [Help]                      |
 +---------------------------------------------------------------+
 ```
 
@@ -193,7 +193,7 @@ Overview
 
 - `Run Preview`
 - `Apply`
-- `Open Advanced Deploy`
+- `Open Advanced`
 - `Back`
 
 ### 8.3 Apply 页行为
@@ -211,7 +211,7 @@ Overview
 
 建议包含：
 
-- `Advanced Deploy`
+- `Advanced`
 - `Create Host`
 - `Create User`
 - `Pinned Remote Source`

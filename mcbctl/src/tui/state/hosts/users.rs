@@ -1,38 +1,80 @@
 use super::*;
 
 impl AppState {
-    pub fn users_rows(&self) -> Vec<(String, String)> {
+    pub(crate) fn users_page_model(&self) -> EditPageModel {
+        EditPageModel {
+            rows: self.users_rows(),
+            selected: self.users_focus,
+            summary: self.users_summary_model(),
+        }
+    }
+
+    pub(crate) fn users_rows(&self) -> Vec<EditRow> {
         let Some(settings) = self.current_host_settings().cloned() else {
             let unavailable = self
                 .current_host_unavailable_value()
                 .unwrap_or_else(|| "不可用".to_string());
             return vec![
-                ("主机".to_string(), self.target_host.clone()),
-                ("主用户".to_string(), unavailable.clone()),
-                ("托管用户".to_string(), unavailable.clone()),
-                ("管理员".to_string(), unavailable.clone()),
-                ("主机角色".to_string(), unavailable.clone()),
-                ("用户 linger".to_string(), unavailable),
+                EditRow {
+                    label: "主机".to_string(),
+                    value: self.target_host.clone(),
+                },
+                EditRow {
+                    label: "主用户".to_string(),
+                    value: unavailable.clone(),
+                },
+                EditRow {
+                    label: "托管用户".to_string(),
+                    value: unavailable.clone(),
+                },
+                EditRow {
+                    label: "管理员".to_string(),
+                    value: unavailable.clone(),
+                },
+                EditRow {
+                    label: "主机角色".to_string(),
+                    value: unavailable.clone(),
+                },
+                EditRow {
+                    label: "用户 linger".to_string(),
+                    value: unavailable,
+                },
             ];
         };
         vec![
-            ("主机".to_string(), self.target_host.clone()),
-            ("主用户".to_string(), settings.primary_user),
-            ("托管用户".to_string(), format_string_list(&settings.users)),
-            (
-                "管理员".to_string(),
-                format_string_list(&settings.admin_users),
-            ),
-            ("主机角色".to_string(), settings.host_role),
-            (
-                "用户 linger".to_string(),
-                bool_label(settings.user_linger).to_string(),
-            ),
+            EditRow {
+                label: "主机".to_string(),
+                value: self.target_host.clone(),
+            },
+            EditRow {
+                label: "主用户".to_string(),
+                value: settings.primary_user,
+            },
+            EditRow {
+                label: "托管用户".to_string(),
+                value: format_string_list(&settings.users),
+            },
+            EditRow {
+                label: "管理员".to_string(),
+                value: format_string_list(&settings.admin_users),
+            },
+            EditRow {
+                label: "主机角色".to_string(),
+                value: settings.host_role,
+            },
+            EditRow {
+                label: "用户 linger".to_string(),
+                value: bool_label(settings.user_linger).to_string(),
+            },
         ]
     }
 
-    pub fn users_summary_lines(&self) -> Vec<String> {
-        let mut lines = vec![
+    fn current_users_row(&self) -> Option<EditRow> {
+        self.users_rows().get(self.users_focus).cloned()
+    }
+
+    pub(crate) fn users_summary_model(&self) -> EditSummaryModel {
+        let header_lines = vec![
             format!("当前主机：{}", self.target_host),
             format!("目标文件：{}", display_path(self.current_host_users_path())),
             format!(
@@ -40,42 +82,63 @@ impl AppState {
                 format_string_list(&self.context.users)
             ),
         ];
-
-        if let Some(message) = self.current_host_settings_unavailable_message() {
-            lines.push(format!("状态：{message}"));
+        let focused_row = self.current_users_row();
+        let status = if let Some(message) = self.current_host_settings_unavailable_message() {
+            format!("状态：{message}")
         } else {
             if self.host_dirty_user_hosts.contains(&self.target_host) {
-                lines.push("状态：当前主机的用户结构分片有未保存修改".to_string());
+                "状态：当前主机的用户结构分片有未保存修改".to_string()
             } else {
-                lines.push("状态：当前主机的用户结构分片没有未保存修改".to_string());
+                "状态：当前主机的用户结构分片没有未保存修改".to_string()
             }
-        }
+        };
 
         let errors = self.current_host_user_validation_errors();
-        if errors.is_empty() {
-            lines.push("校验：通过".to_string());
-        } else {
-            lines.push("校验：存在问题".to_string());
-            for err in errors {
-                lines.push(format!("- {err}"));
+        let validation = if errors.is_empty() {
+            EditCheckModel {
+                summary: "校验：通过".to_string(),
+                details: Vec::new(),
             }
-        }
+        } else {
+            EditCheckModel {
+                summary: "校验：存在问题".to_string(),
+                details: errors.into_iter().map(|err| format!("- {err}")).collect(),
+            }
+        };
         let guard_errors = self.current_host_managed_guard_errors();
-        if guard_errors.is_empty() {
-            lines.push("受管保护：通过".to_string());
-        } else {
-            lines.push("受管保护：存在问题".to_string());
-            for err in guard_errors {
-                lines.push(format!("- {err}"));
+        let managed_guard = if guard_errors.is_empty() {
+            EditCheckModel {
+                summary: "受管保护：通过".to_string(),
+                details: Vec::new(),
             }
-        }
+        } else {
+            EditCheckModel {
+                summary: "受管保护：存在问题".to_string(),
+                details: guard_errors
+                    .into_iter()
+                    .map(|err| format!("- {err}"))
+                    .collect(),
+            }
+        };
 
-        lines.push(String::new());
-        lines.push("当前页说明：".to_string());
-        lines.push("- 这里只管理主机级 users.nix 分片".to_string());
-        lines.push("- 不会创建新的 home/users/<name> 目录".to_string());
-        lines.push("- 新用户模板生成仍应走 deploy / template 流程".to_string());
-        lines
+        let notes = vec![
+            String::new(),
+            "当前页说明：".to_string(),
+            "- 这里只管理主机级 users.nix 分片".to_string(),
+            "- 不会创建新的 home/users/<name> 目录".to_string(),
+            "- 新用户模板生成仍应走 deploy / template 流程".to_string(),
+        ];
+        EditSummaryModel {
+            header_lines,
+            focused_row,
+            field_lines: Vec::new(),
+            detail: EditDetailModel {
+                status,
+                validation: Some(validation),
+                managed_guard,
+                notes,
+            },
+        }
     }
 
     pub fn next_users_field(&mut self) {
@@ -351,6 +414,18 @@ mod tests {
     }
 
     #[test]
+    fn users_page_model_assembles_rows_selection_and_summary() {
+        let mut state = test_state(Path::new("/repo"));
+        state.users_focus = 2;
+
+        let model = state.users_page_model();
+
+        assert_eq!(model.selected, 2);
+        assert_eq!(model.rows.len(), state.users_rows().len());
+        assert_eq!(model.summary.focused_row, model.rows.get(2).cloned());
+    }
+
+    #[test]
     fn confirm_admin_users_edit_filters_unknown_entries() {
         let mut state = test_state(Path::new("/repo"));
         state.users_text_mode = Some(UsersTextMode::AdminUsers);
@@ -443,10 +518,30 @@ mod tests {
         )?;
         let state = test_state(&root);
 
-        let lines = state.users_summary_lines();
+        let lines = state.users_summary_model().lines();
 
         assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
         assert!(lines.iter().any(|line| line.contains("host-network")));
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn users_summary_lines_surface_current_focus_row() -> Result<()> {
+        let root = create_temp_repo("mcbctl-host-users-focus")?;
+        let mut state = test_state(&root);
+        state.users_focus = 3;
+
+        let model = state.users_summary_model();
+
+        assert_eq!(
+            model.focused_row,
+            Some(EditRow {
+                label: "管理员".to_string(),
+                value: "alice, bob".to_string(),
+            })
+        );
 
         std::fs::remove_dir_all(root)?;
         Ok(())
@@ -493,13 +588,23 @@ mod tests {
                 catalog_sources: Vec::new(),
             },
             active_page: 0,
+            active_edit_page: 0,
             deploy_focus: 0,
+            advanced_deploy_focus: 0,
             target_host: "demo".to_string(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source: DeploySource::CurrentRepo,
+            deploy_source_ref: String::new(),
             deploy_action: DeployAction::Switch,
             flake_update: false,
+            advanced_target_host: "demo".to_string(),
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: DeploySource::CurrentRepo,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: DeployAction::Switch,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,

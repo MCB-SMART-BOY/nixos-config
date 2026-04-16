@@ -1,7 +1,37 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TopLevelPage {
+    Overview,
+    Edit,
+    Apply,
+    Advanced,
+    Inspect,
+}
+
+impl TopLevelPage {
+    pub const ALL: [TopLevelPage; 5] = [
+        TopLevelPage::Overview,
+        TopLevelPage::Edit,
+        TopLevelPage::Apply,
+        TopLevelPage::Advanced,
+        TopLevelPage::Inspect,
+    ];
+
+    pub fn title(self) -> &'static str {
+        match self {
+            TopLevelPage::Overview => "Overview",
+            TopLevelPage::Edit => "Edit",
+            TopLevelPage::Apply => "Apply",
+            TopLevelPage::Advanced => "Advanced",
+            TopLevelPage::Inspect => "Inspect",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Page {
     Dashboard,
     Deploy,
+    Advanced,
     Inspect,
     Users,
     Hosts,
@@ -11,9 +41,10 @@ pub enum Page {
 }
 
 impl Page {
-    pub const ALL: [Page; 8] = [
+    pub const ALL: [Page; 9] = [
         Page::Dashboard,
         Page::Deploy,
+        Page::Advanced,
         Page::Inspect,
         Page::Users,
         Page::Hosts,
@@ -22,16 +53,30 @@ impl Page {
         Page::Actions,
     ];
 
+    pub const EDIT_ALL: [Page; 4] = [Page::Packages, Page::Home, Page::Users, Page::Hosts];
+
     pub fn title(self) -> &'static str {
         match self {
             Page::Dashboard => "Overview",
             Page::Deploy => "Apply",
+            Page::Advanced => "Advanced",
             Page::Inspect => "Inspect",
             Page::Users => "Users",
             Page::Hosts => "Hosts",
             Page::Packages => "Packages",
             Page::Home => "Home",
             Page::Actions => "Actions",
+        }
+    }
+
+    pub fn top_level(self) -> TopLevelPage {
+        match self {
+            Page::Dashboard => TopLevelPage::Overview,
+            Page::Deploy => TopLevelPage::Apply,
+            Page::Advanced => TopLevelPage::Advanced,
+            Page::Inspect => TopLevelPage::Inspect,
+            Page::Users | Page::Hosts | Page::Packages | Page::Home => TopLevelPage::Edit,
+            Page::Actions => TopLevelPage::Advanced,
         }
     }
 }
@@ -132,8 +177,23 @@ mod tests {
     fn page_titles_expose_overview_and_apply_labels() {
         assert_eq!(Page::Dashboard.title(), "Overview");
         assert_eq!(Page::Deploy.title(), "Apply");
+        assert_eq!(Page::Advanced.title(), "Advanced");
         assert_eq!(Page::Inspect.title(), "Inspect");
         assert_eq!(Page::Users.title(), "Users");
         assert_eq!(Page::Actions.title(), "Actions");
+    }
+
+    #[test]
+    fn top_level_pages_expose_five_area_shell() {
+        assert_eq!(
+            TopLevelPage::ALL.map(TopLevelPage::title),
+            ["Overview", "Edit", "Apply", "Advanced", "Inspect"]
+        );
+        assert_eq!(Page::Dashboard.top_level(), TopLevelPage::Overview);
+        assert_eq!(Page::Packages.top_level(), TopLevelPage::Edit);
+        assert_eq!(Page::Deploy.top_level(), TopLevelPage::Apply);
+        assert_eq!(Page::Advanced.top_level(), TopLevelPage::Advanced);
+        assert_eq!(Page::Actions.top_level(), TopLevelPage::Advanced);
+        assert_eq!(Page::Inspect.top_level(), TopLevelPage::Inspect);
     }
 }

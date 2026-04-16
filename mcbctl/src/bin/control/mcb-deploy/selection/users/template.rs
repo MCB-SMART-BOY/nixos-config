@@ -210,6 +210,7 @@ mod tests {
     fn test_app(tmp_dir: PathBuf) -> App {
         App {
             repo_dir: tmp_dir.clone(),
+            source_dir_override: None,
             repo_urls: Vec::new(),
             branch: "rust脚本分支".to_string(),
             source_ref: String::new(),
@@ -255,6 +256,7 @@ mod tests {
             detected_gpu: DetectedGpuProfile::default(),
             mode: "switch".to_string(),
             rebuild_upgrade: false,
+            rebuild_upgrade_set: false,
             etc_dir: PathBuf::from("/tmp/etc-nixos"),
             dns_enabled: false,
             temp_dns_backend: String::new(),

@@ -32,12 +32,7 @@ impl AppState {
                 if !status.success() {
                     anyhow::bail!("flake check exited with {}", status.code().unwrap_or(1));
                 }
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Success,
-                    UiFeedbackScope::Inspect,
-                    "flake check 已完成。",
-                    "切到 Inspect 查看检查结果",
-                );
+                self.set_inspect_completion_feedback(ActionItem::FlakeCheck);
             }
             ActionItem::FlakeUpdate => {
                 let mut cmd = std::process::Command::new("nix");
@@ -55,12 +50,7 @@ impl AppState {
                 if !status.success() {
                     anyhow::bail!("flake update exited with {}", status.code().unwrap_or(1));
                 }
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Success,
-                    UiFeedbackScope::Advanced,
-                    "flake update 已完成。",
-                    "继续在 Advanced 处理后续仓库维护",
-                );
+                self.set_advanced_maintenance_completion_feedback(ActionItem::FlakeUpdate);
             }
             ActionItem::UpdateUpstreamCheck => {
                 let status =
@@ -71,12 +61,7 @@ impl AppState {
                         status.code().unwrap_or(1)
                     );
                 }
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Success,
-                    UiFeedbackScope::Inspect,
-                    "上游 pin 检查已完成。",
-                    "切到 Inspect 查看 pin 状态",
-                );
+                self.set_inspect_completion_feedback(ActionItem::UpdateUpstreamCheck);
             }
             ActionItem::UpdateUpstreamPins => {
                 let status = self.run_sibling_in_repo("update-upstream-apps", &[])?;
@@ -86,12 +71,7 @@ impl AppState {
                         status.code().unwrap_or(1)
                     );
                 }
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Success,
-                    UiFeedbackScope::Advanced,
-                    "上游 pin 刷新已完成。",
-                    "继续在 Advanced 完成后续维护",
-                );
+                self.set_advanced_maintenance_completion_feedback(ActionItem::UpdateUpstreamPins);
             }
             ActionItem::SyncRepoToEtc => {
                 let plan = self
@@ -116,12 +96,7 @@ impl AppState {
                     |cmd, args| run_root_command_ok(cmd, args, use_sudo),
                     || self.clean_etc_dir_keep_hardware(),
                 )?;
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Success,
-                    UiFeedbackScope::Apply,
-                    "仓库已同步到 /etc/nixos。",
-                    "回到 Apply 或 Overview 继续后续重建",
-                );
+                self.set_sync_repo_completion_feedback();
             }
             ActionItem::RebuildCurrentHost => {
                 self.ensure_host_configuration_is_valid(&self.context.current_host)?;
@@ -151,28 +126,18 @@ impl AppState {
                 if !status.success() {
                     anyhow::bail!("nixos-rebuild exited with {}", status.code().unwrap_or(1));
                 }
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Success,
-                    UiFeedbackScope::Apply,
-                    format!(
-                        "当前主机 {} 已完成一次 {}。",
-                        self.context.current_host,
-                        action.label()
-                    ),
-                    "回到 Overview 检查健康和下一步",
-                );
+                self.set_current_host_rebuild_completion_feedback(&plan);
             }
             ActionItem::LaunchDeployWizard => {
-                let status = self.run_sibling_in_repo("mcb-deploy", &[])?;
+                if let Some(error) = self.current_deploy_wizard_validation_error() {
+                    anyhow::bail!("{error}");
+                }
+                let status =
+                    self.run_sibling_in_repo("mcb-deploy", &self.current_deploy_wizard_args())?;
                 if !status.success() {
                     anyhow::bail!("mcb-deploy exited with {}", status.code().unwrap_or(1));
                 }
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Info,
-                    UiFeedbackScope::Advanced,
-                    "已返回 deploy wizard。",
-                    "继续在 Advanced 完成复杂部署",
-                );
+                self.set_deploy_wizard_return_feedback();
             }
         }
 
@@ -214,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn actions_execute_shortcut_routes_advanced_actions_into_apply_workspace() {
+    fn actions_execute_shortcut_routes_advanced_actions_into_advanced_area() {
         let mut state = test_state();
         state.actions_focus = 4;
 
@@ -222,10 +187,32 @@ mod tests {
             .execute_current_action_from_actions()
             .expect("route advanced");
 
-        assert_eq!(state.page(), Page::Deploy);
-        assert!(state.show_advanced);
+        assert_eq!(state.page(), Page::Advanced);
+        assert!(state.advanced_workspace_visible());
+        assert!(!state.show_advanced);
         assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
-        assert!(state.status.contains("Advanced Workspace"));
+        assert!(state.status.contains("对准 flake update"));
+    }
+
+    #[test]
+    fn actions_execute_shortcut_routes_wizard_action_with_aligned_focus() {
+        let mut state = test_state();
+        state.actions_focus = 6;
+        state.deploy_source = DeploySource::RemotePinned;
+        state.deploy_source_ref = "v5.0.0".to_string();
+        state.deploy_focus = 6;
+
+        state
+            .execute_current_action_from_actions()
+            .expect("route advanced wizard");
+
+        assert_eq!(state.page(), Page::Advanced);
+        assert_eq!(
+            state.current_advanced_action(),
+            ActionItem::LaunchDeployWizard
+        );
+        assert_eq!(state.advanced_deploy_focus, 3);
+        assert!(state.status.contains("对准 launch deploy wizard"));
     }
 
     fn test_state() -> AppState {
@@ -248,17 +235,27 @@ mod tests {
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
-            active_page: Page::ALL
+            active_page: TopLevelPage::ALL
                 .iter()
-                .position(|page| *page == Page::Actions)
-                .expect("actions page index"),
+                .position(|page| *page == TopLevelPage::Advanced)
+                .expect("advanced page index"),
+            active_edit_page: 0,
             deploy_focus: 0,
+            advanced_deploy_focus: 0,
             target_host: "demo".to_string(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source: DeploySource::CurrentRepo,
+            deploy_source_ref: String::new(),
             deploy_action: DeployAction::Switch,
             flake_update: false,
+            advanced_target_host: "demo".to_string(),
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: DeploySource::CurrentRepo,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: DeployAction::Switch,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,

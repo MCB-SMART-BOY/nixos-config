@@ -1,40 +1,92 @@
-use crate::tui::state::AppState;
+use crate::tui::state::{AppState, EditPageModel};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::prelude::{Color, Modifier, Style};
-use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
+use ratatui::layout::Rect;
+
+use super::{EditPageConfig, render_edit_page_with_model};
 
 pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(42), Constraint::Percentage(58)])
-        .split(area);
+    let page_model = state.users_page_model();
+    render_with_model(frame, area, &page_model);
+}
 
-    let rows = state
-        .users_rows()
-        .into_iter()
-        .map(|(label, value)| ListItem::new(format!("{label:<14} {value}")))
-        .collect::<Vec<_>>();
+fn render_with_model(frame: &mut Frame, area: Rect, page_model: &EditPageModel) {
+    render_edit_page_with_model(
+        frame,
+        area,
+        EditPageConfig {
+            left_percentage: 42,
+            list_title: "Users Model".to_string(),
+            summary_title: "Users Summary",
+            label_width: 14,
+        },
+        page_model,
+    );
+}
 
-    let mut list_state = ListState::default();
-    list_state.select(Some(state.users_focus));
-    let list = List::new(rows)
-        .block(Block::default().borders(Borders::ALL).title("Users Model"))
-        .highlight_style(
-            Style::default()
-                .fg(Color::Black)
-                .bg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol(">> ");
-    frame.render_stateful_widget(list, chunks[0], &mut list_state);
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tui::state::{EditCheckModel, EditDetailModel, EditRow, EditSummaryModel};
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use ratatui::buffer::Buffer;
 
-    let summary = Paragraph::new(state.users_summary_lines().join("\n"))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Users Summary"),
-        )
-        .wrap(Wrap { trim: false });
-    frame.render_widget(summary, chunks[1]);
+    #[test]
+    fn render_with_model_shows_users_titles() {
+        let page_model = EditPageModel {
+            rows: vec![EditRow {
+                label: "主用户".to_string(),
+                value: "alice".to_string(),
+            }],
+            selected: 0,
+            summary: EditSummaryModel {
+                header_lines: vec!["当前主机：demo".to_string()],
+                focused_row: None,
+                field_lines: Vec::new(),
+                detail: EditDetailModel {
+                    status: "状态：当前主机的用户结构分片没有未保存修改".to_string(),
+                    validation: Some(EditCheckModel {
+                        summary: "校验：通过".to_string(),
+                        details: Vec::new(),
+                    }),
+                    managed_guard: EditCheckModel {
+                        summary: "受管保护：通过".to_string(),
+                        details: Vec::new(),
+                    },
+                    notes: Vec::new(),
+                },
+            },
+        };
+
+        let text = render_view_text(120, 24, |frame| {
+            render_with_model(frame, Rect::new(0, 0, 120, 24), &page_model)
+        });
+
+        assert!(text.contains("Users Model"));
+        assert!(text.contains("Users Summary"));
+    }
+
+    fn render_view_text(
+        width: u16,
+        height: u16,
+        render: impl FnOnce(&mut ratatui::Frame<'_>),
+    ) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).expect("test terminal should initialize");
+        terminal
+            .draw(|frame| render(frame))
+            .expect("test terminal draw should succeed");
+        buffer_to_string(terminal.backend().buffer())
+    }
+
+    fn buffer_to_string(buffer: &Buffer) -> String {
+        (0..buffer.area.height)
+            .map(|y| {
+                (0..buffer.area.width)
+                    .map(|x| buffer[(x, y)].symbol())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 }

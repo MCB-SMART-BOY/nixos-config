@@ -1,6 +1,14 @@
 use super::*;
 
 impl AppState {
+    pub(crate) fn package_page_model(&self) -> PackagePageModel {
+        PackagePageModel {
+            summary: self.package_summary_model(),
+            list: self.package_list_model(),
+            selection: self.package_selection_model(),
+        }
+    }
+
     pub fn current_package_user(&self) -> Option<&str> {
         self.context
             .users
@@ -205,14 +213,17 @@ impl AppState {
             .unwrap_or(0)
     }
 
-    pub fn package_summary_lines(&self) -> Vec<String> {
-        let mut lines = vec![
+    pub(crate) fn package_summary_model(&self) -> EditSummaryModel {
+        let header_lines = vec![
             format!("数据源：{}", self.current_package_mode_label()),
             format!(
                 "当前用户：{}",
                 self.current_package_user().unwrap_or("无可用用户")
             ),
             format!("目标目录：{}", display_path(self.package_target_dir_path())),
+        ];
+
+        let mut field_lines = vec![
             format!("分类过滤：{}", self.current_package_category_label()),
             format!("组过滤：{}", self.current_package_group_filter_label()),
             format!("来源过滤：{}", self.current_package_source_filter_label()),
@@ -237,40 +248,211 @@ impl AppState {
         ];
 
         if let Some(path) = self.current_package_target_path() {
-            lines.push(format!("当前组落点：{}", path.display()));
+            field_lines.push(format!("当前组落点：{}", path.display()));
         }
         if let Some(group) = self.current_selected_group_name() {
-            lines.push(format!(
+            field_lines.push(format!(
                 "当前已选组：{}（{} 个软件）",
                 self.package_group_label(&group),
                 self.current_selected_group_member_count()
             ));
             if let Some(description) = self.package_group_description(&group) {
-                lines.push(format!("组说明：{description}"));
+                field_lines.push(format!("组说明：{description}"));
             }
         }
 
-        if let Some(user) = self.current_package_user()
+        let status = if let Some(user) = self.current_package_user()
             && self.package_dirty_users.contains(user)
         {
-            lines.push("状态：当前用户有未保存修改".to_string());
+            "状态：当前用户有未保存修改".to_string()
         } else {
-            lines.push("状态：当前用户没有未保存修改".to_string());
-        }
+            "状态：当前用户没有未保存修改".to_string()
+        };
 
         let guard_errors = self.current_package_managed_guard_errors();
-        if self.current_package_user().is_none() {
-            lines.push("受管保护：无可用目标".to_string());
+        let managed_guard = if self.current_package_user().is_none() {
+            EditCheckModel {
+                summary: "受管保护：无可用目标".to_string(),
+                details: Vec::new(),
+            }
         } else if guard_errors.is_empty() {
-            lines.push("受管保护：通过".to_string());
+            EditCheckModel {
+                summary: "受管保护：通过".to_string(),
+                details: Vec::new(),
+            }
         } else {
-            lines.push("受管保护：存在问题".to_string());
-            for err in guard_errors {
-                lines.push(format!("- {err}"));
+            EditCheckModel {
+                summary: "受管保护：存在问题".to_string(),
+                details: guard_errors
+                    .into_iter()
+                    .map(|err| format!("- {err}"))
+                    .collect(),
+            }
+        };
+
+        EditSummaryModel {
+            header_lines,
+            focused_row: None,
+            field_lines,
+            detail: EditDetailModel {
+                status,
+                validation: None,
+                managed_guard,
+                notes: Vec::new(),
+            },
+        }
+    }
+
+    pub(crate) fn package_list_model(&self) -> PackageListModel {
+        let title = format!("Packages ({})", self.current_package_mode_label());
+        let filtered = self.package_filtered_indices();
+        if filtered.is_empty() {
+            let empty_text = if self.current_package_mode() == PackageDataMode::Search {
+                "当前搜索条件下没有结果。\n\n尝试：\n- 按 / 输入关键词\n- Enter 或 r 刷新 nixpkgs 搜索\n- 按 f 切回本地覆盖层"
+            } else {
+                "当前过滤条件下没有可选软件。\n\n尝试：\n- 切换分类\n- 清空搜索\n- 按 f 切到 nixpkgs 搜索"
+            };
+            return PackageListModel {
+                title,
+                empty_text: Some(empty_text.to_string()),
+                items: Vec::new(),
+                selected_index: None,
+            };
+        }
+
+        let items = filtered
+            .iter()
+            .filter_map(|index| self.context.catalog_entries.get(*index))
+            .map(|entry| {
+                let selected = self
+                    .current_package_user()
+                    .and_then(|user| self.package_user_selections.get(user))
+                    .is_some_and(|set| set.contains_key(&entry.id));
+                let group = if selected {
+                    self.effective_selected_group(entry)
+                } else {
+                    entry.group_key().to_string()
+                };
+                PackageListItemModel {
+                    selected,
+                    name: entry.name.clone(),
+                    category: entry.category.clone(),
+                    group_label: self.package_group_display(&group),
+                }
+            })
+            .collect();
+
+        PackageListModel {
+            title,
+            empty_text: None,
+            items,
+            selected_index: Some(self.package_cursor),
+        }
+    }
+
+    pub(crate) fn package_selection_model(&self) -> PackageSelectionModel {
+        let mut current_entry_fields = Vec::new();
+        if let Some(entry) = self.current_package_entry() {
+            current_entry_fields.push(EditRow {
+                label: "当前条目".to_string(),
+                value: entry.name.clone(),
+            });
+            current_entry_fields.push(EditRow {
+                label: "id".to_string(),
+                value: entry.id.clone(),
+            });
+            current_entry_fields.push(EditRow {
+                label: "分类".to_string(),
+                value: entry.category.clone(),
+            });
+            current_entry_fields.push(EditRow {
+                label: "来源".to_string(),
+                value: entry.source_label().to_string(),
+            });
+            if let Some(group) = self.package_group_for_current_entry() {
+                current_entry_fields.push(EditRow {
+                    label: "目标组".to_string(),
+                    value: self.package_group_display(&group),
+                });
+                if let Some(description) = self.package_group_description(&group) {
+                    current_entry_fields.push(EditRow {
+                        label: "组说明".to_string(),
+                        value: description.to_string(),
+                    });
+                }
+            }
+            current_entry_fields.push(EditRow {
+                label: "表达式".to_string(),
+                value: entry.expr.clone(),
+            });
+            if let Some(description) = &entry.description {
+                current_entry_fields.push(EditRow {
+                    label: "说明".to_string(),
+                    value: description.clone(),
+                });
+            }
+            if !entry.platforms.is_empty() {
+                current_entry_fields.push(EditRow {
+                    label: "平台".to_string(),
+                    value: entry.platforms.join(", "),
+                });
+            }
+            if !entry.keywords.is_empty() {
+                current_entry_fields.push(EditRow {
+                    label: "关键词".to_string(),
+                    value: entry.keywords.join(", "),
+                });
+            }
+            if let Some(flag) = &entry.desktop_entry_flag {
+                current_entry_fields.push(EditRow {
+                    label: "桌面入口 flag".to_string(),
+                    value: flag.clone(),
+                });
+            }
+            if let Some(group) = self.current_selected_group_name() {
+                current_entry_fields.push(EditRow {
+                    label: "当前组成员数".to_string(),
+                    value: self.current_selected_group_member_count().to_string(),
+                });
+                current_entry_fields.push(EditRow {
+                    label: "当前整组操作对象".to_string(),
+                    value: group,
+                });
             }
         }
 
-        lines
+        let current_group = self.package_group_for_current_entry();
+        let filter_group = self.current_package_group_filter();
+        let group_rows = self
+            .package_groups_overview()
+            .into_iter()
+            .map(|(group, count)| PackageGroupOverviewRow {
+                group_label: self.package_group_display(&group),
+                count,
+                filter_selected: filter_group == Some(group.as_str()),
+                current_selected: current_group.as_deref() == Some(group.as_str()),
+            })
+            .collect();
+
+        let selected_rows = self
+            .package_selected_entries()
+            .into_iter()
+            .map(|entry| {
+                let group = self.effective_selected_group(entry);
+                PackageSelectedEntryRow {
+                    name: entry.name.clone(),
+                    category: entry.category.clone(),
+                    group_label: self.package_group_display(&group),
+                }
+            })
+            .collect();
+
+        PackageSelectionModel {
+            current_entry_fields,
+            group_rows,
+            selected_rows,
+            status: self.status.clone(),
+        }
     }
 
     pub fn current_package_managed_guard_errors(&self) -> Vec<String> {
@@ -310,7 +492,7 @@ mod tests {
         )?;
 
         let state = test_state(&root);
-        let lines = state.package_summary_lines();
+        let lines = state.package_summary_model().lines();
 
         assert!(lines.iter().any(|line| line == "受管保护：存在问题"));
         assert!(
@@ -321,6 +503,77 @@ mod tests {
 
         std::fs::remove_dir_all(root)?;
         Ok(())
+    }
+
+    #[test]
+    fn package_page_model_assembles_summary_list_and_selection() {
+        let mut state = test_state(Path::new("/tmp/demo-package-page"));
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+
+        let model = state.package_page_model();
+
+        assert_eq!(model.summary.header_lines[0], "数据源：本地覆盖/已声明");
+        assert_eq!(model.list.title, "Packages (本地覆盖/已声明)");
+        assert!(
+            model
+                .selection
+                .selected_rows
+                .iter()
+                .any(|row| row.name == "Hello")
+        );
+    }
+
+    #[test]
+    fn package_selection_model_tracks_current_group_and_selected_rows() {
+        let mut state = test_state(Path::new("/tmp/demo-selection"));
+        state.package_group_filter = Some("misc".to_string());
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+
+        let model = state.package_selection_model();
+
+        assert!(
+            model
+                .current_entry_fields
+                .iter()
+                .any(|row| row.label == "目标组" && row.value == "misc")
+        );
+        assert!(
+            model.group_rows.iter().any(|row| row.group_label == "misc"
+                && row.filter_selected
+                && row.current_selected)
+        );
+        assert!(
+            model
+                .selected_rows
+                .iter()
+                .any(|row| row.name == "Hello" && row.group_label == "misc")
+        );
+    }
+
+    #[test]
+    fn package_list_model_marks_selected_entry_and_group() {
+        let mut state = test_state(Path::new("/tmp/demo-package-list"));
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+
+        let model = state.package_list_model();
+
+        assert_eq!(model.title, "Packages (本地覆盖/已声明)");
+        assert_eq!(model.selected_index, Some(0));
+        assert!(
+            model
+                .items
+                .iter()
+                .any(|item| item.selected && item.name == "Hello" && item.group_label == "misc")
+        );
     }
 
     fn test_state(root: &Path) -> AppState {
@@ -355,13 +608,23 @@ mod tests {
                 catalog_sources: Vec::new(),
             },
             active_page: 0,
+            active_edit_page: 0,
             deploy_focus: 0,
+            advanced_deploy_focus: 0,
             target_host: "demo".to_string(),
             deploy_task: DeployTask::DirectDeploy,
             deploy_source: DeploySource::CurrentRepo,
+            deploy_source_ref: String::new(),
             deploy_action: DeployAction::Switch,
             flake_update: false,
+            advanced_target_host: "demo".to_string(),
+            advanced_deploy_task: DeployTask::DirectDeploy,
+            advanced_deploy_source: DeploySource::CurrentRepo,
+            advanced_deploy_source_ref: String::new(),
+            advanced_deploy_action: DeployAction::Switch,
+            advanced_flake_update: false,
             show_advanced: false,
+            deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
             users_text_mode: None,

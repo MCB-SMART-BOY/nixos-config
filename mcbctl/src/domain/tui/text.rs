@@ -27,6 +27,12 @@ pub enum UsersTextMode {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum DeployTextMode {
+    ApplyRemotePinnedRef,
+    AdvancedWizardRemotePinnedRef,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HostsTextMode {
     CustomSubstituters,
     CustomTrustedPublicKeys,
