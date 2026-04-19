@@ -11,6 +11,7 @@
 - `update-*`：上游 pin 检查和刷新
 - `repo-integrity` / `migrate-managed` / `extract-managed` / `migrate-hardware-config` / `lint-repo` / `doctor`：仓库检查与迁移
 - `release-bundle`：生成 release 预编译资产
+- `release-manifest`：生成机器可读的 release 资产清单
 
 ## 分层
 
@@ -116,6 +117,7 @@ nix run .#mcbctl -- migrate-hardware-config --host <host>
 
 ```bash
 cargo run --manifest-path mcbctl/Cargo.toml --release --bin mcbctl -- release-bundle --target x86_64-unknown-linux-gnu --bin-dir mcbctl/target/release --out-dir dist --version vX.Y.Z
+cargo run --manifest-path mcbctl/Cargo.toml --release --bin mcbctl -- release-manifest --version vX.Y.Z
 ```
 
 ## 修改建议

@@ -3,6 +3,7 @@ pub enum PackageTextMode {
     Search,
     CreateGroup,
     RenameGroup,
+    ConfirmWorkflowAdd,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -278,6 +278,10 @@ impl AppState {
                 "状态：当前主机的运行时分片没有未保存修改".to_string()
             }
         };
+        let action_summary = self.edit_action_summary(
+            UiFeedbackScope::Hosts,
+            "复查 Hosts Summary，确认后按 s 保存。",
+        );
 
         let errors = self.current_host_runtime_validation_errors();
         let validation = if errors.is_empty() {
@@ -322,6 +326,7 @@ impl AppState {
             field_lines: Vec::new(),
             detail: EditDetailModel {
                 status,
+                action_summary,
                 validation: Some(validation),
                 managed_guard,
                 notes,
@@ -410,9 +415,11 @@ mod tests {
                 catalog_path: root.join("catalog/packages"),
                 catalog_groups_path: root.join("catalog/groups.toml"),
                 catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_workflows_path: root.join("catalog/workflows.toml"),
                 catalog_entries: Vec::new(),
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -432,7 +439,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -449,12 +456,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -463,7 +472,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

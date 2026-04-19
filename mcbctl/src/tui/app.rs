@@ -17,7 +17,6 @@ type CrosstermTerminal = Terminal<ratatui::backend::CrosstermBackend<Stdout>>;
 enum DashboardKeyOutcome {
     NotHandled,
     Routed,
-    RunApply,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,6 +68,7 @@ fn run_loop(terminal: &mut CrosstermTerminal, state: &mut AppState) -> Result<()
 
         match key.code {
             KeyCode::Char('q') => break,
+            _ if handle_help_overlay_key(state, key.code, key.modifiers) => {}
             _ if handle_shell_navigation_key(state, key.code, key.modifiers) => {}
             _ => handle_page_key(terminal, state, key.code, key.modifiers)?,
         }
@@ -87,6 +87,9 @@ fn handle_text_input(state: &mut AppState, code: KeyCode, modifiers: KeyModifier
                 Some(PackageTextMode::Search) => state.handle_search_input(code),
                 Some(PackageTextMode::CreateGroup) => state.handle_group_input(code),
                 Some(PackageTextMode::RenameGroup) => state.handle_group_input(code),
+                Some(PackageTextMode::ConfirmWorkflowAdd) => {
+                    state.handle_workflow_add_confirm_input(code)
+                }
                 None => {}
             }
             Ok(())
@@ -152,9 +155,6 @@ fn handle_page_key(
     match state.page() {
         Page::Dashboard => match handle_dashboard_key(state, code) {
             DashboardKeyOutcome::NotHandled | DashboardKeyOutcome::Routed => {}
-            DashboardKeyOutcome::RunApply => {
-                run_foreground_task(terminal, state, "Apply", |state| state.execute_deploy())?
-            }
         },
         Page::Deploy => match code {
             KeyCode::Down | KeyCode::Char('j') => state.next_apply_control(),
@@ -184,7 +184,7 @@ fn handle_page_key(
             KeyCode::Char('R') => state.refresh_overview_health(),
             KeyCode::Char('x') => run_foreground_task(terminal, state, "Inspect", |state| {
                 state.ensure_inspect_action_focus();
-                state.execute_current_action()
+                state.execute_current_inspect_action()
             })?,
             _ => {}
         },
@@ -221,6 +221,9 @@ fn handle_page_key(
             KeyCode::Char(']') | KeyCode::Char('l') => state.next_package_category(),
             KeyCode::Char('u') => state.adjust_package_source_filter(-1),
             KeyCode::Char('i') => state.adjust_package_source_filter(1),
+            KeyCode::Char('o') => state.adjust_package_workflow_filter(-1),
+            KeyCode::Char('p') => state.adjust_package_workflow_filter(1),
+            KeyCode::Char('A') => state.open_current_workflow_missing_packages_confirm(),
             KeyCode::Char('g') => state.adjust_current_package_group(-1),
             KeyCode::Char('G') => state.adjust_current_package_group(1),
             KeyCode::Char('m') => state.move_current_selected_group(-1),
@@ -247,15 +250,6 @@ fn handle_page_key(
             KeyCode::Char('s') => state.save_current_home_settings()?,
             _ => {}
         },
-        Page::Actions => match code {
-            KeyCode::Down | KeyCode::Char('j') => state.next_action_item(),
-            KeyCode::Up | KeyCode::Char('k') => state.previous_action_item(),
-            KeyCode::Enter | KeyCode::Char(' ') => state.open_current_action_destination(),
-            KeyCode::Char('x') => run_foreground_task(terminal, state, "Actions", |state| {
-                state.execute_current_action_from_actions()
-            })?,
-            _ => {}
-        },
     }
     Ok(())
 }
@@ -278,6 +272,30 @@ fn handle_shell_navigation_key(
     }
 }
 
+fn handle_help_overlay_key(state: &mut AppState, code: KeyCode, modifiers: KeyModifiers) -> bool {
+    if modifiers.contains(KeyModifiers::CONTROL) {
+        return false;
+    }
+
+    if matches!(code, KeyCode::Char('?')) {
+        state.toggle_help_overlay();
+        return true;
+    }
+
+    if state.help_overlay_visible() {
+        match code {
+            KeyCode::Esc => {
+                state.close_help_overlay();
+                true
+            }
+            KeyCode::Tab | KeyCode::BackTab => false,
+            _ => true,
+        }
+    } else {
+        false
+    }
+}
+
 fn handle_dashboard_key(state: &mut AppState, code: KeyCode) -> DashboardKeyOutcome {
     match code {
         KeyCode::Enter | KeyCode::Char(' ') => {
@@ -293,12 +311,8 @@ fn handle_dashboard_key(state: &mut AppState, code: KeyCode) -> DashboardKeyOutc
             DashboardKeyOutcome::Routed
         }
         KeyCode::Char('a') => {
-            if state.apply_model().can_apply_current_host {
-                DashboardKeyOutcome::RunApply
-            } else {
-                state.open_overview_primary_action();
-                DashboardKeyOutcome::Routed
-            }
+            state.open_overview_apply();
+            DashboardKeyOutcome::Routed
         }
         KeyCode::Char('r') => {
             state.refresh_overview_repo_integrity();
@@ -413,7 +427,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn dashboard_enter_routes_to_advanced_when_primary_action_requires_handoff() {
+    fn dashboard_enter_routes_handoff_state_to_apply_preview() {
         let mut state = test_state("sudo-available");
         state.deploy_source = DeploySource::RemoteHead;
         state.deploy_focus = 6;
@@ -422,31 +436,51 @@ mod tests {
             handle_dashboard_key(&mut state, KeyCode::Enter),
             DashboardKeyOutcome::Routed
         );
-        assert_eq!(state.page(), Page::Advanced);
+        assert_eq!(state.page(), Page::Deploy);
         assert_eq!(
             state.feedback.scope,
-            crate::tui::state::UiFeedbackScope::Advanced
+            crate::tui::state::UiFeedbackScope::Apply
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 已跳到 Advanced，并对准 launch deploy wizard。推荐原因：当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+            "Overview 已进入 Apply 预览；当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Advanced 里先确认 Deploy Parameters，再执行 launch deploy wizard")
+            Some("在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard")
+        );
+        match state.deploy_page_model() {
+            DeployPageModel::Apply(model) => {
+                assert_eq!(model.controls.focused_row.label, "目标主机");
+                assert_eq!(model.controls.focused_row.value, "demo");
+            }
+            other => panic!("expected apply page model, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn dashboard_space_routes_to_apply_preview_like_enter() {
+        let mut state = test_state("sudo-available");
+        state.deploy_source = DeploySource::RemoteHead;
+        state.deploy_focus = 6;
+
+        assert_eq!(
+            handle_dashboard_key(&mut state, KeyCode::Char(' ')),
+            DashboardKeyOutcome::Routed
+        );
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(
+            state.feedback.scope,
+            crate::tui::state::UiFeedbackScope::Apply
         );
         assert_eq!(
-            state.current_advanced_action(),
-            ActionItem::LaunchDeployWizard
+            state.feedback.message,
+            "Overview 已进入 Apply 预览；当前来源是远端最新版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
         );
-        assert_eq!(state.advanced_deploy_focus, 2);
-        match state.deploy_page_model() {
-            DeployPageModel::AdvancedWizard(model) => {
-                assert_eq!(model.controls.focused_row.label, "来源");
-                assert_eq!(model.controls.focused_row.value, "远端最新版本");
-            }
-            other => panic!("expected advanced wizard page model, got {other:?}"),
-        }
+        assert_eq!(
+            state.feedback.next_step.as_deref(),
+            Some("在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard")
+        );
     }
 
     #[test]
@@ -460,71 +494,76 @@ mod tests {
             handle_dashboard_key(&mut state, KeyCode::Char('a')),
             DashboardKeyOutcome::Routed
         );
-        assert_eq!(state.page(), Page::Advanced);
+        assert_eq!(state.page(), Page::Deploy);
         assert_eq!(
             state.feedback.scope,
-            crate::tui::state::UiFeedbackScope::Advanced
+            crate::tui::state::UiFeedbackScope::Apply
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 已跳到 Advanced，并对准 launch deploy wizard。推荐原因：当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+            "Overview 已进入 Apply 预览；当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Advanced 里先确认 Deploy Parameters，再执行 launch deploy wizard")
+            Some("在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard")
         );
-        assert_eq!(state.advanced_deploy_focus, 3);
         match state.deploy_page_model() {
-            DeployPageModel::AdvancedWizard(model) => {
-                assert_eq!(model.controls.focused_row.label, "固定 ref");
-                assert_eq!(model.controls.focused_row.value, "v5.0.0");
+            DeployPageModel::Apply(model) => {
+                assert_eq!(model.controls.focused_row.label, "目标主机");
+                assert_eq!(model.controls.focused_row.value, "demo");
             }
-            other => panic!("expected advanced wizard page model, got {other:?}"),
+            other => panic!("expected apply page model, got {other:?}"),
         }
     }
 
     #[test]
-    fn dashboard_enter_routes_to_inspect_with_repo_integrity_reason() {
+    fn dashboard_enter_keeps_repo_integrity_failure_on_apply_preview_path() {
         let mut state = test_state("sudo-available");
         state.overview_repo_integrity = OverviewCheckState::Error {
             summary: "failed (1 finding(s))".to_string(),
             details: vec!["- [rule] path: detail".to_string()],
         };
-        state.actions_focus = 4;
 
         assert_eq!(
             handle_dashboard_key(&mut state, KeyCode::Enter),
             DashboardKeyOutcome::Routed
         );
-        assert_eq!(state.page(), Page::Inspect);
+        assert_eq!(state.page(), Page::Deploy);
         assert_eq!(
             state.feedback.scope,
-            crate::tui::state::UiFeedbackScope::Inspect
+            crate::tui::state::UiFeedbackScope::Apply
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 推荐先进入 Inspect 处理 repo-integrity（failed (1 finding(s))）。"
+            "Overview 已进入 Apply 预览；当前组合仍有 blocker：repo-integrity 当前失败：failed (1 finding(s))。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Inspect 先看 repo-integrity，再决定是否执行 flake check")
+            Some("在 Apply 先看 blocker / warning，再决定是否调整 Apply 项")
         );
-        let inspect = state.inspect_model();
-        assert_eq!(inspect.detail.action, ActionItem::FlakeCheck);
-        assert_eq!(inspect.repo_integrity, state.overview_repo_integrity);
-        assert_eq!(inspect.detail.label, "flake check");
     }
 
     #[test]
-    fn dashboard_a_requests_direct_apply_when_current_host_is_ready() {
+    fn dashboard_a_routes_to_apply_preview_when_current_host_is_ready() {
         let mut state = test_state("sudo-available");
 
         assert_eq!(
             handle_dashboard_key(&mut state, KeyCode::Char('a')),
-            DashboardKeyOutcome::RunApply
+            DashboardKeyOutcome::Routed
         );
-        assert_eq!(state.page(), Page::Dashboard);
-        assert_eq!(state.feedback, UiFeedback::default());
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(
+            state.feedback.scope,
+            crate::tui::state::UiFeedbackScope::Apply
+        );
+        assert_eq!(
+            state.feedback.message,
+            "Overview 已进入 Apply 预览；当前组合可直接执行。"
+        );
+        assert_eq!(
+            state.feedback.next_step.as_deref(),
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
+        );
     }
 
     #[test]
@@ -542,11 +581,11 @@ mod tests {
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 已把你带到 Apply；当前组合可直接执行。"
+            "Overview 已进入 Apply 预览；当前组合可直接执行。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Apply 查看预览，或按 a / x 直接运行")
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
     }
 
@@ -565,11 +604,11 @@ mod tests {
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 已把你带到 Apply；当前组合可直接执行。"
+            "Overview 已进入 Apply 预览；当前组合可直接执行。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Apply 查看预览，或按 a / x 直接运行")
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
 
         state.open_overview();
@@ -606,7 +645,7 @@ mod tests {
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 已跳到 Apply；当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+            "Overview 已进入 Apply 预览；当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
@@ -615,23 +654,24 @@ mod tests {
     }
 
     #[test]
-    fn dashboard_shortcut_p_ignores_stale_apply_workspace_when_reentering_apply() {
+    fn dashboard_shortcut_p_ignores_stale_advanced_state_when_reentering_apply() {
         let mut state = test_state("sudo-available");
-        state.show_advanced = true;
+        state.open_advanced();
+        state.advanced_deploy_source = DeploySource::RemotePinned;
+        state.advanced_deploy_source_ref = "v5.0.0".to_string();
 
         assert_eq!(
             handle_dashboard_key(&mut state, KeyCode::Char('p')),
             DashboardKeyOutcome::Routed
         );
         assert_eq!(state.page(), Page::Deploy);
-        assert!(!state.show_advanced);
         assert_eq!(
             state.feedback.message,
-            "Overview 已把你带到 Apply；当前组合可直接执行。"
+            "Overview 已进入 Apply 预览；当前组合可直接执行。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Apply 查看预览，或按 a / x 直接运行")
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
     }
 
@@ -707,17 +747,76 @@ mod tests {
     }
 
     #[test]
+    fn help_shortcut_toggles_overlay_without_changing_page() {
+        let mut state = test_state("sudo-available");
+
+        assert!(handle_help_overlay_key(
+            &mut state,
+            KeyCode::Char('?'),
+            KeyModifiers::NONE
+        ));
+        assert!(state.help_overlay_visible());
+        assert_eq!(state.page(), Page::Dashboard);
+
+        assert!(handle_help_overlay_key(
+            &mut state,
+            KeyCode::Char('?'),
+            KeyModifiers::NONE
+        ));
+        assert!(!state.help_overlay_visible());
+    }
+
+    #[test]
+    fn help_overlay_blocks_page_actions_until_closed() {
+        let mut state = test_state("sudo-available");
+        state.toggle_help_overlay();
+
+        assert!(handle_help_overlay_key(
+            &mut state,
+            KeyCode::Enter,
+            KeyModifiers::NONE
+        ));
+        assert!(state.help_overlay_visible());
+        assert_eq!(state.page(), Page::Dashboard);
+
+        assert!(handle_help_overlay_key(
+            &mut state,
+            KeyCode::Esc,
+            KeyModifiers::NONE
+        ));
+        assert!(!state.help_overlay_visible());
+        assert_eq!(state.page(), Page::Dashboard);
+    }
+
+    #[test]
+    fn help_overlay_keeps_shell_navigation_available() {
+        let mut state = test_state("sudo-available");
+        state.toggle_help_overlay();
+
+        assert!(!handle_help_overlay_key(
+            &mut state,
+            KeyCode::Tab,
+            KeyModifiers::NONE
+        ));
+        assert!(handle_shell_navigation_key(
+            &mut state,
+            KeyCode::Tab,
+            KeyModifiers::NONE
+        ));
+        assert_eq!(state.top_level_page(), TopLevelPage::Edit);
+        assert!(state.help_overlay_visible());
+    }
+
+    #[test]
     fn advanced_b_returns_to_apply_with_aligned_feedback() {
         let mut state = test_state("sudo-available");
         state.open_advanced();
-        state.show_advanced = true;
 
         assert_eq!(
             handle_advanced_key(&mut state, KeyCode::Char('b')),
             AdvancedKeyOutcome::Routed
         );
         assert_eq!(state.page(), Page::Deploy);
-        assert!(!state.show_advanced);
         assert_eq!(
             state.feedback.scope,
             crate::tui::state::UiFeedbackScope::Apply
@@ -728,8 +827,42 @@ mod tests {
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Apply 查看预览，或按 a / x 直接运行")
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
+    }
+
+    #[test]
+    fn advanced_maintenance_enter_and_space_do_not_trigger_run_action() {
+        let mut state = test_state("sudo-available");
+        state.open_advanced();
+
+        assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
+        assert_eq!(
+            handle_advanced_key(&mut state, KeyCode::Enter),
+            AdvancedKeyOutcome::Routed
+        );
+        assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
+        assert_eq!(
+            handle_advanced_key(&mut state, KeyCode::Char(' ')),
+            AdvancedKeyOutcome::Routed
+        );
+        assert_eq!(state.current_advanced_action(), ActionItem::FlakeUpdate);
+    }
+
+    #[test]
+    fn advanced_wizard_enter_adjusts_parameters_instead_of_running_action() {
+        let mut state = test_state("sudo-available");
+        state.open_advanced();
+        state.advanced_action = ActionItem::LaunchDeployWizard;
+        state.advanced_deploy_focus = 2;
+
+        let before = state.advanced_deploy_source;
+
+        assert_eq!(
+            handle_advanced_key(&mut state, KeyCode::Enter),
+            AdvancedKeyOutcome::Routed
+        );
+        assert_ne!(state.advanced_deploy_source, before);
     }
 
     fn test_state(privilege_mode: &str) -> AppState {
@@ -757,9 +890,11 @@ mod tests {
                 catalog_path: PathBuf::from("catalog/packages"),
                 catalog_groups_path: PathBuf::from("catalog/groups.toml"),
                 catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+                catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
                 catalog_entries: Vec::new(),
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -787,7 +922,7 @@ mod tests {
                 DeployAction::Switch
             },
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -804,12 +939,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -818,7 +955,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::Healthy {
                 summary: "ok".to_string(),
                 details: Vec::new(),

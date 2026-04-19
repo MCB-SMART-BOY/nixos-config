@@ -7,9 +7,11 @@ impl AppState {
         self.package_group_rename_source.clear();
         self.package_group_input.clear();
         self.package_search_mode = true;
-        self.status =
-            "Packages 搜索已进入输入模式；搜索模式下 Enter 会刷新 nixpkgs 结果，Esc 退出。"
-                .to_string();
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Info,
+            "Packages 搜索输入已打开。",
+            self.package_search_next_step(),
+        );
     }
 
     pub fn handle_search_input(&mut self, code: crossterm::event::KeyCode) {
@@ -20,13 +22,21 @@ impl AppState {
                     self.refresh_package_search_results();
                 } else {
                     self.clamp_package_cursor();
-                    self.status = "Packages 搜索输入结束。".to_string();
+                    self.set_package_feedback_with_next_step(
+                        UiFeedbackLevel::Info,
+                        "Packages 搜索输入结束。",
+                        self.package_browse_next_step(),
+                    );
                 }
             }
             crossterm::event::KeyCode::Esc => {
                 self.package_search_mode = false;
                 self.clamp_package_cursor();
-                self.status = "Packages 搜索输入结束。".to_string();
+                self.set_package_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    "Packages 搜索输入结束。",
+                    self.package_browse_next_step(),
+                );
             }
             crossterm::event::KeyCode::Backspace => {
                 self.package_search.pop();
@@ -50,7 +60,11 @@ impl AppState {
             self.package_search_result_indices.clear();
         }
         self.clamp_package_cursor();
-        self.status = "已清空 Packages 搜索条件。".to_string();
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Info,
+            "Packages 已清空搜索条件。",
+            self.package_browse_next_step(),
+        );
     }
 
     pub fn toggle_package_mode(&mut self) {
@@ -60,29 +74,45 @@ impl AppState {
         };
         self.package_category_index = 0;
         self.package_source_filter = None;
+        self.package_workflow_filter = None;
         if self.package_mode == PackageDataMode::Search {
             if self.package_search.trim().is_empty() {
-                self.status =
-                    "已切到 nixpkgs 搜索模式；按 / 输入关键词，Enter 刷新搜索结果。".to_string();
+                self.set_package_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    "Packages 已切到 nixpkgs 搜索模式。",
+                    self.package_search_next_step(),
+                );
             } else {
                 self.refresh_package_search_results();
                 return;
             }
         } else {
-            self.status = "已切回本地覆盖层视图。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "Packages 已切回本地覆盖/已声明视图。",
+                self.package_browse_next_step(),
+            );
         }
         self.clamp_package_cursor();
     }
 
     pub fn refresh_package_search_results(&mut self) {
         if self.package_mode != PackageDataMode::Search {
-            self.status = "当前不在 nixpkgs 搜索模式。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "Packages 当前不在 nixpkgs 搜索模式。",
+                "按 f 切到搜索模式后再刷新。",
+            );
             return;
         }
         let query = self.package_search.trim().to_string();
         if query.is_empty() {
             self.package_search_result_indices.clear();
-            self.status = "请输入关键词后再刷新 nixpkgs 搜索。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Warning,
+                "Packages 请输入关键词后再刷新 nixpkgs 搜索。",
+                self.package_search_next_step(),
+            );
             self.clamp_package_cursor();
             return;
         }
@@ -92,12 +122,20 @@ impl AppState {
                 let count = entries.len();
                 self.package_search_result_indices = self.merge_catalog_entries(entries, false);
                 self.clamp_package_cursor();
-                self.status = format!("nixpkgs 搜索完成：{query}，得到 {count} 条结果。");
+                self.set_package_feedback_with_next_step(
+                    UiFeedbackLevel::Success,
+                    format!("Packages 已刷新 nixpkgs 搜索：{query}（{count} 条结果）。"),
+                    "继续浏览结果，或修改关键词后再按 Enter / r 刷新。",
+                );
             }
             Err(err) => {
                 self.package_search_result_indices.clear();
                 self.clamp_package_cursor();
-                self.status = format!("nixpkgs 搜索失败：{err}");
+                self.set_package_feedback_with_next_step(
+                    UiFeedbackLevel::Error,
+                    format!("Packages nixpkgs 搜索失败：{err}"),
+                    "检查网络或搜索词后重试。",
+                );
             }
         }
     }

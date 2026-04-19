@@ -47,6 +47,18 @@ description = "LSP、格式化器、静态检查与语言辅助工具。"
 order = 80
 
 [[group]]
+id = "ai-tools"
+label = "AI 工具"
+description = "本地模型运行、提示与 AI 终端辅助工具。"
+order = 85
+
+[[group]]
+id = "cloud-containers"
+label = "容器与云原生"
+description = "容器、镜像、Kubernetes 与集群运维工具。"
+order = 88
+
+[[group]]
 id = "database-tools"
 label = "数据库工具"
 description = "数据库客户端与相关辅助工具。"
@@ -81,6 +93,12 @@ id = "creation"
 label = "内容创作"
 description = "音视频创作、录制与制作相关工具。"
 order = 140
+
+[[group]]
+id = "security-tools"
+label = "安全与密钥"
+description = "加密、密钥管理与硬件安全相关工具。"
+order = 145
 
 [[group]]
 id = "life-tools"

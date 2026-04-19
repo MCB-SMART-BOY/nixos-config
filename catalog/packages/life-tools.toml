@@ -9,6 +9,8 @@ group = "life-tools"
 expr = "pkgs.keepassxc"
 description = "密码管理器。"
 keywords = ["password", "vault", "security"]
+workflow_tags = ["security"]
+lifecycle = "stable"
 source = "nixpkgs"
 
 [[package]]

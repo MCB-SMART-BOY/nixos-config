@@ -10,7 +10,7 @@ pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
         frame,
         area,
         &format!(
-            "Home Settings ({})",
+            "Home ({})",
             state.current_home_user().unwrap_or("无可用用户")
         ),
         &page_model,
@@ -24,7 +24,7 @@ fn render_with_model(frame: &mut Frame, area: Rect, list_title: &str, page_model
         EditPageConfig {
             left_percentage: 42,
             list_title: list_title.to_string(),
-            summary_title: "Settings Preview",
+            summary_title: "Home Summary",
             label_width: 20,
         },
         page_model,
@@ -53,6 +53,7 @@ mod tests {
                 field_lines: vec!["Noctalia：default".to_string()],
                 detail: EditDetailModel {
                     status: "状态：当前用户没有未保存修改".to_string(),
+                    action_summary: None,
                     validation: None,
                     managed_guard: EditCheckModel {
                         summary: "受管保护：通过".to_string(),
@@ -64,16 +65,53 @@ mod tests {
         };
 
         let text = render_view_text(120, 24, |frame| {
-            render_with_model(
-                frame,
-                Rect::new(0, 0, 120, 24),
-                "Home Settings (alice)",
-                &page_model,
-            )
+            render_with_model(frame, Rect::new(0, 0, 120, 24), "Home (alice)", &page_model)
         });
 
-        assert!(text.contains("Home Settings (alice)"));
-        assert!(text.contains("Settings Preview"));
+        assert!(text.contains("Home (alice)"));
+        assert!(text.contains("Home Summary"));
+    }
+
+    #[test]
+    fn render_with_model_keeps_titles_visible_on_narrow_width() {
+        let page_model = EditPageModel {
+            rows: vec![EditRow {
+                label: "Noctalia".to_string(),
+                value: "default".to_string(),
+            }],
+            selected: 0,
+            summary: EditSummaryModel {
+                header_lines: vec![
+                    "当前用户：alice".to_string(),
+                    "目标文件：/repo/home/users/alice/managed/settings/desktop.nix".to_string(),
+                ],
+                focused_row: None,
+                field_lines: vec!["Noctalia：default".to_string()],
+                detail: EditDetailModel {
+                    status: "状态：当前用户没有未保存修改".to_string(),
+                    action_summary: None,
+                    validation: None,
+                    managed_guard: EditCheckModel {
+                        summary: "受管保护：通过".to_string(),
+                        details: Vec::new(),
+                    },
+                    notes: vec![
+                        "当前阶段已接入的结构化设置：".to_string(),
+                        "- Noctalia：顶栏配置".to_string(),
+                        "这些内容只会写入 managed/settings/desktop.nix，不会直接改你的手写 config/。"
+                            .to_string(),
+                    ],
+                },
+            },
+        };
+
+        let text = render_view_text(80, 24, |frame| {
+            render_with_model(frame, Rect::new(0, 0, 80, 24), "Home (alice)", &page_model)
+        });
+
+        assert!(text.contains("Home (alice)"));
+        assert!(text.contains("Home Summary"));
+        assert!(text.contains("Noctalia"));
     }
 
     fn render_view_text(

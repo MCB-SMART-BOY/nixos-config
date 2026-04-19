@@ -19,7 +19,6 @@ pub enum UiFeedbackScope {
     Home,
     Users,
     Hosts,
-    Actions,
     Inspect,
     Advanced,
 }
@@ -94,9 +93,11 @@ pub struct AppContext {
     pub catalog_path: PathBuf,
     pub catalog_groups_path: PathBuf,
     pub catalog_home_options_path: PathBuf,
+    pub catalog_workflows_path: PathBuf,
     pub catalog_entries: Vec<CatalogEntry>,
     pub catalog_groups: BTreeMap<String, GroupMeta>,
     pub catalog_home_options: Vec<HomeOptionMeta>,
+    pub catalog_workflows: BTreeMap<String, WorkflowMeta>,
     pub catalog_categories: Vec<String>,
     pub catalog_sources: Vec<String>,
 }
@@ -115,9 +116,11 @@ impl AppContext {
         let catalog_path = repo_root.join("catalog/packages");
         let catalog_groups_path = repo_root.join("catalog/groups.toml");
         let catalog_home_options_path = repo_root.join("catalog/home-options.toml");
+        let catalog_workflows_path = repo_root.join("catalog/workflows.toml");
         let (catalog_entries, catalog_categories, catalog_sources) = load_catalog(&catalog_path);
         let catalog_groups = load_group_catalog(&catalog_groups_path);
         let catalog_home_options = load_home_options_catalog(&catalog_home_options_path);
+        let catalog_workflows = load_workflow_catalog(&catalog_workflows_path);
 
         Ok(Self {
             repo_root,
@@ -131,9 +134,11 @@ impl AppContext {
             catalog_path,
             catalog_groups_path,
             catalog_home_options_path,
+            catalog_workflows_path,
             catalog_entries,
             catalog_groups,
             catalog_home_options,
+            catalog_workflows,
             catalog_categories,
             catalog_sources,
         })
@@ -159,7 +164,9 @@ pub struct AppState {
     pub advanced_deploy_source_ref: String,
     pub advanced_deploy_action: DeployAction,
     pub advanced_flake_update: bool,
-    pub show_advanced: bool,
+    pub inspect_action: ActionItem,
+    pub advanced_action: ActionItem,
+    pub help_overlay_visible: bool,
     pub users_focus: usize,
     pub hosts_focus: usize,
     pub deploy_text_mode: Option<DeployTextMode>,
@@ -176,12 +183,14 @@ pub struct AppState {
     pub package_category_index: usize,
     pub package_group_filter: Option<String>,
     pub package_source_filter: Option<String>,
+    pub package_workflow_filter: Option<String>,
     pub package_search: String,
     pub package_search_result_indices: Vec<usize>,
     pub package_local_entry_ids: BTreeSet<String>,
     pub package_search_mode: bool,
     pub package_group_create_mode: bool,
     pub package_group_rename_mode: bool,
+    pub package_workflow_add_confirm_mode: bool,
     pub package_group_rename_source: String,
     pub package_group_input: String,
     pub package_user_selections: BTreeMap<String, BTreeMap<String, String>>,
@@ -190,7 +199,6 @@ pub struct AppState {
     pub home_focus: usize,
     pub home_settings_by_user: BTreeMap<String, HomeManagedSettings>,
     pub home_dirty_users: BTreeSet<String>,
-    pub actions_focus: usize,
     pub(crate) overview_repo_integrity: OverviewCheckState,
     pub(crate) overview_doctor: OverviewCheckState,
     pub(crate) feedback: UiFeedback,
@@ -271,7 +279,9 @@ impl AppState {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: deploy_action,
             advanced_flake_update: false,
-            show_advanced: false,
+            inspect_action: ActionItem::FlakeCheck,
+            advanced_action: ActionItem::FlakeUpdate,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -288,12 +298,14 @@ impl AppState {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids,
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections,
@@ -302,7 +314,6 @@ impl AppState {
             home_focus: 0,
             home_settings_by_user,
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
             overview_repo_integrity,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: initial_feedback.clone(),
@@ -328,14 +339,15 @@ impl AppState {
         }
     }
 
-    pub(crate) fn advanced_workspace_visible(&self) -> bool {
-        self.page() == Page::Advanced || self.show_advanced
-    }
-
     pub(crate) fn advanced_path_active(&self) -> bool {
-        self.advanced_workspace_visible()
+        self.page() == Page::Advanced
     }
 
+    pub(crate) fn help_overlay_visible(&self) -> bool {
+        self.help_overlay_visible
+    }
+
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn open_overview(&mut self) {
         self.set_top_level_page(TopLevelPage::Overview);
     }
@@ -362,6 +374,14 @@ impl AppState {
         self.set_top_level_page(TopLevelPage::Inspect);
     }
 
+    pub(crate) fn toggle_help_overlay(&mut self) {
+        self.help_overlay_visible = !self.help_overlay_visible;
+    }
+
+    pub(crate) fn close_help_overlay(&mut self) {
+        self.help_overlay_visible = false;
+    }
+
     pub(crate) fn set_top_level_page(&mut self, page: TopLevelPage) {
         if let Some(index) = TopLevelPage::ALL
             .iter()
@@ -371,21 +391,9 @@ impl AppState {
         }
 
         match page {
-            TopLevelPage::Overview | TopLevelPage::Edit => {}
-            TopLevelPage::Apply => self.show_advanced = false,
+            TopLevelPage::Overview | TopLevelPage::Edit | TopLevelPage::Apply => {}
             TopLevelPage::Advanced => self.ensure_advanced_action_focus(),
             TopLevelPage::Inspect => self.ensure_inspect_action_focus(),
-        }
-    }
-
-    pub(crate) fn set_page(&mut self, page: Page) {
-        match page {
-            Page::Dashboard => self.open_overview(),
-            Page::Deploy => self.open_apply(),
-            Page::Advanced => self.open_advanced(),
-            Page::Inspect => self.open_inspect(),
-            Page::Packages | Page::Home | Page::Users | Page::Hosts => self.open_edit_page(page),
-            Page::Actions => self.open_advanced(),
         }
     }
 
@@ -421,13 +429,16 @@ impl AppState {
         self.package_search_mode
             || self.package_group_create_mode
             || self.package_group_rename_mode
+            || self.package_workflow_add_confirm_mode
             || self.deploy_text_mode.is_some()
             || self.users_text_mode.is_some()
             || self.hosts_text_mode.is_some()
     }
 
     pub fn active_package_text_mode(&self) -> Option<PackageTextMode> {
-        if self.package_group_rename_mode {
+        if self.package_workflow_add_confirm_mode {
+            Some(PackageTextMode::ConfirmWorkflowAdd)
+        } else if self.package_group_rename_mode {
             Some(PackageTextMode::RenameGroup)
         } else if self.package_group_create_mode {
             Some(PackageTextMode::CreateGroup)
@@ -524,9 +535,11 @@ mod tests {
             catalog_path: PathBuf::from("catalog/packages"),
             catalog_groups_path: PathBuf::from("catalog/groups.toml"),
             catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
             catalog_entries: Vec::new(),
             catalog_groups: BTreeMap::new(),
             catalog_home_options: Vec::new(),
+            catalog_workflows: BTreeMap::new(),
             catalog_categories: Vec::new(),
             catalog_sources: Vec::new(),
         });
@@ -567,9 +580,11 @@ mod tests {
             catalog_path: PathBuf::from("catalog/packages"),
             catalog_groups_path: PathBuf::from("catalog/groups.toml"),
             catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
             catalog_entries: Vec::new(),
             catalog_groups: BTreeMap::new(),
             catalog_home_options: Vec::new(),
+            catalog_workflows: BTreeMap::new(),
             catalog_categories: Vec::new(),
             catalog_sources: Vec::new(),
         });
@@ -608,7 +623,7 @@ mod tests {
     }
 
     #[test]
-    fn top_level_shell_uses_edit_leaf_and_advanced_workspace() {
+    fn top_level_shell_uses_edit_leaf_and_top_level_advanced() {
         let mut state = AppState::new(AppContext {
             repo_root: PathBuf::from("/repo"),
             etc_root: PathBuf::from("/etc/nixos"),
@@ -621,9 +636,11 @@ mod tests {
             catalog_path: PathBuf::from("catalog/packages"),
             catalog_groups_path: PathBuf::from("catalog/groups.toml"),
             catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
             catalog_entries: Vec::new(),
             catalog_groups: BTreeMap::new(),
             catalog_home_options: Vec::new(),
+            catalog_workflows: BTreeMap::new(),
             catalog_categories: Vec::new(),
             catalog_sources: Vec::new(),
         });
@@ -635,12 +652,11 @@ mod tests {
         state.open_advanced();
         assert_eq!(state.top_level_page(), TopLevelPage::Advanced);
         assert_eq!(state.page(), Page::Advanced);
-        assert!(state.advanced_workspace_visible());
-        assert!(!state.show_advanced);
+        assert!(state.advanced_path_active());
 
         state.open_apply();
         assert_eq!(state.top_level_page(), TopLevelPage::Apply);
         assert_eq!(state.page(), Page::Deploy);
-        assert!(!state.show_advanced);
+        assert!(!state.advanced_path_active());
     }
 }

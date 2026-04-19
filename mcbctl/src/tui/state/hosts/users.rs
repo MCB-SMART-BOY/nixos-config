@@ -92,6 +92,10 @@ impl AppState {
                 "状态：当前主机的用户结构分片没有未保存修改".to_string()
             }
         };
+        let action_summary = self.edit_action_summary(
+            UiFeedbackScope::Users,
+            "复查 Users Summary，确认后按 s 保存。",
+        );
 
         let errors = self.current_host_user_validation_errors();
         let validation = if errors.is_empty() {
@@ -134,6 +138,7 @@ impl AppState {
             field_lines: Vec::new(),
             detail: EditDetailModel {
                 status,
+                action_summary,
                 validation: Some(validation),
                 managed_guard,
                 notes,
@@ -157,7 +162,10 @@ impl AppState {
         match self.users_focus {
             0 => self.switch_target_host(delta),
             1 => {
-                if self.block_when_current_host_settings_unavailable("无法调整主用户") {
+                if self.block_when_current_host_settings_unavailable(
+                    UiFeedbackScope::Users,
+                    "无法调整主用户",
+                ) {
                     return;
                 }
                 let candidates = self
@@ -171,7 +179,12 @@ impl AppState {
                     })
                     .unwrap_or_default();
                 if candidates.is_empty() {
-                    self.status = "当前没有可选用户。".to_string();
+                    self.set_feedback_with_next_step(
+                        UiFeedbackLevel::Warning,
+                        UiFeedbackScope::Users,
+                        "Users 当前没有可选用户。",
+                        "先补可用用户，再调整主用户。",
+                    );
                     return;
                 }
                 let current = self
@@ -182,9 +195,14 @@ impl AppState {
                     return;
                 };
                 let Some(settings) = self.current_host_settings_mut() else {
-                    self.status = format!(
-                        "无法调整主用户：{}",
-                        self.host_settings_unavailable_message(&self.target_host)
+                    self.set_feedback_with_next_step(
+                        UiFeedbackLevel::Error,
+                        UiFeedbackScope::Users,
+                        format!(
+                            "无法调整主用户：{}",
+                            self.host_settings_unavailable_message(&self.target_host)
+                        ),
+                        "先修复当前 host 的配置读取问题，再继续编辑。",
                     );
                     return;
                 };
@@ -193,10 +211,18 @@ impl AppState {
                     settings.users.insert(0, next.clone());
                 }
                 self.host_dirty_user_hosts.insert(self.target_host.clone());
-                self.status = format!("当前主用户已切换为：{next}");
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Success,
+                    UiFeedbackScope::Users,
+                    format!("Users 已把主用户切换为：{next}"),
+                    "复查 Users Summary，确认后按 s 保存。",
+                );
             }
             4 => {
-                if self.block_when_current_host_settings_unavailable("无法调整主机角色") {
+                if self.block_when_current_host_settings_unavailable(
+                    UiFeedbackScope::Users,
+                    "无法调整主机角色",
+                ) {
                     return;
                 }
                 let options = vec!["desktop".to_string(), "server".to_string()];
@@ -208,27 +234,47 @@ impl AppState {
                     return;
                 };
                 let Some(settings) = self.current_host_settings_mut() else {
-                    self.status = format!(
-                        "无法调整主机角色：{}",
-                        self.host_settings_unavailable_message(&self.target_host)
+                    self.set_feedback_with_next_step(
+                        UiFeedbackLevel::Error,
+                        UiFeedbackScope::Users,
+                        format!(
+                            "无法调整主机角色：{}",
+                            self.host_settings_unavailable_message(&self.target_host)
+                        ),
+                        "先修复当前 host 的配置读取问题，再继续编辑。",
                     );
                     return;
                 };
                 settings.host_role = next.clone();
                 self.host_dirty_user_hosts.insert(self.target_host.clone());
-                self.status = format!("当前主机角色已切换为：{next}");
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Success,
+                    UiFeedbackScope::Users,
+                    format!("Users 已把主机角色切换为：{next}"),
+                    "复查 Users Summary，确认后按 s 保存。",
+                );
             }
             5 => {
                 let Some(settings) = self.current_host_settings_mut() else {
-                    self.status = format!(
-                        "无法调整 user linger：{}",
-                        self.host_settings_unavailable_message(&self.target_host)
+                    self.set_feedback_with_next_step(
+                        UiFeedbackLevel::Error,
+                        UiFeedbackScope::Users,
+                        format!(
+                            "无法调整 user linger：{}",
+                            self.host_settings_unavailable_message(&self.target_host)
+                        ),
+                        "先修复当前 host 的配置读取问题，再继续编辑。",
                     );
                     return;
                 };
                 settings.user_linger = !settings.user_linger;
                 self.host_dirty_user_hosts.insert(self.target_host.clone());
-                self.status = "当前主机的 user linger 已切换。".to_string();
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Success,
+                    UiFeedbackScope::Users,
+                    "Users 已切换当前主机的 user linger。",
+                    "复查 Users Summary，确认后按 s 保存。",
+                );
             }
             _ => {}
         }
@@ -236,9 +282,14 @@ impl AppState {
 
     pub fn open_users_text_edit(&mut self) {
         let Some(settings) = self.current_host_settings().cloned() else {
-            self.status = format!(
-                "无法编辑用户结构：{}",
-                self.host_settings_unavailable_message(&self.target_host)
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Users,
+                format!(
+                    "无法编辑用户结构：{}",
+                    self.host_settings_unavailable_message(&self.target_host)
+                ),
+                "先修复当前 host 的配置读取问题，再继续编辑。",
             );
             return;
         };
@@ -280,15 +331,25 @@ impl AppState {
         let host = self.target_host.clone();
         let errors = self.host_configuration_validation_errors(&host);
         if !errors.is_empty() {
-            self.status = format!(
-                "当前主机的整机配置未通过校验，users 分片未写入：{}",
-                errors.join("；")
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Users,
+                format!(
+                    "当前主机的整机配置未通过校验，users 分片未写入：{}",
+                    errors.join("；")
+                ),
+                "先处理 Users Summary 里的校验或受管保护，再重试保存。",
             );
             return Ok(());
         }
 
         let Some(settings) = self.current_host_settings().cloned() else {
-            self.status = "没有可保存的主机用户结构。".to_string();
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Users,
+                "Users 没有可保存的主机用户结构。",
+                "先补可用 host 配置，再继续编辑。",
+            );
             return Ok(());
         };
 
@@ -299,12 +360,22 @@ impl AppState {
         {
             Ok(path) => path,
             Err(err) => {
-                self.status = format!("Users 未写入：{err:#}");
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Error,
+                    UiFeedbackScope::Users,
+                    format!("Users 未写入：{err:#}"),
+                    "先处理 Users Summary 里的受管保护，再重试保存。",
+                );
                 return Ok(());
             }
         };
         self.host_dirty_user_hosts.remove(&host);
-        self.status = format!("已写入 {}", users_path.display());
+        self.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Users,
+            format!("Users 已写入 {}", users_path.display()),
+            "继续编辑 Users，或切到 Apply / Overview 复查。",
+        );
         Ok(())
     }
 
@@ -316,9 +387,14 @@ impl AppState {
         let Some(settings) = self.current_host_settings_mut() else {
             self.users_text_mode = None;
             self.host_text_input.clear();
-            self.status = format!(
-                "无法确认用户结构编辑：{}",
-                self.host_settings_unavailable_message(&self.target_host)
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Users,
+                format!(
+                    "无法确认用户结构编辑：{}",
+                    self.host_settings_unavailable_message(&self.target_host)
+                ),
+                "先修复当前 host 的配置读取问题，再继续编辑。",
             );
             return;
         };
@@ -346,7 +422,12 @@ impl AppState {
         self.host_dirty_user_hosts.insert(self.target_host.clone());
         self.users_text_mode = None;
         self.host_text_input.clear();
-        self.status = "用户结构字段已更新。".to_string();
+        self.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Users,
+            "Users 已更新当前文本字段。",
+            "复查 Users Summary，确认后按 s 保存。",
+        );
     }
 
     fn current_host_user_validation_errors(&self) -> Vec<String> {
@@ -410,7 +491,8 @@ mod tests {
         assert!(state.host_dirty_user_hosts.contains("demo"));
         assert!(state.users_text_mode.is_none());
         assert!(state.host_text_input.is_empty());
-        assert_eq!(state.status, "用户结构字段已更新。");
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Users);
+        assert!(state.status.contains("Users 已更新当前文本字段"));
     }
 
     #[test]
@@ -548,6 +630,32 @@ mod tests {
     }
 
     #[test]
+    fn adjust_users_field_sets_users_feedback_and_summary_lines() -> Result<()> {
+        let root = create_temp_repo("mcbctl-host-users-feedback")?;
+        let mut state = test_state(&root);
+        state.users_focus = 1;
+
+        state.adjust_users_field(1);
+
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Users);
+        assert!(state.status.contains("Users 已把主用户切换为"));
+        let lines = state.users_summary_model().lines();
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("最近结果：Users 已把主用户切换为"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "下一步：复查 Users Summary，确认后按 s 保存。")
+        );
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
     fn adjust_users_field_refuses_to_modify_unavailable_host_settings() {
         let mut state = test_state(Path::new("/repo"));
         state.host_settings_by_name.clear();
@@ -581,9 +689,11 @@ mod tests {
                 catalog_path: root.join("catalog/packages"),
                 catalog_groups_path: root.join("catalog/groups.toml"),
                 catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_workflows_path: root.join("catalog/workflows.toml"),
                 catalog_entries: Vec::new(),
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -603,7 +713,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -620,12 +730,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -634,7 +746,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

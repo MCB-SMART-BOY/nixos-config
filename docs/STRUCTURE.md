@@ -95,8 +95,10 @@
 - `catalog/packages/*.toml`
 - `catalog/groups.toml`
 - `catalog/home-options.toml`
+- `catalog/workflows.toml`
 
 它不承担写回逻辑、网络访问或状态计算。
+它的价值也不在于重复 nixpkgs 官网搜索；当前主线里，`packages/*.toml` 更偏向项目自己的工作流、生命周期和 TUI 元数据层。
 
 ## `pkgs/`
 

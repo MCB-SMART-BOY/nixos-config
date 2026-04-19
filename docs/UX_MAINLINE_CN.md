@@ -81,6 +81,8 @@
 - 承接现有 `Packages / Home / Users / Hosts`
 - 继续保留受管写回和当前页校验
 - 强化当前页摘要、dirty、validate/save 状态
+- 在壳层直接显示 dirty 子页，不要求用户先切进去才知道哪一页未保存
+- 保持四页边界，但把页标题和当前目标对象绑定，减少跨页切换时的上下文重建
 
 ### 5.3 Apply
 
@@ -128,8 +130,8 @@
 | local repo             | rebuild switch succeeded             |
 | commit: abcdef0        | 2026-04-14 13:40                     |
 +---------------------------------------------------------------+
-| Primary Actions                                               |
-| [Preview Apply] [Apply Current Host] [Save Dirty Pages]      |
+| Overview Summary                                              |
+| status: can preview apply   next: open Apply preview          |
 +---------------------------------------------------------------+
 | Secondary Actions                                             |
 | [Open Edit] [Advanced] [Inspect] [Help]                      |
@@ -189,12 +191,11 @@ Overview
 - 关键命令预览
 - 当前阻塞项
 
-### 8.2 Apply 页按钮
+### 8.2 Apply 页动作
 
-- `Run Preview`
-- `Apply`
-- `Open Advanced`
-- `Back`
+- `Apply Current Host`
+- `Enter 进入 Advanced`
+- 顶层 shell 切页
 
 ### 8.3 Apply 页行为
 
@@ -204,10 +205,10 @@ Overview
 
 ## 9. Advanced 区设计
 
-现有完整 wizard 不删，但角色变化：
+现有完整 wizard 不删，但角色已经变化：
 
-- 现在是默认部署入口
-- 未来应变成专家路径
+- 不再是默认部署入口
+- 作为 `Advanced` 下的专家路径保留
 
 建议包含：
 
@@ -233,11 +234,11 @@ Overview
 | `Users` | `Edit` | 中 | 保留 |
 | `Hosts` | `Edit` | 中 | 保留 |
 | `Deploy` | `Apply` | 高 | 日用路径收口到这里 |
-| `Actions` | `Inspect` + `Apply` + `Advanced` | 中 | 需要拆职责 |
+| `Actions` | 历史过渡页 | 低 | 已拆除；动作已回到 `Inspect / Advanced`，`Apply` 只保留内部执行链 |
 
 ### 10.2 `Actions` 拆分建议
 
-当前 `Actions` 太杂，建议未来拆成：
+历史 `Actions` 已经拆散回归宿页；长期职责拆分保持为：
 
 - `Inspect`
   - repo-integrity
@@ -245,11 +246,12 @@ Overview
   - doctor
   - flake check
 - `Apply`
-  - sync current repo to `/etc/nixos`
-  - rebuild current host
+  - `Apply Preview`
+  - `Apply Current Host`
 - `Advanced`
+  - flake update
+  - update upstream pins
   - full deploy wizard
-  - release
 
 ## 11. 交互规范
 
@@ -279,6 +281,12 @@ Overview
   帮助
 
 重点不是具体键，而是同一语义在各页保持一致。
+
+帮助系统的默认形态也应统一：
+
+- 页脚只保留当前页最常用的短提示
+- 详细键位统一放进 `?` 帮助面板
+- `Esc` 在非输入模式下优先关闭帮助面板，在输入模式下继续表示取消当前输入
 
 ## 12. 文案原则
 

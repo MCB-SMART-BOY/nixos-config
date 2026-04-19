@@ -42,24 +42,26 @@ mod tests {
             render(frame, Rect::new(0, 0, 120, 40), &state)
         });
 
-        assert!(text.contains("Execution Gate"));
+        assert!(text.contains("Apply Summary"));
         assert!(text.contains("Apply Preview"));
         assert!(text.contains("Apply Controls"));
         assert!(!text.contains("Advanced Actions"));
     }
 
     #[test]
-    fn top_level_render_routes_apply_workspace_state_to_apply_page_with_workspace() {
+    fn top_level_render_routes_apply_page_stays_compact_after_returning_from_advanced() {
         let mut state = test_app_state();
-        state.show_advanced = true;
+        state.open_advanced();
+        state.return_from_advanced_to_apply();
 
         let text = render_view_text(120, 40, |frame| {
             render(frame, Rect::new(0, 0, 120, 40), &state)
         });
 
-        assert!(text.contains("Execution Gate"));
-        assert!(text.contains("Advanced Actions"));
-        assert!(text.contains("Advanced Detail"));
+        assert!(text.contains("Apply Summary"));
+        assert!(text.contains("Apply Controls"));
+        assert!(!text.contains("Advanced Actions"));
+        assert!(!text.contains("Advanced Detail"));
     }
 
     #[test]
@@ -82,7 +84,7 @@ mod tests {
     fn top_level_render_routes_advanced_wizard_state_to_wizard_page() {
         let mut state = test_app_state();
         state.open_advanced();
-        state.actions_focus = 6;
+        state.advanced_action = crate::domain::tui::ActionItem::LaunchDeployWizard;
 
         let text = render_view_text(120, 40, |frame| {
             render(frame, Rect::new(0, 0, 120, 40), &state)

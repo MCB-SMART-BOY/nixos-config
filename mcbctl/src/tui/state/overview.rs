@@ -76,7 +76,6 @@ pub(crate) struct OverviewPrimaryAction {
 
 enum InspectRouteOrigin {
     Overview,
-    Actions(ActionItem),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -111,12 +110,7 @@ pub(crate) struct ManagedGuardSnapshot {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum OverviewPrimaryActionKind {
-    SaveDirtyPages,
-    ReviewInspect,
-    ReviewManagedGuards,
-    OpenAdvancedApply,
-    ReviewApply,
-    ApplyCurrentHost,
+    PreviewApply,
 }
 
 impl OverviewCheckState {
@@ -154,7 +148,6 @@ impl AppState {
         let doctor = self.overview_doctor.clone();
         let managed_guards = self.managed_guard_snapshots();
         let apply = self.apply_model();
-        let apply_feedback_detail = self.current_apply_feedback_detail();
         let apply_feedback = self.current_apply_feedback_summary();
         let apply_summary = OverviewApplySummaryModel {
             status: self.apply_execution_gate_model().status,
@@ -162,14 +155,7 @@ impl AppState {
             next_step: apply_feedback.next_step,
             latest_result: self.current_apply_latest_result(),
         };
-        let primary_action = self.overview_primary_action(
-            &dirty_sections,
-            &repo_integrity,
-            &doctor,
-            &managed_guards,
-            &apply,
-            &apply_feedback_detail,
-        );
+        let primary_action = self.overview_primary_action(&apply);
 
         OverviewModel {
             context: OverviewContext {
@@ -236,55 +222,7 @@ impl AppState {
     }
 
     pub(crate) fn open_overview_primary_action(&mut self) {
-        let overview = self.overview_model();
-        match overview.primary_action.kind {
-            OverviewPrimaryActionKind::SaveDirtyPages => {
-                let Some(route) = preferred_dirty_route(&overview.dirty_sections) else {
-                    return;
-                };
-                self.set_page(route.page);
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Info,
-                    route.scope,
-                    route.feedback.feedback_message,
-                    route.feedback.next_step,
-                );
-            }
-            OverviewPrimaryActionKind::ReviewInspect => {
-                self.open_overview_inspect();
-            }
-            OverviewPrimaryActionKind::ReviewManagedGuards => {
-                let Some(route) = preferred_managed_guard_route(&overview.managed_guards) else {
-                    return;
-                };
-                self.set_page(route.page);
-                self.apply_managed_guard_focus(&route.focus);
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Info,
-                    route.scope,
-                    route.feedback.feedback_message,
-                    route.feedback.next_step,
-                );
-            }
-            OverviewPrimaryActionKind::OpenAdvancedApply => {
-                self.sync_advanced_deploy_parameters_from_apply();
-                self.focus_recommended_advanced_action();
-                self.open_advanced();
-                let feedback = self.overview_advanced_route_feedback();
-                self.set_feedback_with_next_step(
-                    UiFeedbackLevel::Info,
-                    UiFeedbackScope::Advanced,
-                    feedback.message,
-                    feedback.next_step,
-                );
-            }
-            OverviewPrimaryActionKind::ReviewApply => {
-                self.open_overview_apply();
-            }
-            OverviewPrimaryActionKind::ApplyCurrentHost => {
-                self.open_overview_apply();
-            }
-        }
+        self.open_overview_apply();
     }
 
     pub(crate) fn open_overview_inspect(&mut self) {
@@ -299,6 +237,7 @@ impl AppState {
     }
 
     pub(crate) fn open_overview_apply(&mut self) {
+        self.deploy_focus = 0;
         self.open_apply();
         let feedback = self.overview_apply_route_feedback();
         self.set_feedback_with_next_step(
@@ -307,10 +246,6 @@ impl AppState {
             feedback.message,
             feedback.next_step,
         );
-    }
-
-    pub(crate) fn actions_inspect_route_feedback(&self, action: ActionItem) -> RouteFeedback {
-        self.inspect_route_feedback(InspectRouteOrigin::Actions(action))
     }
 
     pub(crate) fn preferred_edit_dirty_section(&self) -> Option<(&'static str, String)> {
@@ -323,73 +258,12 @@ impl AppState {
         Some((route.label, route.target, route.reason))
     }
 
-    fn overview_primary_action(
-        &self,
-        dirty_sections: &[OverviewDirtySection],
-        repo_integrity: &OverviewCheckState,
-        doctor: &OverviewCheckState,
-        managed_guards: &[ManagedGuardSnapshot],
-        apply: &ApplyModel,
-        apply_feedback_detail: &str,
-    ) -> OverviewPrimaryAction {
-        if let Some(route) = preferred_dirty_route(dirty_sections) {
-            return OverviewPrimaryAction {
-                kind: OverviewPrimaryActionKind::SaveDirtyPages,
-                reason: route.feedback.primary_reason,
-                recent_feedback: route.feedback.feedback_message,
-                next_step: route.feedback.next_step,
-            };
-        }
-
-        if let Some(review) = preferred_inspect_review(repo_integrity, doctor) {
-            let feedback = self.current_inspect_feedback_summary(
-                &review.feedback.message,
-                &review.feedback.next_step,
-            );
-            return OverviewPrimaryAction {
-                kind: OverviewPrimaryActionKind::ReviewInspect,
-                reason: review.reason,
-                recent_feedback: feedback.message,
-                next_step: feedback.next_step,
-            };
-        }
-
-        if let Some(route) = preferred_managed_guard_route(managed_guards) {
-            return OverviewPrimaryAction {
-                kind: OverviewPrimaryActionKind::ReviewManagedGuards,
-                reason: route.feedback.primary_reason,
-                recent_feedback: route.feedback.feedback_message,
-                next_step: route.feedback.next_step,
-            };
-        }
-
-        if !apply.handoffs.is_empty() {
-            let feedback = self.current_advanced_feedback_summary(
-                apply_feedback_detail,
-                &self.current_apply_next_step(),
-            );
-            return OverviewPrimaryAction {
-                kind: OverviewPrimaryActionKind::OpenAdvancedApply,
-                reason: apply.handoffs.join(" | "),
-                recent_feedback: feedback.message,
-                next_step: feedback.next_step,
-            };
-        }
-
+    fn overview_primary_action(&self, apply: &ApplyModel) -> OverviewPrimaryAction {
         let feedback = self.current_apply_feedback_summary();
 
-        if apply.can_apply_current_host {
-            return OverviewPrimaryAction {
-                kind: OverviewPrimaryActionKind::ApplyCurrentHost,
-                reason: apply_feedback_detail.to_string(),
-                recent_feedback: feedback.message,
-                next_step: feedback.next_step,
-            };
-        }
-
         OverviewPrimaryAction {
-            kind: OverviewPrimaryActionKind::ReviewApply,
-            reason: apply_feedback_detail.to_string(),
+            kind: OverviewPrimaryActionKind::PreviewApply,
+            reason: overview_apply_entry_reason(apply),
             recent_feedback: feedback.message,
             next_step: feedback.next_step,
         }
@@ -466,40 +340,6 @@ impl AppState {
             },
         ]
     }
-
-    fn apply_managed_guard_focus(&mut self, focus: &ManagedGuardFocus) -> &'static str {
-        match focus {
-            ManagedGuardFocus::Packages { group, .. } => {
-                self.package_mode = PackageDataMode::Local;
-                self.package_search_mode = false;
-                self.package_group_create_mode = false;
-                self.package_group_rename_mode = false;
-                self.package_group_rename_source.clear();
-                self.package_group_input.clear();
-                self.package_group_filter = group.clone().and_then(|group| {
-                    self.current_package_user().and_then(|user| {
-                        self.package_groups_for_user(user)
-                            .contains(&group)
-                            .then_some(group)
-                    })
-                });
-                self.ensure_valid_package_group_filter();
-                self.clamp_package_cursor();
-            }
-            ManagedGuardFocus::Home { index, .. } => {
-                let max = self.home_rows().len().saturating_sub(1);
-                self.home_focus = (*index).min(max);
-            }
-            ManagedGuardFocus::Users { index, .. } => {
-                self.users_focus = (*index).min(5);
-            }
-            ManagedGuardFocus::Hosts { index, .. } => {
-                self.hosts_focus = (*index).min(28);
-            }
-        }
-
-        managed_guard_focus_label(focus)
-    }
 }
 
 fn preferred_dirty_route(dirty_sections: &[OverviewDirtySection]) -> Option<DirtyRoute> {
@@ -540,6 +380,23 @@ fn dirty_route_feedback(
         ),
         next_step: format!("先在 {} 页保存，再回到 Overview / Apply", first.name),
     }
+}
+
+fn overview_apply_entry_reason(apply: &ApplyModel) -> String {
+    if !apply.blockers.is_empty() {
+        return "默认主路径：先进入 Apply 预览，确认 blocker / warning 和当前主机执行门槛。"
+            .to_string();
+    }
+
+    if !apply.handoffs.is_empty() {
+        return "默认主路径：先进入 Apply 预览，确认 handoff 和当前主机执行门槛。".to_string();
+    }
+
+    if apply.can_apply_current_host {
+        return "默认主路径：先进入 Apply 预览，确认无误后再执行当前主机。".to_string();
+    }
+
+    "默认主路径：先进入 Apply 预览，确认当前主机预览和执行门槛。".to_string()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -583,15 +440,6 @@ fn inspect_review_feedback(
 ) -> RouteFeedback {
     match origin {
         InspectRouteOrigin::Overview => review.feedback,
-        InspectRouteOrigin::Actions(action) => RouteFeedback {
-            message: format!(
-                "{} 归属 Inspect；当前应先处理 {}（{}）。",
-                action.label(),
-                review.label,
-                review.summary
-            ),
-            next_step: review.feedback.next_step,
-        },
     }
 }
 
@@ -599,13 +447,6 @@ fn generic_inspect_route_feedback(origin: InspectRouteOrigin) -> RouteFeedback {
     match origin {
         InspectRouteOrigin::Overview => RouteFeedback {
             message: "Overview 已跳到 Inspect。".to_string(),
-            next_step: "在 Inspect 查看健康详情和检查命令".to_string(),
-        },
-        InspectRouteOrigin::Actions(action) => RouteFeedback {
-            message: format!(
-                "{} 归属 Inspect；已跳到 Inspect 页查看健康详情和命令预览。",
-                action.label()
-            ),
             next_step: "在 Inspect 查看健康详情和检查命令".to_string(),
         },
     }
@@ -1027,7 +868,7 @@ mod tests {
         assert_eq!(model.dirty_sections[1].name, "Home");
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::SaveDirtyPages
+            OverviewPrimaryActionKind::PreviewApply
         );
         assert_eq!(
             model.repo_integrity,
@@ -1055,7 +896,7 @@ mod tests {
         assert!(!model.apply.can_apply_current_host);
         assert_eq!(
             model.primary_action.reason,
-            "存在未保存修改：Packages: alice | Home: alice。"
+            "默认主路径：先进入 Apply 预览，确认 blocker / warning 和当前主机执行门槛。"
         );
     }
 
@@ -1111,11 +952,11 @@ mod tests {
         assert!(!model.apply.can_apply_current_host);
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::ReviewApply
+            OverviewPrimaryActionKind::PreviewApply
         );
         assert_eq!(
             model.primary_action.reason,
-            state.current_apply_feedback_detail()
+            "默认主路径：先进入 Apply 预览，确认 blocker / warning 和当前主机执行门槛。"
         );
     }
 
@@ -1128,7 +969,6 @@ mod tests {
             "nix eval for host demo failed".to_string(),
         );
         state.deploy_source = DeploySource::RemoteHead;
-        state.show_advanced = true;
 
         let model = state.overview_model();
 
@@ -1152,22 +992,19 @@ mod tests {
                 .iter()
                 .any(|item| item.contains("远端最新版本"))
         );
-        assert!(
-            model
-                .apply
-                .handoffs
-                .iter()
-                .any(|item| item.contains("Apply 内高级工作区"))
-        );
         assert!(!model.apply.can_execute_directly);
         assert!(!model.apply.can_apply_current_host);
         assert_eq!(
             model.apply_summary.next_step,
-            "在 Apply 先看右下角高级工作区；x 仍按当前 Apply 路径处理"
+            "在 Apply 先看 blocker / warning，再决定是否调整 Apply 项"
         );
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::OpenAdvancedApply
+            OverviewPrimaryActionKind::PreviewApply
+        );
+        assert_eq!(
+            model.primary_action.reason,
+            "默认主路径：先进入 Apply 预览，确认 blocker / warning 和当前主机执行门槛。"
         );
     }
 
@@ -1184,7 +1021,11 @@ mod tests {
         );
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::OpenAdvancedApply
+            OverviewPrimaryActionKind::PreviewApply
+        );
+        assert_eq!(
+            model.primary_action.reason,
+            "默认主路径：先进入 Apply 预览，确认 handoff 和当前主机执行门槛。"
         );
     }
 
@@ -1206,7 +1047,7 @@ mod tests {
         assert!(rebuild_preview.contains("/etc/nixos#demo"));
         assert_eq!(
             model.apply_summary.next_step,
-            "在 Apply 查看预览，或按 a / x 直接运行"
+            "在 Apply 查看预览；确认后按 x 直接运行"
         );
         assert!(
             model
@@ -1224,11 +1065,11 @@ mod tests {
         );
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::ApplyCurrentHost
+            OverviewPrimaryActionKind::PreviewApply
         );
         assert_eq!(
             model.primary_action.reason,
-            state.current_apply_feedback_detail()
+            "默认主路径：先进入 Apply 预览，确认无误后再执行当前主机。"
         );
     }
 
@@ -1244,16 +1085,12 @@ mod tests {
 
         assert_eq!(model.health_focus, OverviewHealthFocus::RepoIntegrity);
         assert_eq!(
-            model.primary_action,
-            OverviewPrimaryAction {
-                kind: OverviewPrimaryActionKind::ReviewInspect,
-                reason: "repo-integrity 当前失败（failed (1 finding(s))）；应先进入 Inspect 查看 flake check 和健康详情。".to_string(),
-                recent_feedback:
-                    "Overview 推荐先进入 Inspect 处理 repo-integrity（failed (1 finding(s))）。"
-                        .to_string(),
-                next_step: "在 Inspect 先看 repo-integrity，再决定是否执行 flake check"
-                    .to_string(),
-            }
+            model.primary_action.kind,
+            OverviewPrimaryActionKind::PreviewApply
+        );
+        assert_eq!(
+            model.primary_action.reason,
+            "默认主路径：先进入 Apply 预览，确认 blocker / warning 和当前主机执行门槛。"
         );
     }
 
@@ -1269,16 +1106,12 @@ mod tests {
 
         assert_eq!(model.health_focus, OverviewHealthFocus::Doctor);
         assert_eq!(
-            model.primary_action,
-            OverviewPrimaryAction {
-                kind: OverviewPrimaryActionKind::ReviewInspect,
-                reason: "doctor 当前失败（failed (1 check(s))）；应先进入 Inspect 查看 doctor 和健康详情。".to_string(),
-                recent_feedback:
-                    "Overview 推荐先进入 Inspect 处理 doctor（failed (1 check(s))）。"
-                        .to_string(),
-                next_step:
-                    "在 Inspect 先看 doctor 详情；如需仓库校验，再执行 flake check".to_string(),
-            }
+            model.primary_action.kind,
+            OverviewPrimaryActionKind::PreviewApply
+        );
+        assert_eq!(
+            model.primary_action.reason,
+            "默认主路径：先进入 Apply 预览，确认 blocker / warning 和当前主机执行门槛。"
         );
     }
 
@@ -1313,7 +1146,7 @@ mod tests {
     }
 
     #[test]
-    fn overview_model_primary_action_prefers_inspect_scoped_completion_feedback() {
+    fn overview_model_primary_action_ignores_inspect_scoped_feedback() {
         let mut state = test_state("sudo-available");
         state.overview_repo_integrity = OverviewCheckState::Error {
             summary: "failed (1 finding(s))".to_string(),
@@ -1330,14 +1163,20 @@ mod tests {
 
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::ReviewInspect
+            OverviewPrimaryActionKind::PreviewApply
         );
-        assert_eq!(model.primary_action.recent_feedback, "flake check 已完成。");
-        assert_eq!(model.primary_action.next_step, "留在 Inspect 复查健康详情");
+        assert_eq!(
+            model.primary_action.recent_feedback,
+            state.current_apply_feedback_summary().message
+        );
+        assert_eq!(
+            model.primary_action.next_step,
+            state.current_apply_feedback_summary().next_step
+        );
     }
 
     #[test]
-    fn overview_model_primary_action_prefers_advanced_scoped_completion_feedback() {
+    fn overview_model_primary_action_ignores_advanced_scoped_feedback() {
         let mut state = test_state("sudo-available");
         state.deploy_source = DeploySource::RemotePinned;
         state.deploy_source_ref = "v5.0.0".to_string();
@@ -1352,12 +1191,15 @@ mod tests {
 
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::OpenAdvancedApply
+            OverviewPrimaryActionKind::PreviewApply
         );
-        assert_eq!(model.primary_action.recent_feedback, "完整部署向导已返回。");
+        assert_eq!(
+            model.primary_action.recent_feedback,
+            state.current_apply_feedback_summary().message
+        );
         assert_eq!(
             model.primary_action.next_step,
-            "回到 Advanced 继续核对 Deploy Parameters"
+            state.current_apply_feedback_summary().next_step
         );
     }
 
@@ -1375,12 +1217,12 @@ mod tests {
 
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::ApplyCurrentHost
+            OverviewPrimaryActionKind::PreviewApply
         );
         assert_eq!(model.primary_action.recent_feedback, "当前组合可直接执行。");
         assert_eq!(
             model.primary_action.next_step,
-            "在 Apply 查看预览，或按 a / x 直接运行"
+            "在 Apply 查看预览；确认后按 x 直接运行"
         );
     }
 
@@ -1401,76 +1243,69 @@ mod tests {
 
         assert_eq!(
             model.primary_action.kind,
-            OverviewPrimaryActionKind::ReviewManagedGuards
+            OverviewPrimaryActionKind::PreviewApply
         );
-        assert!(model.primary_action.reason.contains("Packages[alice]"));
-        assert!(model.primary_action.reason.contains("受管保护存在阻塞"));
+        assert_eq!(
+            model.primary_action.reason,
+            "默认主路径：先进入 Apply 预览，确认无误后再执行当前主机。"
+        );
 
         std::fs::remove_dir_all(root)?;
         Ok(())
     }
 
     #[test]
-    fn open_overview_primary_action_routes_to_first_dirty_page() {
+    fn open_overview_primary_action_enters_apply_preview_even_when_dirty() {
         let mut state = test_state("sudo-available");
         state.package_dirty_users.insert("alice".to_string());
         state.home_dirty_users.insert("alice".to_string());
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Packages);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Packages);
-        assert_eq!(
-            state.feedback.message,
-            "Overview 检测到 Packages 页仍有未保存修改：alice。"
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
+        assert!(
+            state
+                .feedback
+                .message
+                .contains("Overview 已进入 Apply 预览；当前组合仍有 blocker：")
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("先在 Packages 页保存，再回到 Overview / Apply")
+            Some("在 Apply 先看 blocker / warning，再决定是否调整 Apply 项")
         );
     }
 
     #[test]
-    fn open_overview_primary_action_routes_to_inspect_for_health_failures() {
+    fn open_overview_primary_action_keeps_health_failures_on_apply_preview_path() {
         let mut state = test_state("sudo-available");
         state.overview_repo_integrity = OverviewCheckState::Error {
             summary: "failed (1 finding(s))".to_string(),
             details: vec!["- [rule] path: detail".to_string()],
         };
-        state.actions_focus = 4;
         let overview = state.overview_model();
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Inspect);
-        assert_eq!(state.current_inspect_action(), ActionItem::FlakeCheck);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Inspect);
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
-            overview.primary_action.reason,
-            "repo-integrity 当前失败（failed (1 finding(s))）；应先进入 Inspect 查看 flake check 和健康详情。"
+            overview.primary_action.kind,
+            OverviewPrimaryActionKind::PreviewApply
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 推荐先进入 Inspect 处理 repo-integrity（failed (1 finding(s))）。"
+            "Overview 已进入 Apply 预览；当前组合仍有 blocker：repo-integrity 当前失败：failed (1 finding(s))。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Inspect 先看 repo-integrity，再决定是否执行 flake check")
+            Some("在 Apply 先看 blocker / warning，再决定是否调整 Apply 项")
         );
-        let inspect = state.inspect_model();
-        assert_eq!(inspect.detail.action, ActionItem::FlakeCheck);
-        assert_eq!(inspect.repo_integrity, state.overview_repo_integrity);
-        assert!(
-            inspect
-                .detail
-                .preview
-                .as_deref()
-                .is_some_and(|preview| preview.contains("flake check"))
-        );
+        assert_eq!(state.deploy_focus, 0);
     }
 
     #[test]
-    fn open_overview_primary_action_routes_to_inspect_for_doctor_failures() {
+    fn open_overview_primary_action_keeps_doctor_failures_on_apply_preview_path() {
         let mut state = test_state("sudo-available");
         state.overview_doctor = OverviewCheckState::Error {
             summary: "failed (1 check(s))".to_string(),
@@ -1479,31 +1314,21 @@ mod tests {
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Inspect);
-        assert_eq!(state.current_inspect_action(), ActionItem::FlakeCheck);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Inspect);
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.message,
-            "Overview 推荐先进入 Inspect 处理 doctor（failed (1 check(s))）。"
+            "Overview 已进入 Apply 预览；当前组合仍有 blocker：doctor 当前失败：failed (1 check(s))。"
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Inspect 先看 doctor 详情；如需仓库校验，再执行 flake check")
-        );
-        let inspect = state.inspect_model();
-        assert_eq!(inspect.detail.action, ActionItem::FlakeCheck);
-        assert_eq!(inspect.doctor, state.overview_doctor);
-        assert!(
-            inspect
-                .detail
-                .preview
-                .as_deref()
-                .is_some_and(|preview| preview.contains("flake check"))
+            Some("在 Apply 先看 blocker / warning，再决定是否调整 Apply 项")
         );
     }
 
     #[test]
-    fn open_overview_primary_action_routes_to_packages_for_package_guard_blockers() -> Result<()> {
+    fn open_overview_primary_action_keeps_package_guard_findings_on_apply_preview_path()
+    -> Result<()> {
         let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
         let root = std::env::temp_dir().join(format!("mcbctl-overview-open-packages-{unique}"));
         std::fs::create_dir_all(root.join("home/users/alice/managed/packages"))?;
@@ -1514,29 +1339,23 @@ mod tests {
 
         let mut state = test_state("sudo-available");
         state.context.repo_root = root.clone();
-        let overview = state.overview_model();
-        let route = preferred_managed_guard_route(&overview.managed_guards).expect("guard route");
-        let expected_message = route.feedback.feedback_message.clone();
-        let expected_next_step = route.feedback.next_step.clone();
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Packages);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Packages);
-        assert_eq!(state.feedback.message, expected_message);
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some(expected_next_step.as_str())
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
-        assert_eq!(state.package_mode, PackageDataMode::Local);
-        assert_eq!(state.package_group_filter.as_deref(), Some("manual"));
 
         std::fs::remove_dir_all(root)?;
         Ok(())
     }
 
     #[test]
-    fn open_overview_primary_action_routes_runtime_guard_blockers_to_hosts() -> Result<()> {
+    fn open_overview_primary_action_keeps_runtime_guard_findings_on_apply_preview_path()
+    -> Result<()> {
         let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
         let root = std::env::temp_dir().join(format!("mcbctl-overview-open-hosts-{unique}"));
         std::fs::create_dir_all(root.join("hosts/demo/managed"))?;
@@ -1547,28 +1366,23 @@ mod tests {
 
         let mut state = test_state("sudo-available");
         state.context.repo_root = root.clone();
-        let overview = state.overview_model();
-        let route = preferred_managed_guard_route(&overview.managed_guards).expect("guard route");
-        let expected_message = route.feedback.feedback_message.clone();
-        let expected_next_step = route.feedback.next_step.clone();
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Hosts);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Hosts);
-        assert_eq!(state.feedback.message, expected_message);
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some(expected_next_step.as_str())
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
-        assert_eq!(state.hosts_focus, 4);
 
         std::fs::remove_dir_all(root)?;
         Ok(())
     }
 
     #[test]
-    fn open_overview_primary_action_routes_user_guard_blockers_to_users() -> Result<()> {
+    fn open_overview_primary_action_keeps_user_guard_findings_on_apply_preview_path() -> Result<()>
+    {
         let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
         let root = std::env::temp_dir().join(format!("mcbctl-overview-open-users-{unique}"));
         std::fs::create_dir_all(root.join("hosts/demo/managed"))?;
@@ -1579,28 +1393,23 @@ mod tests {
 
         let mut state = test_state("sudo-available");
         state.context.repo_root = root.clone();
-        let overview = state.overview_model();
-        let route = preferred_managed_guard_route(&overview.managed_guards).expect("guard route");
-        let expected_message = route.feedback.feedback_message.clone();
-        let expected_next_step = route.feedback.next_step.clone();
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Users);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Users);
-        assert_eq!(state.feedback.message, expected_message);
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some(expected_next_step.as_str())
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
-        assert_eq!(state.users_focus, 2);
 
         std::fs::remove_dir_all(root)?;
         Ok(())
     }
 
     #[test]
-    fn open_overview_primary_action_routes_home_guard_blockers_to_home() -> Result<()> {
+    fn open_overview_primary_action_keeps_home_guard_findings_on_apply_preview_path() -> Result<()>
+    {
         let unique = format!("{}-{}", std::process::id(), rand::random::<u64>());
         let root = std::env::temp_dir().join(format!("mcbctl-overview-open-home-{unique}"));
         std::fs::create_dir_all(root.join("home/users/alice/managed/settings"))?;
@@ -1611,28 +1420,22 @@ mod tests {
 
         let mut state = test_state("sudo-available");
         state.context.repo_root = root.clone();
-        let overview = state.overview_model();
-        let route = preferred_managed_guard_route(&overview.managed_guards).expect("guard route");
-        let expected_message = route.feedback.feedback_message.clone();
-        let expected_next_step = route.feedback.next_step.clone();
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Home);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Home);
-        assert_eq!(state.feedback.message, expected_message);
+        assert_eq!(state.page(), Page::Deploy);
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some(expected_next_step.as_str())
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
-        assert_eq!(state.home_focus, 0);
 
         std::fs::remove_dir_all(root)?;
         Ok(())
     }
 
     #[test]
-    fn open_overview_primary_action_routes_to_advanced_apply_when_handoff_exists() {
+    fn open_overview_primary_action_routes_handoff_to_apply_preview() {
         let mut state = test_state("sudo-available");
         state.deploy_source = DeploySource::RemotePinned;
         state.deploy_source_ref = "v5.0.0".to_string();
@@ -1640,56 +1443,47 @@ mod tests {
 
         state.open_overview_primary_action();
 
-        assert_eq!(state.page(), Page::Advanced);
-        assert!(state.advanced_workspace_visible());
-        assert!(!state.show_advanced);
-        assert_eq!(
-            state.current_advanced_action(),
-            ActionItem::LaunchDeployWizard
-        );
-        assert_eq!(state.advanced_deploy_focus, 3);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Advanced);
+        assert_eq!(state.page(), Page::Deploy);
+        assert!(!state.advanced_path_active());
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Advanced 里先确认 Deploy Parameters，再执行 launch deploy wizard")
+            Some("在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard")
         );
         assert_eq!(
             state.feedback.message,
-            "Overview 已跳到 Advanced，并对准 launch deploy wizard。推荐原因：当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+            "Overview 已进入 Apply 预览；当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
         );
-        match state.deploy_page_model() {
-            DeployPageModel::AdvancedWizard(model) => {
-                assert_eq!(model.controls.focused_row.label, "固定 ref");
-                assert_eq!(model.controls.focused_row.value, "v5.0.0");
-            }
-            other => panic!("expected advanced wizard page model, got {other:?}"),
-        }
-        assert!(state.status.contains("launch deploy wizard"));
     }
 
     #[test]
-    fn overview_handoff_reason_stays_aligned_with_advanced_summary_after_routing() {
+    fn overview_handoff_reason_stays_on_preview_apply_path() {
         let mut state = test_state("sudo-available");
         state.deploy_source = DeploySource::RemoteHead;
 
         let overview = state.overview_model();
         assert_eq!(
             overview.primary_action.kind,
-            OverviewPrimaryActionKind::OpenAdvancedApply
+            OverviewPrimaryActionKind::PreviewApply
+        );
+        assert_eq!(
+            overview.primary_action.reason,
+            "默认主路径：先进入 Apply 预览，确认 handoff 和当前主机执行门槛。"
         );
 
         state.open_overview_primary_action();
 
         match state.deploy_page_model() {
-            DeployPageModel::AdvancedWizard(model) => {
-                assert_eq!(model.summary.reason, overview.primary_action.reason);
-                assert_eq!(model.summary.current_action, ActionItem::LaunchDeployWizard);
+            DeployPageModel::Apply(model) => {
+                assert!(model.selection.recommendation.contains("切到 Advanced"));
                 assert_eq!(
                     state.feedback.next_step.as_deref(),
-                    Some("在 Advanced 里先确认 Deploy Parameters，再执行 launch deploy wizard")
+                    Some(
+                        "在 Apply 先看 handoff 预览；如需继续，切到 Advanced 执行 launch deploy wizard"
+                    )
                 );
             }
-            other => panic!("expected advanced wizard page model, got {other:?}"),
+            other => panic!("expected apply page model, got {other:?}"),
         }
     }
 
@@ -1700,7 +1494,7 @@ mod tests {
         state.open_overview_primary_action();
 
         assert_eq!(state.page(), Page::Deploy);
-        assert!(!state.show_advanced);
+        assert!(!state.advanced_path_active());
         assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert!(state.status.contains("可直接执行"));
     }
@@ -1790,9 +1584,11 @@ mod tests {
                 catalog_path: PathBuf::from("catalog/packages"),
                 catalog_groups_path: PathBuf::from("catalog/groups.toml"),
                 catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+                catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
                 catalog_entries: Vec::new(),
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -1820,7 +1616,7 @@ mod tests {
                 DeployAction::Switch
             },
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -1837,12 +1633,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -1851,7 +1649,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::Healthy {
                 summary: "ok".to_string(),
                 details: Vec::new(),

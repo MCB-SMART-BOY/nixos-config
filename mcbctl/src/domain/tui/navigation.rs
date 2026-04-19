@@ -37,11 +37,10 @@ pub enum Page {
     Hosts,
     Packages,
     Home,
-    Actions,
 }
 
 impl Page {
-    pub const ALL: [Page; 9] = [
+    pub const ALL: [Page; 8] = [
         Page::Dashboard,
         Page::Deploy,
         Page::Advanced,
@@ -50,7 +49,6 @@ impl Page {
         Page::Hosts,
         Page::Packages,
         Page::Home,
-        Page::Actions,
     ];
 
     pub const EDIT_ALL: [Page; 4] = [Page::Packages, Page::Home, Page::Users, Page::Hosts];
@@ -65,7 +63,6 @@ impl Page {
             Page::Hosts => "Hosts",
             Page::Packages => "Packages",
             Page::Home => "Home",
-            Page::Actions => "Actions",
         }
     }
 
@@ -76,7 +73,6 @@ impl Page {
             Page::Advanced => TopLevelPage::Advanced,
             Page::Inspect => TopLevelPage::Inspect,
             Page::Users | Page::Hosts | Page::Packages | Page::Home => TopLevelPage::Edit,
-            Page::Actions => TopLevelPage::Advanced,
         }
     }
 }
@@ -85,32 +81,18 @@ impl Page {
 pub enum ActionItem {
     FlakeCheck,
     UpdateUpstreamCheck,
-    SyncRepoToEtc,
-    RebuildCurrentHost,
     FlakeUpdate,
     UpdateUpstreamPins,
     LaunchDeployWizard,
 }
 
 impl ActionItem {
-    pub const ALL: [ActionItem; 7] = [
-        ActionItem::FlakeCheck,
-        ActionItem::UpdateUpstreamCheck,
-        ActionItem::SyncRepoToEtc,
-        ActionItem::RebuildCurrentHost,
-        ActionItem::FlakeUpdate,
-        ActionItem::UpdateUpstreamPins,
-        ActionItem::LaunchDeployWizard,
-    ];
-
     pub fn label(self) -> &'static str {
         match self {
             ActionItem::FlakeCheck => "flake check",
             ActionItem::FlakeUpdate => "flake update",
             ActionItem::UpdateUpstreamCheck => "check upstream pins",
             ActionItem::UpdateUpstreamPins => "update upstream pins",
-            ActionItem::SyncRepoToEtc => "sync to /etc/nixos",
-            ActionItem::RebuildCurrentHost => "rebuild current host",
             ActionItem::LaunchDeployWizard => "launch deploy wizard",
         }
     }
@@ -119,10 +101,6 @@ impl ActionItem {
         match self {
             ActionItem::FlakeCheck => "运行 flake 自检，确认当前仓库仍可评估与构建。",
             ActionItem::UpdateUpstreamCheck => "检查 Zed / YesPlayMusic 等上游 pin 是否已落后。",
-            ActionItem::SyncRepoToEtc => "把当前仓库同步到 /etc/nixos，同时保留根目录硬件配置。",
-            ActionItem::RebuildCurrentHost => {
-                "对当前主机执行一次标准重建；rootless 下自动退化为 build。"
-            }
             ActionItem::FlakeUpdate => "更新当前仓库的 flake.lock。",
             ActionItem::UpdateUpstreamPins => "刷新上游 pin 并回写仓库里的 source.nix。",
             ActionItem::LaunchDeployWizard => {
@@ -131,40 +109,12 @@ impl ActionItem {
         }
     }
 
-    pub fn destination(self) -> ActionDestination {
-        match self {
-            ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => ActionDestination::Inspect,
-            ActionItem::SyncRepoToEtc | ActionItem::RebuildCurrentHost => ActionDestination::Apply,
-            ActionItem::FlakeUpdate
-            | ActionItem::UpdateUpstreamPins
-            | ActionItem::LaunchDeployWizard => ActionDestination::Advanced,
-        }
-    }
-
     pub fn group_label(self) -> &'static str {
         match self {
             ActionItem::FlakeCheck => "Repo Checks",
             ActionItem::UpdateUpstreamCheck => "Upstream Pins",
-            ActionItem::SyncRepoToEtc | ActionItem::RebuildCurrentHost => "Manual Apply Helpers",
             ActionItem::FlakeUpdate | ActionItem::UpdateUpstreamPins => "Repository Maintenance",
             ActionItem::LaunchDeployWizard => "Deploy",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ActionDestination {
-    Inspect,
-    Apply,
-    Advanced,
-}
-
-impl ActionDestination {
-    pub fn label(self) -> &'static str {
-        match self {
-            ActionDestination::Inspect => "Inspect",
-            ActionDestination::Apply => "Apply",
-            ActionDestination::Advanced => "Advanced",
         }
     }
 }
@@ -180,7 +130,12 @@ mod tests {
         assert_eq!(Page::Advanced.title(), "Advanced");
         assert_eq!(Page::Inspect.title(), "Inspect");
         assert_eq!(Page::Users.title(), "Users");
-        assert_eq!(Page::Actions.title(), "Actions");
+        assert_eq!(
+            Page::ALL.map(Page::title),
+            [
+                "Overview", "Apply", "Advanced", "Inspect", "Users", "Hosts", "Packages", "Home",
+            ]
+        );
     }
 
     #[test]
@@ -193,7 +148,6 @@ mod tests {
         assert_eq!(Page::Packages.top_level(), TopLevelPage::Edit);
         assert_eq!(Page::Deploy.top_level(), TopLevelPage::Apply);
         assert_eq!(Page::Advanced.top_level(), TopLevelPage::Advanced);
-        assert_eq!(Page::Actions.top_level(), TopLevelPage::Advanced);
         assert_eq!(Page::Inspect.top_level(), TopLevelPage::Inspect);
     }
 }

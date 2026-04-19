@@ -11,5 +11,7 @@ mod mutate_navigation;
 mod mutate_save;
 #[path = "packages/mutate_search.rs"]
 mod mutate_search;
+#[path = "packages/mutate_workflows.rs"]
+mod mutate_workflows;
 #[path = "packages/support.rs"]
 mod support;

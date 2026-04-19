@@ -6,17 +6,22 @@ use super::{EditPageConfig, render_edit_page_with_model};
 
 pub(super) fn render(frame: &mut Frame, area: Rect, state: &AppState) {
     let page_model = state.hosts_page_model();
-    render_with_model(frame, area, &page_model);
+    render_with_model(
+        frame,
+        area,
+        &format!("Hosts ({})", state.target_host),
+        &page_model,
+    );
 }
 
-fn render_with_model(frame: &mut Frame, area: Rect, page_model: &EditPageModel) {
+fn render_with_model(frame: &mut Frame, area: Rect, list_title: &str, page_model: &EditPageModel) {
     render_edit_page_with_model(
         frame,
         area,
         EditPageConfig {
             left_percentage: 44,
-            list_title: "Host Override".to_string(),
-            summary_title: "Host Summary",
+            list_title: list_title.to_string(),
+            summary_title: "Hosts Summary",
             label_width: 16,
         },
         page_model,
@@ -45,6 +50,7 @@ mod tests {
                 field_lines: Vec::new(),
                 detail: EditDetailModel {
                     status: "状态：当前主机的运行时分片没有未保存修改".to_string(),
+                    action_summary: None,
                     validation: Some(EditCheckModel {
                         summary: "校验：通过".to_string(),
                         details: Vec::new(),
@@ -59,11 +65,11 @@ mod tests {
         };
 
         let text = render_view_text(120, 24, |frame| {
-            render_with_model(frame, Rect::new(0, 0, 120, 24), &page_model)
+            render_with_model(frame, Rect::new(0, 0, 120, 24), "Hosts (demo)", &page_model)
         });
 
-        assert!(text.contains("Host Override"));
-        assert!(text.contains("Host Summary"));
+        assert!(text.contains("Hosts (demo)"));
+        assert!(text.contains("Hosts Summary"));
     }
 
     fn render_view_text(

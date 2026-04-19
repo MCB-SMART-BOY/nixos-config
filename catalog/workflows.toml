@@ -1,0 +1,17 @@
+[[workflow]]
+id = "ai"
+label = "AI 工作流"
+description = "本地模型、提示与 AI 辅助终端工具。"
+order = 10
+
+[[workflow]]
+id = "containers"
+label = "容器与集群"
+description = "容器、Kubernetes 与镜像/集群维护工具。"
+order = 20
+
+[[workflow]]
+id = "security"
+label = "安全与密钥"
+description = "加密、密钥管理与硬件安全令牌工具。"
+order = 30

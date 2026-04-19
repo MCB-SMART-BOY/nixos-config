@@ -1,6 +1,5 @@
 use super::*;
-use crate::domain::tui::ActionDestination;
-
+use crate::repo::ensure_repository_integrity;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct InspectModel {
     pub(crate) health_focus: InspectHealthFocus,
@@ -9,6 +8,7 @@ pub(crate) struct InspectModel {
     pub(crate) managed_guards: Vec<ManagedGuardSnapshot>,
     pub(crate) commands: Vec<InspectCommandModel>,
     pub(crate) selected_index: usize,
+    pub(crate) summary: InspectSummaryModel,
     pub(crate) detail: InspectCommandDetailModel,
     pub(crate) latest_result: Option<UiFeedback>,
 }
@@ -33,6 +33,14 @@ pub(crate) struct InspectCommandDetailModel {
     pub(crate) page_title: &'static str,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct InspectSummaryModel {
+    pub(crate) status: String,
+    pub(crate) latest_result: String,
+    pub(crate) next_step: String,
+    pub(crate) primary_action: String,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum InspectHealthFocus {
     RepoIntegrity,
@@ -55,21 +63,24 @@ pub(crate) struct RouteFeedback {
 
 impl AppState {
     pub(crate) fn inspect_model(&self) -> InspectModel {
-        let commands: Vec<InspectCommandModel> = ActionItem::ALL
-            .into_iter()
-            .filter(|action| action.destination() == ActionDestination::Inspect)
+        let commands: Vec<InspectCommandModel> = inspect_actions()
+            .iter()
+            .copied()
             .map(|action| InspectCommandModel {
                 action,
                 group: action.group_label(),
                 label: action.label(),
-                available: self.action_available(action),
-                preview: self.action_command_preview(action),
+                available: self.inspect_action_available(action),
+                preview: self.inspect_action_command_preview(action),
             })
             .collect();
         let selected_index = self.selected_inspect_row_index();
 
+        let health_focus =
+            preferred_inspect_health_focus(&self.overview_repo_integrity, &self.overview_doctor);
         let feedback = self.current_inspect_feedback_state("无".to_string());
         let command = &commands[selected_index];
+        let summary = self.inspect_summary_model(command, health_focus);
         let detail = InspectCommandDetailModel {
             action: command.action,
             group: command.group,
@@ -81,20 +92,19 @@ impl AppState {
         };
 
         InspectModel {
-            health_focus: preferred_inspect_health_focus(
-                &self.overview_repo_integrity,
-                &self.overview_doctor,
-            ),
+            health_focus,
             repo_integrity: self.overview_repo_integrity.clone(),
             doctor: self.overview_doctor.clone(),
             managed_guards: self.managed_guard_snapshots(),
             commands,
             selected_index,
+            summary,
             detail,
             latest_result: feedback.latest_result,
         }
     }
 
+    #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn current_inspect_feedback_summary(
         &self,
         fallback_message: &str,
@@ -123,30 +133,133 @@ impl AppState {
         }
     }
 
+    fn inspect_summary_model(
+        &self,
+        command: &InspectCommandModel,
+        health_focus: InspectHealthFocus,
+    ) -> InspectSummaryModel {
+        let fallback_next_step = self.inspect_summary_next_step(command, health_focus);
+        let feedback = self.current_inspect_feedback_state(fallback_next_step);
+
+        InspectSummaryModel {
+            status: self.inspect_summary_status(command, health_focus),
+            latest_result: feedback.latest_result_text,
+            next_step: feedback.next_step,
+            primary_action: self.inspect_primary_action(command, health_focus),
+        }
+    }
+
+    fn inspect_summary_status(
+        &self,
+        command: &InspectCommandModel,
+        health_focus: InspectHealthFocus,
+    ) -> String {
+        if !command.available {
+            return "当前命令需切换场景".to_string();
+        }
+
+        match health_focus {
+            InspectHealthFocus::RepoIntegrity
+                if matches!(
+                    self.overview_repo_integrity,
+                    OverviewCheckState::Error { .. }
+                ) =>
+            {
+                "当前应先复查 repo-integrity".to_string()
+            }
+            InspectHealthFocus::Doctor
+                if matches!(self.overview_doctor, OverviewCheckState::Error { .. }) =>
+            {
+                "当前应先复查 doctor".to_string()
+            }
+            _ => "当前可直接执行当前 Inspect 命令".to_string(),
+        }
+    }
+
+    fn inspect_primary_action(
+        &self,
+        command: &InspectCommandModel,
+        health_focus: InspectHealthFocus,
+    ) -> String {
+        if !command.available {
+            return "主动作：先切换到适合当前命令的场景".to_string();
+        }
+
+        match health_focus {
+            InspectHealthFocus::RepoIntegrity
+                if matches!(
+                    self.overview_repo_integrity,
+                    OverviewCheckState::Error { .. }
+                ) =>
+            {
+                "主动作：先看健康详情，再决定是否执行当前检查".to_string()
+            }
+            InspectHealthFocus::Doctor
+                if matches!(self.overview_doctor, OverviewCheckState::Error { .. }) =>
+            {
+                "主动作：先看健康详情，再决定是否执行当前检查".to_string()
+            }
+            _ => format!("主动作：按 x 执行 {}", command.label),
+        }
+    }
+
+    fn inspect_summary_next_step(
+        &self,
+        command: &InspectCommandModel,
+        health_focus: InspectHealthFocus,
+    ) -> String {
+        if !command.available {
+            return format!("先切换到适合 {} 的场景，再回到 Inspect。", command.label);
+        }
+
+        match health_focus {
+            InspectHealthFocus::RepoIntegrity
+                if matches!(
+                    self.overview_repo_integrity,
+                    OverviewCheckState::Error { .. }
+                ) =>
+            {
+                format!(
+                    "先看 repo-integrity 详情；如需复查，再按 x 执行 {}。",
+                    command.label
+                )
+            }
+            InspectHealthFocus::Doctor
+                if matches!(self.overview_doctor, OverviewCheckState::Error { .. }) =>
+            {
+                format!(
+                    "先看 doctor 详情；如需复查，再按 x 执行 {}。",
+                    command.label
+                )
+            }
+            _ => format!("先看健康摘要；如需继续，按 x 执行 {}。", command.label),
+        }
+    }
+
     pub(crate) fn ensure_inspect_action_focus(&mut self) {
-        if self.current_action_item().destination() != ActionDestination::Inspect {
-            self.actions_focus = inspect_action_index(0);
+        if !is_inspect_action(self.inspect_action) {
+            self.inspect_action = inspect_actions()[0];
         }
     }
 
     pub(crate) fn next_inspect_action(&mut self) {
-        let current = inspect_action_offset(self.current_action_item()).unwrap_or(0);
-        self.actions_focus = inspect_action_index((current + 1) % inspect_action_count());
+        let current = inspect_action_offset(self.current_inspect_action()).unwrap_or(0);
+        self.inspect_action = inspect_actions()[(current + 1) % inspect_action_count()];
     }
 
     pub(crate) fn previous_inspect_action(&mut self) {
-        let current = inspect_action_offset(self.current_action_item()).unwrap_or(0);
+        let current = inspect_action_offset(self.current_inspect_action()).unwrap_or(0);
         let previous = if current == 0 {
             inspect_action_count() - 1
         } else {
             current - 1
         };
-        self.actions_focus = inspect_action_index(previous);
+        self.inspect_action = inspect_actions()[previous];
     }
 
     pub(crate) fn current_inspect_action(&self) -> ActionItem {
-        let action = self.current_action_item();
-        if action.destination() == ActionDestination::Inspect {
+        let action = self.inspect_action;
+        if is_inspect_action(action) {
             action
         } else {
             inspect_actions()[0]
@@ -166,6 +279,70 @@ impl AppState {
             feedback.next_step,
         );
     }
+
+    pub(crate) fn inspect_action_available(&self, action: ActionItem) -> bool {
+        is_inspect_action(action)
+    }
+
+    pub(crate) fn inspect_action_command_preview(&self, action: ActionItem) -> Option<String> {
+        match action {
+            ActionItem::FlakeCheck => Some(format!(
+                "nix --extra-experimental-features 'nix-command flakes' flake check path:{}",
+                self.context.repo_root.display()
+            )),
+            ActionItem::UpdateUpstreamCheck => Some("update-upstream-apps --check".to_string()),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn execute_current_inspect_action(&mut self) -> Result<()> {
+        self.ensure_inspect_action_focus();
+        self.ensure_no_unsaved_changes_for_execution()?;
+        ensure_repository_integrity(&self.context.repo_root)?;
+
+        let action = self.current_inspect_action();
+        if !self.inspect_action_available(action) {
+            anyhow::bail!("当前环境暂不适合直接执行动作：{}", action.label());
+        }
+
+        match action {
+            ActionItem::FlakeCheck => {
+                let mut cmd = std::process::Command::new("nix");
+                cmd.arg("--extra-experimental-features")
+                    .arg("nix-command flakes")
+                    .arg("flake")
+                    .arg("check")
+                    .arg(format!("path:{}", self.context.repo_root.display()))
+                    .env("NIX_CONFIG", merged_nix_config())
+                    .stdin(std::process::Stdio::inherit())
+                    .stdout(std::process::Stdio::inherit())
+                    .stderr(std::process::Stdio::inherit());
+                let status = cmd.status().context("failed to run nix flake check")?;
+                if !status.success() {
+                    anyhow::bail!("flake check exited with {}", status.code().unwrap_or(1));
+                }
+                self.set_inspect_completion_feedback(ActionItem::FlakeCheck);
+            }
+            ActionItem::UpdateUpstreamCheck => {
+                let status =
+                    self.run_sibling_in_repo("update-upstream-apps", &["--check".to_string()])?;
+                if !status.success() {
+                    anyhow::bail!(
+                        "update-upstream-apps --check exited with {}",
+                        status.code().unwrap_or(1)
+                    );
+                }
+                self.set_inspect_completion_feedback(ActionItem::UpdateUpstreamCheck);
+            }
+            ActionItem::FlakeUpdate
+            | ActionItem::UpdateUpstreamPins
+            | ActionItem::LaunchDeployWizard => {
+                anyhow::bail!("当前动作不属于 Inspect：{}", action.label())
+            }
+        }
+
+        Ok(())
+    }
 }
 
 fn inspect_actions() -> &'static [ActionItem] {
@@ -173,16 +350,12 @@ fn inspect_actions() -> &'static [ActionItem] {
     &ACTIONS
 }
 
-fn inspect_action_count() -> usize {
-    inspect_actions().len()
+fn is_inspect_action(action: ActionItem) -> bool {
+    inspect_action_offset(action).is_some()
 }
 
-fn inspect_action_index(offset: usize) -> usize {
-    let action = inspect_actions()[offset];
-    ActionItem::ALL
-        .iter()
-        .position(|candidate| *candidate == action)
-        .expect("inspect action must exist in ActionItem::ALL")
+fn inspect_action_count() -> usize {
+    inspect_actions().len()
 }
 
 fn inspect_action_offset(action: ActionItem) -> Option<usize> {
@@ -216,8 +389,6 @@ fn inspect_completion_feedback(action: ActionItem) -> RouteFeedback {
         },
         ActionItem::FlakeUpdate
         | ActionItem::UpdateUpstreamPins
-        | ActionItem::SyncRepoToEtc
-        | ActionItem::RebuildCurrentHost
         | ActionItem::LaunchDeployWizard => RouteFeedback {
             message: "Inspect 命令已完成。".to_string(),
             next_step: "切到 Inspect 查看结果".to_string(),
@@ -253,6 +424,15 @@ mod tests {
         assert_eq!(model.commands[0].action, ActionItem::FlakeCheck);
         assert_eq!(model.commands[0].group, "Repo Checks");
         assert_eq!(model.selected_index, 0);
+        assert_eq!(model.summary.status, "当前应先复查 repo-integrity");
+        assert_eq!(
+            model.summary.primary_action,
+            "主动作：先看健康详情，再决定是否执行当前检查"
+        );
+        assert_eq!(
+            model.summary.next_step,
+            "先看 repo-integrity 详情；如需复查，再按 x 执行 flake check。"
+        );
         assert_eq!(model.detail.action, ActionItem::FlakeCheck);
         assert_eq!(model.detail.label, "flake check");
         assert!(
@@ -282,6 +462,7 @@ mod tests {
                 next_step: None,
             })
         );
+        assert_eq!(inspect.summary.latest_result, "flake check 已完成。");
         assert_eq!(inspect.detail.latest_result, "flake check 已完成。");
 
         state.set_feedback_message(
@@ -291,6 +472,7 @@ mod tests {
         );
         let inspect = state.inspect_model();
         assert!(inspect.latest_result.is_none());
+        assert_eq!(inspect.summary.latest_result, "无");
         assert_eq!(inspect.detail.latest_result, "无");
     }
 
@@ -345,7 +527,7 @@ mod tests {
     #[test]
     fn inspect_focus_falls_back_to_first_inspect_action() {
         let mut state = test_state();
-        state.actions_focus = 4;
+        state.inspect_action = ActionItem::FlakeUpdate;
 
         state.ensure_inspect_action_focus();
 
@@ -415,7 +597,37 @@ mod tests {
         let model = state.inspect_model();
 
         assert_eq!(model.health_focus, InspectHealthFocus::Doctor);
+        assert_eq!(model.summary.status, "当前应先复查 doctor");
+        assert_eq!(
+            model.summary.next_step,
+            "先看 doctor 详情；如需复查，再按 x 执行 flake check。"
+        );
         assert_eq!(model.detail.action, ActionItem::FlakeCheck);
+    }
+
+    #[test]
+    fn inspect_model_uses_direct_summary_when_health_is_clean() {
+        let mut state = test_state();
+        state.overview_repo_integrity = OverviewCheckState::Healthy {
+            summary: "ok".to_string(),
+            details: Vec::new(),
+        };
+        state.overview_doctor = OverviewCheckState::Healthy {
+            summary: "ok".to_string(),
+            details: Vec::new(),
+        };
+
+        let model = state.inspect_model();
+
+        assert_eq!(model.summary.status, "当前可直接执行当前 Inspect 命令");
+        assert_eq!(
+            model.summary.primary_action,
+            "主动作：按 x 执行 flake check"
+        );
+        assert_eq!(
+            model.summary.next_step,
+            "先看健康摘要；如需继续，按 x 执行 flake check。"
+        );
     }
 
     #[test]
@@ -455,9 +667,11 @@ mod tests {
                 catalog_path: PathBuf::from("catalog/packages"),
                 catalog_groups_path: PathBuf::from("catalog/groups.toml"),
                 catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+                catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
                 catalog_entries: Vec::new(),
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -477,7 +691,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -494,12 +708,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -508,7 +724,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

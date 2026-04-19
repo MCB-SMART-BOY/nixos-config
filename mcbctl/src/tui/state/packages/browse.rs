@@ -70,9 +70,24 @@ impl AppState {
         }
     }
 
+    pub fn current_package_workflow_filter(&self) -> Option<&str> {
+        self.package_workflow_filter.as_deref()
+    }
+
+    pub fn current_package_workflow_filter_label(&self) -> String {
+        if self.package_mode == PackageDataMode::Search {
+            "不适用".to_string()
+        } else {
+            self.current_package_workflow_filter()
+                .map(|workflow| self.package_workflow_display(workflow))
+                .unwrap_or_else(|| "全部".to_string())
+        }
+    }
+
     pub fn package_filtered_indices(&self) -> Vec<usize> {
         let group_filter = self.package_group_filter.clone();
         let source_filter = self.package_source_filter.clone();
+        let workflow_filter = self.package_workflow_filter.clone();
         let current_user = self.current_package_user().map(ToOwned::to_owned);
         self.package_base_indices()
             .into_iter()
@@ -94,9 +109,17 @@ impl AppState {
                     true
                 };
 
+                let matches_workflow = if let Some(workflow_filter) = &workflow_filter {
+                    self.package_mode != PackageDataMode::Search
+                        && entry.workflow_tags.iter().any(|tag| tag == workflow_filter)
+                } else {
+                    true
+                };
+
                 (entry.matches(self.current_package_category(), &self.package_search)
                     && matches_group
-                    && matches_source)
+                    && matches_source
+                    && matches_workflow)
                     .then_some(index)
             })
             .collect()
@@ -228,6 +251,10 @@ impl AppState {
             format!("组过滤：{}", self.current_package_group_filter_label()),
             format!("来源过滤：{}", self.current_package_source_filter_label()),
             format!(
+                "工作流过滤：{}",
+                self.current_package_workflow_filter_label()
+            ),
+            format!(
                 "搜索：{}",
                 if self.package_search.is_empty() {
                     "无".to_string()
@@ -246,6 +273,20 @@ impl AppState {
                     .unwrap_or(0)
             ),
         ];
+
+        if let Some((workflow, total_count, selected_count)) =
+            self.current_package_workflow_overview()
+        {
+            field_lines.push(format!(
+                "当前工作流：{}",
+                self.package_workflow_display(&workflow)
+            ));
+            field_lines.push(format!("工作流可选：{total_count}"));
+            field_lines.push(format!("工作流已选：{selected_count}"));
+            if let Some(description) = self.package_workflow_description(&workflow) {
+                field_lines.push(format!("工作流说明：{description}"));
+            }
+        }
 
         if let Some(path) = self.current_package_target_path() {
             field_lines.push(format!("当前组落点：{}", path.display()));
@@ -296,6 +337,7 @@ impl AppState {
             field_lines,
             detail: EditDetailModel {
                 status,
+                action_summary: None,
                 validation: None,
                 managed_guard,
                 notes: Vec::new(),
@@ -369,6 +411,19 @@ impl AppState {
                 label: "来源".to_string(),
                 value: entry.source_label().to_string(),
             });
+            let workflow_labels = self.package_entry_workflow_labels(entry);
+            if !workflow_labels.is_empty() {
+                current_entry_fields.push(EditRow {
+                    label: "工作流".to_string(),
+                    value: workflow_labels.join(", "),
+                });
+            }
+            if let Some(lifecycle) = &entry.lifecycle {
+                current_entry_fields.push(EditRow {
+                    label: "生命周期".to_string(),
+                    value: lifecycle.clone(),
+                });
+            }
             if let Some(group) = self.package_group_for_current_entry() {
                 current_entry_fields.push(EditRow {
                     label: "目标组".to_string(),
@@ -377,6 +432,14 @@ impl AppState {
                 if let Some(description) = self.package_group_description(&group) {
                     current_entry_fields.push(EditRow {
                         label: "组说明".to_string(),
+                        value: description.to_string(),
+                    });
+                }
+            }
+            for workflow in &entry.workflow_tags {
+                if let Some(description) = self.package_workflow_description(workflow) {
+                    current_entry_fields.push(EditRow {
+                        label: format!("{} 说明", self.package_workflow_label(workflow)),
                         value: description.to_string(),
                     });
                 }
@@ -434,6 +497,69 @@ impl AppState {
             })
             .collect();
 
+        let current_workflows = self
+            .current_package_entry()
+            .map(|entry| entry.workflow_tags.iter().cloned().collect::<BTreeSet<_>>())
+            .unwrap_or_default();
+        let filter_workflow = self.current_package_workflow_filter();
+        let workflow_rows = self
+            .package_workflows_overview()
+            .into_iter()
+            .map(
+                |(workflow, total_count, selected_count)| PackageWorkflowOverviewRow {
+                    workflow_label: self.package_workflow_display(&workflow),
+                    total_count,
+                    selected_count,
+                    filter_selected: filter_workflow == Some(workflow.as_str()),
+                    current_selected: current_workflows.contains(&workflow),
+                },
+            )
+            .collect();
+
+        let active_workflow = self.current_package_workflow_filter().map(|workflow| {
+            let selected = self.current_user_selection();
+            let mut selected_rows = Vec::new();
+            let mut missing_rows = Vec::new();
+
+            for entry in self.package_local_entries_for_workflow(workflow) {
+                let group = if selected.is_some_and(|selection| selection.contains_key(&entry.id)) {
+                    self.effective_selected_group(entry)
+                } else {
+                    self.default_group_for_entry(entry)
+                };
+                let row = PackageWorkflowEntryRow {
+                    name: entry.name.clone(),
+                    category: entry.category.clone(),
+                    group_label: self.package_group_display(&group),
+                };
+
+                if selected.is_some_and(|selection| selection.contains_key(&entry.id)) {
+                    selected_rows.push(row);
+                } else {
+                    missing_rows.push(row);
+                }
+            }
+
+            let (total_count, selected_count) = self
+                .current_package_workflow_overview()
+                .map(|(_, total_count, selected_count)| (total_count, selected_count))
+                .unwrap_or((
+                    selected_rows.len() + missing_rows.len(),
+                    selected_rows.len(),
+                ));
+
+            PackageActiveWorkflowModel {
+                workflow_label: self.package_workflow_display(workflow),
+                description: self
+                    .package_workflow_description(workflow)
+                    .map(str::to_string),
+                total_count,
+                selected_count,
+                selected_rows,
+                missing_rows,
+            }
+        });
+
         let selected_rows = self
             .package_selected_entries()
             .into_iter()
@@ -447,11 +573,16 @@ impl AppState {
             })
             .collect();
 
+        let action_summary = self.current_package_action_summary_model();
+
         PackageSelectionModel {
             current_entry_fields,
             group_rows,
+            workflow_rows,
+            active_workflow,
+            action_summary,
             selected_rows,
-            status: self.status.clone(),
+            status: self.package_selection_status(),
         }
     }
 
@@ -530,6 +661,7 @@ mod tests {
     fn package_selection_model_tracks_current_group_and_selected_rows() {
         let mut state = test_state(Path::new("/tmp/demo-selection"));
         state.package_group_filter = Some("misc".to_string());
+        state.package_workflow_filter = Some("containers".to_string());
         state.package_user_selections.insert(
             "alice".to_string(),
             BTreeMap::from([("hello".to_string(), "misc".to_string())]),
@@ -548,12 +680,260 @@ mod tests {
                 && row.filter_selected
                 && row.current_selected)
         );
+        assert!(model.workflow_rows.iter().any(|row| row.workflow_label
+            == "容器与集群 [containers]"
+            && row.filter_selected
+            && row.current_selected
+            && row.selected_count == 1
+            && row.total_count == 1));
+        let active_workflow = model.active_workflow.as_ref().expect("active workflow");
+        assert_eq!(active_workflow.workflow_label, "容器与集群 [containers]");
+        assert_eq!(active_workflow.selected_count, 1);
+        assert_eq!(active_workflow.total_count, 1);
+        assert!(model.action_summary.is_none());
         assert!(
             model
                 .selected_rows
                 .iter()
                 .any(|row| row.name == "Hello" && row.group_label == "misc")
         );
+    }
+
+    #[test]
+    fn package_filtered_indices_respect_workflow_filter() {
+        let mut state = test_state(Path::new("/tmp/demo-workflow-filter"));
+
+        assert_eq!(state.package_filtered_count(), 1);
+        state.package_workflow_filter = Some("containers".to_string());
+        assert_eq!(state.package_filtered_count(), 1);
+        state.package_workflow_filter = Some("security".to_string());
+        assert_eq!(state.package_filtered_count(), 0);
+        assert_eq!(state.current_package_workflow_filter_label(), "security");
+    }
+
+    #[test]
+    fn package_summary_model_shows_active_workflow_overview() {
+        let mut state = test_state(Path::new("/tmp/demo-workflow-summary"));
+        state.package_workflow_filter = Some("containers".to_string());
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+
+        let model = state.package_summary_model();
+
+        assert!(
+            model
+                .field_lines
+                .iter()
+                .any(|line| line == "当前工作流：容器与集群 [containers]")
+        );
+        assert!(model.field_lines.iter().any(|line| line == "工作流可选：1"));
+        assert!(model.field_lines.iter().any(|line| line == "工作流已选：1"));
+        assert!(
+            model
+                .field_lines
+                .iter()
+                .any(|line| line == "工作流说明：容器与集群工具")
+        );
+    }
+
+    #[test]
+    fn package_selection_model_tracks_selected_and_missing_entries_for_active_workflow() {
+        let mut state = test_state(Path::new("/tmp/demo-active-workflow-diff"));
+        state.context.catalog_entries.push(CatalogEntry {
+            id: "podman".to_string(),
+            name: "Podman".to_string(),
+            category: "containers".to_string(),
+            group: Some("cloud-containers".to_string()),
+            expr: "pkgs.podman".to_string(),
+            description: Some("容器运行时".to_string()),
+            keywords: Vec::new(),
+            workflow_tags: vec!["containers".to_string()],
+            lifecycle: Some("stable".to_string()),
+            source: Some("nixpkgs".to_string()),
+            platforms: Vec::new(),
+            desktop_entry_flag: None,
+        });
+        state.package_local_entry_ids.insert("podman".to_string());
+        state.package_workflow_filter = Some("containers".to_string());
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+
+        let model = state.package_selection_model();
+        let active_workflow = model.active_workflow.as_ref().expect("active workflow");
+
+        assert_eq!(active_workflow.selected_count, 1);
+        assert_eq!(active_workflow.total_count, 2);
+        assert_eq!(active_workflow.selected_rows.len(), 1);
+        assert_eq!(active_workflow.selected_rows[0].name, "Hello");
+        assert_eq!(active_workflow.missing_rows.len(), 1);
+        assert_eq!(active_workflow.missing_rows[0].name, "Podman");
+        assert_eq!(
+            active_workflow.missing_rows[0].group_label,
+            "cloud-containers"
+        );
+    }
+
+    #[test]
+    fn package_selection_model_surfaces_packages_success_feedback() {
+        let mut state = test_state(Path::new("/tmp/demo-package-action-summary"));
+        state.feedback = UiFeedback::with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Packages,
+            "Packages 已加入工作流 容器与集群 [containers] 下的 1 个未选软件。",
+            "继续调整列表，完成后按 s 保存。",
+        );
+        state.status = state.feedback.legacy_status_text();
+
+        let model = state.package_selection_model();
+        let action_summary = model.action_summary.as_ref().expect("action summary");
+
+        assert!(
+            action_summary
+                .latest_result
+                .contains("加入工作流 容器与集群")
+        );
+        assert_eq!(action_summary.next_step, "继续调整列表，完成后按 s 保存。");
+    }
+
+    #[test]
+    fn package_selection_model_uses_stable_status_instead_of_legacy_feedback_text() {
+        let mut state = test_state(Path::new("/tmp/demo-package-stable-status"));
+        state.package_dirty_users.insert("alice".to_string());
+        state.feedback = UiFeedback::with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Packages,
+            "Packages 已选中 alice：Hello",
+            "继续调整列表，完成后按 s 保存。",
+        );
+        state.status = state.feedback.legacy_status_text();
+
+        let model = state.package_selection_model();
+
+        assert_eq!(model.status, "未保存");
+        let action_summary = model.action_summary.as_ref().expect("action summary");
+        assert_eq!(action_summary.latest_result, "Packages 已选中 alice：Hello");
+    }
+
+    #[test]
+    fn add_current_workflow_missing_packages_adds_only_missing_entries() {
+        let mut state = test_state(Path::new("/tmp/demo-active-workflow-apply"));
+        state.context.catalog_entries.push(CatalogEntry {
+            id: "podman".to_string(),
+            name: "Podman".to_string(),
+            category: "containers".to_string(),
+            group: Some("cloud-containers".to_string()),
+            expr: "pkgs.podman".to_string(),
+            description: Some("容器运行时".to_string()),
+            keywords: Vec::new(),
+            workflow_tags: vec!["containers".to_string()],
+            lifecycle: Some("stable".to_string()),
+            source: Some("nixpkgs".to_string()),
+            platforms: Vec::new(),
+            desktop_entry_flag: None,
+        });
+        state.package_local_entry_ids.insert("podman".to_string());
+        state.package_workflow_filter = Some("containers".to_string());
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+
+        state.add_current_workflow_missing_packages();
+
+        let selection = state
+            .package_user_selections
+            .get("alice")
+            .expect("alice selection");
+        assert!(selection.contains_key("hello"));
+        assert!(selection.contains_key("podman"));
+        assert_eq!(
+            selection.get("podman").map(String::as_str),
+            Some("cloud-containers")
+        );
+        assert!(state.package_dirty_users.contains("alice"));
+        assert!(
+            state
+                .status
+                .contains("Packages 已加入工作流 容器与集群 [containers] 下的 1 个未选软件")
+        );
+    }
+
+    #[test]
+    fn open_current_workflow_missing_packages_confirm_enters_confirm_mode() {
+        let mut state = test_state(Path::new("/tmp/demo-active-workflow-confirm"));
+        state.context.catalog_entries.push(CatalogEntry {
+            id: "podman".to_string(),
+            name: "Podman".to_string(),
+            category: "containers".to_string(),
+            group: Some("cloud-containers".to_string()),
+            expr: "pkgs.podman".to_string(),
+            description: Some("容器运行时".to_string()),
+            keywords: Vec::new(),
+            workflow_tags: vec!["containers".to_string()],
+            lifecycle: Some("stable".to_string()),
+            source: Some("nixpkgs".to_string()),
+            platforms: Vec::new(),
+            desktop_entry_flag: None,
+        });
+        state.package_local_entry_ids.insert("podman".to_string());
+        state.package_workflow_filter = Some("containers".to_string());
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+
+        state.open_current_workflow_missing_packages_confirm();
+
+        assert!(state.package_workflow_add_confirm_mode);
+        assert_eq!(
+            state.active_package_text_mode(),
+            Some(PackageTextMode::ConfirmWorkflowAdd)
+        );
+        assert!(
+            state
+                .status
+                .contains("Packages 准备为 alice 批量加入工作流")
+        );
+    }
+
+    #[test]
+    fn confirm_current_workflow_missing_packages_applies_and_exits_confirm_mode() {
+        let mut state = test_state(Path::new("/tmp/demo-active-workflow-confirm-apply"));
+        state.context.catalog_entries.push(CatalogEntry {
+            id: "podman".to_string(),
+            name: "Podman".to_string(),
+            category: "containers".to_string(),
+            group: Some("cloud-containers".to_string()),
+            expr: "pkgs.podman".to_string(),
+            description: Some("容器运行时".to_string()),
+            keywords: Vec::new(),
+            workflow_tags: vec!["containers".to_string()],
+            lifecycle: Some("stable".to_string()),
+            source: Some("nixpkgs".to_string()),
+            platforms: Vec::new(),
+            desktop_entry_flag: None,
+        });
+        state.package_local_entry_ids.insert("podman".to_string());
+        state.package_workflow_filter = Some("containers".to_string());
+        state.package_user_selections.insert(
+            "alice".to_string(),
+            BTreeMap::from([("hello".to_string(), "misc".to_string())]),
+        );
+        state.open_current_workflow_missing_packages_confirm();
+
+        state.confirm_current_workflow_missing_packages();
+
+        assert!(!state.package_workflow_add_confirm_mode);
+        let selection = state
+            .package_user_selections
+            .get("alice")
+            .expect("alice selection");
+        assert!(selection.contains_key("podman"));
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Packages);
     }
 
     #[test]
@@ -564,15 +944,23 @@ mod tests {
             BTreeMap::from([("hello".to_string(), "misc".to_string())]),
         );
 
-        let model = state.package_list_model();
+        let model = state.package_page_model();
 
-        assert_eq!(model.title, "Packages (本地覆盖/已声明)");
-        assert_eq!(model.selected_index, Some(0));
+        assert_eq!(model.list.title, "Packages (本地覆盖/已声明)");
+        assert_eq!(model.list.selected_index, Some(0));
         assert!(
             model
+                .list
                 .items
                 .iter()
                 .any(|item| item.selected && item.name == "Hello" && item.group_label == "misc")
+        );
+        assert!(
+            model
+                .selection
+                .current_entry_fields
+                .iter()
+                .any(|row| row.label == "工作流" && row.value == "容器与集群 [containers]")
         );
     }
 
@@ -590,6 +978,7 @@ mod tests {
                 catalog_path: root.join("catalog/packages"),
                 catalog_groups_path: root.join("catalog/groups.toml"),
                 catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_workflows_path: root.join("catalog/workflows.toml"),
                 catalog_entries: vec![CatalogEntry {
                     id: "hello".to_string(),
                     name: "Hello".to_string(),
@@ -598,12 +987,23 @@ mod tests {
                     expr: "pkgs.hello".to_string(),
                     description: None,
                     keywords: Vec::new(),
+                    workflow_tags: vec!["containers".to_string()],
+                    lifecycle: Some("stable".to_string()),
                     source: Some("nixpkgs".to_string()),
                     platforms: Vec::new(),
                     desktop_entry_flag: None,
                 }],
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::from([(
+                    "containers".to_string(),
+                    WorkflowMeta {
+                        id: "containers".to_string(),
+                        label: "容器与集群".to_string(),
+                        description: Some("容器与集群工具".to_string()),
+                        order: 20,
+                    },
+                )]),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -623,7 +1023,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -640,12 +1040,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::from(["hello".to_string()]),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -654,7 +1056,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

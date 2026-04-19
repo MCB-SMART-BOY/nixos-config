@@ -109,9 +109,14 @@ impl AppState {
 
     pub fn open_hosts_text_edit(&mut self) {
         let Some(settings) = self.current_host_settings().cloned() else {
-            self.status = format!(
-                "无法编辑主机设置：{}",
-                self.host_settings_unavailable_message(&self.target_host)
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Hosts,
+                format!(
+                    "无法编辑主机设置：{}",
+                    self.host_settings_unavailable_message(&self.target_host)
+                ),
+                "先修复当前 host 的配置读取问题，再继续编辑。",
             );
             return;
         };
@@ -225,9 +230,14 @@ impl AppState {
         F: FnMut(&mut HostManagedSettings) -> &mut String,
     {
         let Some(mut current_settings) = self.current_host_settings().cloned() else {
-            self.status = format!(
-                "无法调整当前主机字段：{}",
-                self.host_settings_unavailable_message(&self.target_host)
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Hosts,
+                format!(
+                    "无法调整当前主机字段：{}",
+                    self.host_settings_unavailable_message(&self.target_host)
+                ),
+                "先修复当前 host 的配置读取问题，再继续编辑。",
             );
             return;
         };
@@ -236,16 +246,26 @@ impl AppState {
             return;
         };
         let Some(settings) = self.current_host_settings_mut() else {
-            self.status = format!(
-                "无法调整当前主机字段：{}",
-                self.host_settings_unavailable_message(&self.target_host)
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Hosts,
+                format!(
+                    "无法调整当前主机字段：{}",
+                    self.host_settings_unavailable_message(&self.target_host)
+                ),
+                "先修复当前 host 的配置读取问题，再继续编辑。",
             );
             return;
         };
         *field(settings) = next.clone();
         self.host_dirty_runtime_hosts
             .insert(self.target_host.clone());
-        self.status = format!("当前字段已切换为：{next}");
+        self.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Hosts,
+            format!("Hosts 已把当前字段切换为：{next}"),
+            "复查 Hosts Summary，确认后按 s 保存。",
+        );
     }
 
     fn toggle_current_host_bool_field<F>(&mut self, mut field: F, message: &str)
@@ -253,9 +273,14 @@ impl AppState {
         F: FnMut(&mut HostManagedSettings) -> &mut bool,
     {
         let Some(settings) = self.current_host_settings_mut() else {
-            self.status = format!(
-                "无法调整当前主机字段：{}",
-                self.host_settings_unavailable_message(&self.target_host)
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Hosts,
+                format!(
+                    "无法调整当前主机字段：{}",
+                    self.host_settings_unavailable_message(&self.target_host)
+                ),
+                "先修复当前 host 的配置读取问题，再继续编辑。",
             );
             return;
         };
@@ -263,7 +288,12 @@ impl AppState {
         *value = !*value;
         self.host_dirty_runtime_hosts
             .insert(self.target_host.clone());
-        self.status = message.to_string();
+        self.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Hosts,
+            format!("Hosts {message}"),
+            "复查 Hosts Summary，确认后按 s 保存。",
+        );
     }
 
     fn confirm_hosts_text_edit(&mut self) {
@@ -275,9 +305,14 @@ impl AppState {
         let Some(settings) = self.current_host_settings_mut() else {
             self.hosts_text_mode = None;
             self.host_text_input.clear();
-            self.status = format!(
-                "无法确认主机设置编辑：{}",
-                self.host_settings_unavailable_message(&self.target_host)
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Hosts,
+                format!(
+                    "无法确认主机设置编辑：{}",
+                    self.host_settings_unavailable_message(&self.target_host)
+                ),
+                "先修复当前 host 的配置读取问题，再继续编辑。",
             );
             return;
         };
@@ -354,10 +389,20 @@ impl AppState {
                     .insert(self.target_host.clone());
                 self.hosts_text_mode = None;
                 self.host_text_input.clear();
-                self.status = "主机字段已更新。".to_string();
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Success,
+                    UiFeedbackScope::Hosts,
+                    "Hosts 已更新当前文本字段。",
+                    "复查 Hosts Summary，确认后按 s 保存。",
+                );
             }
             Err(err) => {
-                self.status = format!("输入无效：{err}");
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Error,
+                    UiFeedbackScope::Hosts,
+                    format!("Hosts 输入无效：{err}"),
+                    "修正当前输入后再按 Enter 确认。",
+                );
             }
         }
     }
@@ -397,7 +442,8 @@ mod tests {
         assert!(state.host_dirty_runtime_hosts.contains("demo"));
         assert!(state.hosts_text_mode.is_none());
         assert!(state.host_text_input.is_empty());
-        assert_eq!(state.status, "主机字段已更新。");
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Hosts);
+        assert!(state.status.contains("Hosts 已更新当前文本字段"));
     }
 
     #[test]
@@ -417,6 +463,28 @@ mod tests {
         assert!(state.status.contains("配置读取失败"));
     }
 
+    #[test]
+    fn adjust_hosts_field_sets_hosts_feedback_scope() {
+        let mut state = test_state(Path::new("/repo"));
+        state.hosts_focus = 18;
+
+        state.adjust_hosts_field(1);
+
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Hosts);
+        assert!(state.status.contains("Hosts 已把当前字段切换为：hybrid"));
+        let lines = state.hosts_summary_model().lines();
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("最近结果：Hosts 已把当前字段切换为：hybrid"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "下一步：复查 Hosts Summary，确认后按 s 保存。")
+        );
+    }
+
     fn test_state(root: &Path) -> AppState {
         let mut host_settings_by_name = BTreeMap::new();
         host_settings_by_name.insert("demo".to_string(), valid_host_settings());
@@ -434,9 +502,11 @@ mod tests {
                 catalog_path: root.join("catalog/packages"),
                 catalog_groups_path: root.join("catalog/groups.toml"),
                 catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_workflows_path: root.join("catalog/workflows.toml"),
                 catalog_entries: Vec::new(),
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -456,7 +526,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -473,12 +543,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -487,7 +559,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

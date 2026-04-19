@@ -1,0 +1,37 @@
+# 软件目录分片：security-tools
+
+[[package]]
+id = "age"
+name = "age"
+category = "security"
+group = "security-tools"
+expr = "pkgs.age"
+description = "现代文件加密工具。"
+keywords = ["security", "encryption", "age"]
+workflow_tags = ["security"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "sops"
+name = "sops"
+category = "security"
+group = "security-tools"
+expr = "pkgs.sops"
+description = "面向配置与密钥文件的加密编辑工具。"
+keywords = ["security", "secrets", "sops"]
+workflow_tags = ["security"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "yubikey-manager"
+name = "YubiKey Manager"
+category = "security"
+group = "security-tools"
+expr = "pkgs.yubikey-manager"
+description = "YubiKey 设备管理工具。"
+keywords = ["security", "yubikey", "hardware-token"]
+workflow_tags = ["security"]
+lifecycle = "stable"
+source = "nixpkgs"

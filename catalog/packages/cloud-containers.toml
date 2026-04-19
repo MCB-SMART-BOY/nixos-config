@@ -1,0 +1,85 @@
+# 软件目录分片：cloud-containers
+
+[[package]]
+id = "podman"
+name = "Podman"
+category = "containers"
+group = "cloud-containers"
+expr = "pkgs.podman"
+description = "无 daemon 的容器运行时。"
+keywords = ["containers", "oci", "docker"]
+workflow_tags = ["containers"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "distrobox"
+name = "Distrobox"
+category = "containers"
+group = "cloud-containers"
+expr = "pkgs.distrobox"
+description = "基于容器的开发工作区管理工具。"
+keywords = ["containers", "dev-env", "toolbox"]
+workflow_tags = ["containers"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "lazydocker"
+name = "Lazydocker"
+category = "containers"
+group = "cloud-containers"
+expr = "pkgs.lazydocker"
+description = "容器与镜像管理 TUI。"
+keywords = ["containers", "docker", "tui"]
+workflow_tags = ["containers"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "kubectl"
+name = "kubectl"
+category = "containers"
+group = "cloud-containers"
+expr = "pkgs.kubectl"
+description = "Kubernetes 集群命令行。"
+keywords = ["kubernetes", "cluster", "cli"]
+workflow_tags = ["containers"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "k9s"
+name = "k9s"
+category = "containers"
+group = "cloud-containers"
+expr = "pkgs.k9s"
+description = "Kubernetes 集群 TUI。"
+keywords = ["kubernetes", "cluster", "tui"]
+workflow_tags = ["containers"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "helm"
+name = "Helm"
+category = "containers"
+group = "cloud-containers"
+expr = "pkgs.kubernetes-helm"
+description = "Kubernetes 包管理工具。"
+keywords = ["kubernetes", "helm", "packages"]
+workflow_tags = ["containers"]
+lifecycle = "stable"
+source = "nixpkgs"
+
+[[package]]
+id = "kustomize"
+name = "Kustomize"
+category = "containers"
+group = "cloud-containers"
+expr = "pkgs.kustomize"
+description = "Kubernetes 清单定制工具。"
+keywords = ["kubernetes", "manifests", "customize"]
+workflow_tags = ["containers"]
+lifecycle = "stable"
+source = "nixpkgs"

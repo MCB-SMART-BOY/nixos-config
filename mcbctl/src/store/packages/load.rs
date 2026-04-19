@@ -156,6 +156,8 @@ fn parse_managed_entries_from_group_file(path: &Path, group: &str) -> Vec<Catalo
             expr,
             description: None,
             keywords: Vec::new(),
+            workflow_tags: Vec::new(),
+            lifecycle: None,
             source: Some(source),
             platforms: Vec::new(),
             desktop_entry_flag: None,

@@ -53,6 +53,7 @@ nix run .#mcb-deploy -- --help
 - `Advanced`：左侧先看区域摘要和动作预览，再决定当前高级动作；现在它已经走独立的 `Page::Advanced` 叶子和独立按键分支，不再与 `Apply` 共用同一个叶子页，也不再依赖 `show_advanced` 这个 Apply 兼容布尔开关来表示“当前在 Advanced”；摘要会说明“当前任务 / 推荐动作 / 为什么在这里做 / 做完后回哪”；仓库维护动作会显示 `Maintenance Summary + Maintenance Preview + Repository Context + Maintenance Detail`，并且不再复用 deploy 参数或 Apply 告警；完整向导动作会显示 `Advanced Summary + Deploy Preview + Deploy Parameters + Deploy Wizard Detail`，而且这些参数现在不只焦点独立，`host / mode / action / source / ref / upgrade` 这组值也会独立保存；当来源是 `RemotePinned` 时，`Deploy Parameters` 会额外要求填写 `固定 ref`，并在进入 `mcb-deploy` 时用内部参数显式带过去；动作列表会按推荐分组优先级自动排序；`J/K` 选高级动作，`x/X` 执行，`b` 返回 `Apply`
 - `Inspect`：`j/k` 选检查动作，`r/d/R` 刷新健康项，`x` 执行当前 Inspect 动作；右上角 `Health Details` 现在会带上四条写回链的 `受管保护` 快照和阻塞细节
 - `Packages / Home / Users / Hosts`：右侧摘要现在会提前显示 `受管保护` 状态；如果同一 `managed` 子树里已有损坏分片，或者 `managed/packages/` 里混入了非受管陈旧组文件，会先在页面里提示
+- `Packages`：除了分类 / 来源 / 组过滤，现在还支持按项目工作流过滤；`workflow` 用来表达这个仓库为什么推荐某个软件，而不是重复做一份 nixpkgs 搜索目录；切换工作流后，左侧摘要会直接显示当前工作流的说明、可选数量和已选数量，右侧 `Package Context` 也会把当前 workflow 下“已选 / 未选”的差异直接列出来；`A` 会先预览当前 workflow 下尚未选中的软件，`Enter` 确认后才批量加入当前用户选择；真正写回仍然要按 `s`；批量加入成功后，右侧会直接显示最近动作、下一步和最近结果
 - 历史 `Actions` 已降为迁移期内部模块，不再作为顶层区域继续暴露
 
 ## 3. 保存规则
@@ -184,8 +185,9 @@ nix run .#mcb-deploy -- release
 
 发布时如果上一个 tag 探测或 git log 生成失败，现在会显式告警，并退回到保守 release notes，而不是静默生成空结果。
 发布前还会强制探测 `git status --porcelain`；如果探测失败会直接中止发布，避免把未知工作区状态误判成干净。
+如果需要给外部平台消费当前 release 资产，也可以单独运行 `nix run .#mcbctl -- release-manifest [--version <tag>]` 输出机器可读的 release 资产清单。
 
-创建 GitHub Release 后，CI 资产工作流会按刚创建的 tag 触发，而不是按当前分支 head 触发；这样 release 页面和上传的预编译资产始终对齐。
+创建 GitHub Release 后，CI 资产工作流会按刚创建的 tag 触发，而不是按当前分支 head 触发；这样 release 页面、`release-manifest.json` 和上传的预编译资产始终对齐。
 
 ## 8. 手写逻辑应该放哪
 

@@ -1,4 +1,4 @@
-use crate::domain::tui::{DeployAction, DeploySource, DeployTask};
+use crate::domain::tui::{DeployAction, DeploySource, DeployTask, HostManagedSettings};
 use crate::tui::state::{AdvancedWizardModel, AppContext, AppState, ApplyModel};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -14,7 +14,6 @@ pub(super) fn test_apply_model() -> ApplyModel {
         source_detail: None,
         action: DeployAction::Switch,
         flake_update: false,
-        advanced: false,
         sync_preview: Some("sudo rsync /repo /etc/nixos".to_string()),
         rebuild_preview: Some(
             "sudo -E env nixos-rebuild switch --flake /etc/nixos#nixos".to_string(),
@@ -52,6 +51,9 @@ pub(super) fn test_advanced_wizard_model() -> AdvancedWizardModel {
 }
 
 pub(super) fn test_app_state() -> AppState {
+    let mut host_settings_by_name = BTreeMap::new();
+    host_settings_by_name.insert("nixos".to_string(), valid_host_settings());
+
     AppState {
         context: AppContext {
             repo_root: PathBuf::from("/repo"),
@@ -65,9 +67,11 @@ pub(super) fn test_app_state() -> AppState {
             catalog_path: PathBuf::from("catalog/packages"),
             catalog_groups_path: PathBuf::from("catalog/groups.toml"),
             catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
             catalog_entries: Vec::new(),
             catalog_groups: BTreeMap::new(),
             catalog_home_options: Vec::new(),
+            catalog_workflows: BTreeMap::new(),
             catalog_categories: Vec::new(),
             catalog_sources: Vec::new(),
         },
@@ -87,14 +91,14 @@ pub(super) fn test_app_state() -> AppState {
         advanced_deploy_source_ref: String::new(),
         advanced_deploy_action: DeployAction::Switch,
         advanced_flake_update: false,
-        show_advanced: false,
+        help_overlay_visible: false,
         deploy_text_mode: None,
         users_focus: 0,
         hosts_focus: 0,
         users_text_mode: None,
         hosts_text_mode: None,
         host_text_input: String::new(),
-        host_settings_by_name: BTreeMap::new(),
+        host_settings_by_name,
         host_settings_errors_by_name: BTreeMap::new(),
         host_dirty_user_hosts: BTreeSet::new(),
         host_dirty_runtime_hosts: BTreeSet::new(),
@@ -104,12 +108,14 @@ pub(super) fn test_app_state() -> AppState {
         package_category_index: 0,
         package_group_filter: None,
         package_source_filter: None,
+        package_workflow_filter: None,
         package_search: String::new(),
         package_search_result_indices: Vec::new(),
         package_local_entry_ids: BTreeSet::new(),
         package_search_mode: false,
         package_group_create_mode: false,
         package_group_rename_mode: false,
+        package_workflow_add_confirm_mode: false,
         package_group_rename_source: String::new(),
         package_group_input: String::new(),
         package_user_selections: BTreeMap::new(),
@@ -118,11 +124,21 @@ pub(super) fn test_app_state() -> AppState {
         home_focus: 0,
         home_settings_by_user: BTreeMap::new(),
         home_dirty_users: BTreeSet::new(),
-        actions_focus: 0,
+        inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+        advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
         overview_repo_integrity: crate::tui::state::OverviewCheckState::NotRun,
         overview_doctor: crate::tui::state::OverviewCheckState::NotRun,
         feedback: crate::tui::state::UiFeedback::default(),
         status: String::new(),
+    }
+}
+
+fn valid_host_settings() -> HostManagedSettings {
+    HostManagedSettings {
+        primary_user: "alice".to_string(),
+        users: vec!["alice".to_string()],
+        admin_users: vec!["alice".to_string()],
+        ..HostManagedSettings::default()
     }
 }
 

@@ -3,7 +3,11 @@ use super::*;
 impl AppState {
     pub fn save_current_user_packages(&mut self) -> Result<()> {
         let Some(user) = self.current_package_user().map(ToOwned::to_owned) else {
-            self.status = "没有可保存的用户。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 没有可保存的用户。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return Ok(());
         };
 
@@ -21,21 +25,37 @@ impl AppState {
         let guard_errors =
             managed_package_guard_errors(&managed_dir, &self.context.catalog_entries, &selected);
         if !guard_errors.is_empty() {
-            self.status = format!("Packages 未写入：{}", guard_errors.join("；"));
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                format!("Packages 未写入：{}", guard_errors.join("；")),
+                "先处理 Packages Summary 里的受管保护，再重试保存。",
+            );
             return Ok(());
         }
         if let Err(err) = ensure_managed_packages_layout(&managed_dir) {
-            self.status = format!("Packages 未写入：{err:#}");
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                format!("Packages 未写入：{err:#}"),
+                "先处理 Packages Summary 里的受管保护，再重试保存。",
+            );
             return Ok(());
         }
         if let Err(err) =
             write_grouped_managed_packages(&managed_dir, &self.context.catalog_entries, &selected)
         {
-            self.status = format!("Packages 未写入：{err:#}");
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                format!("Packages 未写入：{err:#}"),
+                "先处理 Packages Summary 里的受管保护，再重试保存。",
+            );
             return Ok(());
         }
         self.package_dirty_users.remove(&user);
-        self.status = format!("已写入 {}", managed_dir.join("packages").display());
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            format!("Packages 已写入 {}", managed_dir.join("packages").display()),
+            self.package_result_next_step(),
+        );
         Ok(())
     }
 }
@@ -89,6 +109,7 @@ mod tests {
         assert!(content.contains("# managed-id: hello"));
         assert!(content.contains("pkgs.hello"));
         assert!(!state.package_dirty_users.contains("alice"));
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Packages);
         assert!(state.status.contains("managed/packages"));
 
         std::fs::remove_dir_all(root)?;
@@ -135,6 +156,7 @@ mod tests {
                 catalog_path: root.join("catalog/packages"),
                 catalog_groups_path: root.join("catalog/groups.toml"),
                 catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_workflows_path: root.join("catalog/workflows.toml"),
                 catalog_entries: vec![CatalogEntry {
                     id: "hello".to_string(),
                     name: "Hello".to_string(),
@@ -143,12 +165,15 @@ mod tests {
                     expr: "pkgs.hello".to_string(),
                     description: None,
                     keywords: Vec::new(),
+                    workflow_tags: Vec::new(),
+                    lifecycle: None,
                     source: Some("nixpkgs".to_string()),
                     platforms: Vec::new(),
                     desktop_entry_flag: None,
                 }],
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: Vec::new(),
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -168,7 +193,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -185,12 +210,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::from(["hello".to_string()]),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -199,7 +226,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

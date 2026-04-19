@@ -3,7 +3,10 @@ use mcbctl::domain::tui::DeployAction;
 #[cfg(test)]
 use mcbctl::health::{DoctorToolStatus, assess_doctor_environment};
 use mcbctl::health::{collect_doctor_report, ensure_required_layout, tool_status_label};
-use mcbctl::release_bundle::{ReleaseBundleOptions, build_release_bundle};
+use mcbctl::release_bundle::{
+    ReleaseBundleOptions, build_release_bundle, default_release_repository,
+    render_release_manifest_json,
+};
 use mcbctl::repo::{
     ensure_repository_integrity, extract_manual_managed_files, migrate_managed_files,
     migrate_root_hardware_config,
@@ -101,6 +104,9 @@ fn run() -> Result<()> {
         "release-bundle" => {
             return run_release_bundle(&args[1..]);
         }
+        "release-manifest" => {
+            return run_release_manifest(&args[1..]);
+        }
         "lint-repo" => {
             return run_lint_repo(&args[1..]);
         }
@@ -128,7 +134,7 @@ fn launch_tui() -> Result<()> {
 
 fn usage() {
     println!(
-        "用法:\n  mcbctl\n  mcbctl tui\n  mcbctl deploy [--help]\n  mcbctl release\n  mcbctl rebuild <switch|test|boot|build> [host] [--flake <path>] [--upgrade] [--sudo|--no-sudo]\n  mcbctl build-host [host] [--flake <path>] [--dry-run]\n  mcbctl repo-integrity [--root <path>]\n  mcbctl migrate-managed [--root <path>]\n  mcbctl extract-managed [--root <path>]\n  mcbctl migrate-hardware-config [--root <path>] [--host <name>]\n  mcbctl release-bundle --target <triple> --bin-dir <path> --out-dir <path> [--version <tag>]\n  mcbctl lint-repo [--root <path>]\n  mcbctl doctor [--root <path>]\n  mcbctl terminal-action <flake-status|flake-hint|sensors|memory|disk>\n  mcbctl screenshot-edit <full|region>\n\n说明:\n  默认进入 TUI 控制台。\n  `mcbctl deploy` 会转发到交互式部署向导。\n  `mcbctl release` 会转发到发布流程。\n  `rebuild` / `build-host` 是 fish 快捷入口背后的 Rust 主线命令。\n  `repo-integrity` / `migrate-managed` / `extract-managed` / `migrate-hardware-config` / `release-bundle` / `lint-repo` / `doctor` 用于 Rust 主线下的仓库校验、迁移与发布产物打包。"
+        "用法:\n  mcbctl\n  mcbctl tui\n  mcbctl deploy [--help]\n  mcbctl release\n  mcbctl rebuild <switch|test|boot|build> [host] [--flake <path>] [--upgrade] [--sudo|--no-sudo]\n  mcbctl build-host [host] [--flake <path>] [--dry-run]\n  mcbctl repo-integrity [--root <path>]\n  mcbctl migrate-managed [--root <path>]\n  mcbctl extract-managed [--root <path>]\n  mcbctl migrate-hardware-config [--root <path>] [--host <name>]\n  mcbctl release-bundle --target <triple> --bin-dir <path> --out-dir <path> [--version <tag>]\n  mcbctl release-manifest [--repo <owner/repo>] [--version <tag>]\n  mcbctl lint-repo [--root <path>]\n  mcbctl doctor [--root <path>]\n  mcbctl terminal-action <flake-status|flake-hint|sensors|memory|disk>\n  mcbctl screenshot-edit <full|region>\n\n说明:\n  默认进入 TUI 控制台。\n  `mcbctl deploy` 会转发到交互式部署向导。\n  `mcbctl release` 会转发到发布流程。\n  `rebuild` / `build-host` 是 fish 快捷入口背后的 Rust 主线命令。\n  `repo-integrity` / `migrate-managed` / `extract-managed` / `migrate-hardware-config` / `release-bundle` / `release-manifest` / `lint-repo` / `doctor` 用于 Rust 主线下的仓库校验、迁移与发布产物打包。"
     );
 }
 
@@ -277,6 +283,41 @@ fn run_release_bundle(args: &[String]) -> Result<()> {
     println!("version: {}", options.version);
     println!("archive: {}", report.archive.display());
     println!("checksum: {}", report.checksum_file.display());
+    Ok(())
+}
+
+fn run_release_manifest(args: &[String]) -> Result<()> {
+    if has_help_flag(args) {
+        println!("用法:\n  mcbctl release-manifest [--repo <owner/repo>] [--version <tag>]");
+        return Ok(());
+    }
+
+    let mut repository = None;
+    let mut version = None;
+    let mut idx = 0usize;
+    while idx < args.len() {
+        match args[idx].as_str() {
+            "--repo" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--repo 缺少 owner/repo");
+                };
+                repository = Some(value.to_string());
+                idx += 2;
+            }
+            "--version" => {
+                let Some(value) = args.get(idx + 1) else {
+                    bail!("--version 缺少版本");
+                };
+                version = Some(value.to_string());
+                idx += 2;
+            }
+            other => bail!("未知参数：{other}"),
+        }
+    }
+
+    let repository = repository.unwrap_or_else(default_release_repository);
+    let version = version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
+    println!("{}", render_release_manifest_json(&repository, &version)?);
     Ok(())
 }
 

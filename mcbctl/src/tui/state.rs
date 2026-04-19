@@ -2,8 +2,11 @@ use crate::domain::tui::{
     ActionItem, CatalogEntry, DeployAction, DeploySource, DeployTask, DeployTextMode, GroupMeta,
     HomeManagedSettings, HomeOptionMeta, HostManagedSettings, HostsTextMode, ManagedBarProfile,
     ManagedToggle, PackageDataMode, PackageTextMode, Page, TopLevelPage, UsersTextMode,
+    WorkflowMeta,
 };
-use crate::store::catalog::{load_catalog, load_group_catalog, load_home_options_catalog};
+use crate::store::catalog::{
+    load_catalog, load_group_catalog, load_home_options_catalog, load_workflow_catalog,
+};
 use crate::store::context::{
     detect_hostname, detect_nix_system, detect_privilege_mode, detect_repo_root, list_hosts,
     list_users,
@@ -34,7 +37,6 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-mod actions;
 mod deploy;
 mod helpers;
 mod home;
@@ -79,8 +81,15 @@ pub(crate) struct EditCheckModel {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct EditActionSummaryModel {
+    pub(crate) latest_result: String,
+    pub(crate) next_step: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct EditDetailModel {
     pub(crate) status: String,
+    pub(crate) action_summary: Option<EditActionSummaryModel>,
     pub(crate) validation: Option<EditCheckModel>,
     pub(crate) managed_guard: EditCheckModel,
     pub(crate) notes: Vec<String>,
@@ -95,6 +104,15 @@ pub(crate) struct PackageGroupOverviewRow {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PackageWorkflowOverviewRow {
+    pub(crate) workflow_label: String,
+    pub(crate) total_count: usize,
+    pub(crate) selected_count: usize,
+    pub(crate) filter_selected: bool,
+    pub(crate) current_selected: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PackageSelectedEntryRow {
     pub(crate) name: String,
     pub(crate) category: String,
@@ -102,9 +120,35 @@ pub(crate) struct PackageSelectedEntryRow {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PackageWorkflowEntryRow {
+    pub(crate) name: String,
+    pub(crate) category: String,
+    pub(crate) group_label: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PackageActiveWorkflowModel {
+    pub(crate) workflow_label: String,
+    pub(crate) description: Option<String>,
+    pub(crate) total_count: usize,
+    pub(crate) selected_count: usize,
+    pub(crate) selected_rows: Vec<PackageWorkflowEntryRow>,
+    pub(crate) missing_rows: Vec<PackageWorkflowEntryRow>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PackageActionSummaryModel {
+    pub(crate) next_step: String,
+    pub(crate) latest_result: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PackageSelectionModel {
     pub(crate) current_entry_fields: Vec<EditRow>,
     pub(crate) group_rows: Vec<PackageGroupOverviewRow>,
+    pub(crate) workflow_rows: Vec<PackageWorkflowOverviewRow>,
+    pub(crate) active_workflow: Option<PackageActiveWorkflowModel>,
+    pub(crate) action_summary: Option<PackageActionSummaryModel>,
     pub(crate) selected_rows: Vec<PackageSelectedEntryRow>,
     pub(crate) status: String,
 }
@@ -142,6 +186,10 @@ impl EditSummaryModel {
         }
         lines.extend(self.field_lines.iter().cloned());
         lines.push(self.detail.status.clone());
+        if let Some(action_summary) = &self.detail.action_summary {
+            lines.push(format!("最近结果：{}", action_summary.latest_result));
+            lines.push(format!("下一步：{}", action_summary.next_step));
+        }
         if let Some(validation) = &self.detail.validation {
             lines.push(validation.summary.clone());
             lines.extend(validation.details.iter().cloned());
@@ -174,7 +222,27 @@ impl PackageGroupOverviewRow {
     }
 }
 
+impl PackageWorkflowOverviewRow {
+    pub(crate) fn display_line(&self) -> String {
+        let filter_marker = if self.filter_selected { ">" } else { " " };
+        let current_marker = if self.current_selected { "*" } else { " " };
+        format!(
+            "{filter_marker}{current_marker} {} (已选 {}/{})",
+            self.workflow_label, self.selected_count, self.total_count
+        )
+    }
+}
+
 impl PackageSelectedEntryRow {
+    pub(crate) fn display_line(&self) -> String {
+        format!(
+            "- {} ({}, 组: {})",
+            self.name, self.category, self.group_label
+        )
+    }
+}
+
+impl PackageWorkflowEntryRow {
     pub(crate) fn display_line(&self) -> String {
         format!(
             "- {} ({}, 组: {})",
@@ -205,6 +273,59 @@ impl PackageSelectionModel {
                     .iter()
                     .map(PackageGroupOverviewRow::display_line),
             );
+            lines.push(String::new());
+        }
+
+        if self.workflow_rows.is_empty() {
+            lines.push("当前目录还没有声明工作流元数据。".to_string());
+        } else {
+            lines.push("项目工作流（> 过滤，* 当前条目）：".to_string());
+            lines.extend(
+                self.workflow_rows
+                    .iter()
+                    .map(PackageWorkflowOverviewRow::display_line),
+            );
+            lines.push(String::new());
+        }
+
+        if let Some(active_workflow) = &self.active_workflow {
+            lines.push(format!(
+                "当前工作流差异：{}（已选 {}/{}）",
+                active_workflow.workflow_label,
+                active_workflow.selected_count,
+                active_workflow.total_count
+            ));
+            if let Some(description) = &active_workflow.description {
+                lines.push(format!("说明：{description}"));
+            }
+            if active_workflow.selected_rows.is_empty() {
+                lines.push("已选：无".to_string());
+            } else {
+                lines.push("已选：".to_string());
+                lines.extend(
+                    active_workflow
+                        .selected_rows
+                        .iter()
+                        .map(PackageWorkflowEntryRow::display_line),
+                );
+            }
+            if active_workflow.missing_rows.is_empty() {
+                lines.push("未选：无".to_string());
+            } else {
+                lines.push("未选：".to_string());
+                lines.extend(
+                    active_workflow
+                        .missing_rows
+                        .iter()
+                        .map(PackageWorkflowEntryRow::display_line),
+                );
+            }
+            lines.push(String::new());
+        }
+
+        if let Some(action_summary) = &self.action_summary {
+            lines.push(format!("最近结果：{}", action_summary.latest_result));
+            lines.push(format!("下一步：{}", action_summary.next_step));
             lines.push(String::new());
         }
 
@@ -239,13 +360,42 @@ impl AppState {
     pub(crate) fn edit_workspace_summary_model(&self) -> EditWorkspaceSummaryModel {
         EditWorkspaceSummaryModel {
             current_page: format!(
-                "当前子页：{}  目标：{}  切换：1/2/3/4",
+                "当前页/目标：{} / {}",
                 self.edit_page().title(),
                 self.edit_workspace_target_label()
             ),
             dirty: format!("Dirty：{}", self.edit_workspace_dirty_summary()),
             recommendation: self.edit_workspace_recommendation_line(),
         }
+    }
+
+    pub(crate) fn edit_page_is_dirty(&self, page: Page) -> bool {
+        match page {
+            Page::Packages => self
+                .current_package_user()
+                .is_some_and(|user| self.package_dirty_users.contains(user)),
+            Page::Home => self
+                .current_home_user()
+                .is_some_and(|user| self.home_dirty_users.contains(user)),
+            Page::Users => self.host_dirty_user_hosts.contains(&self.target_host),
+            Page::Hosts => self.host_dirty_runtime_hosts.contains(&self.target_host),
+            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect => false,
+        }
+    }
+
+    pub(crate) fn edit_action_summary(
+        &self,
+        scope: UiFeedbackScope,
+        fallback_next_step: &'static str,
+    ) -> Option<EditActionSummaryModel> {
+        (self.feedback.scope == scope).then(|| EditActionSummaryModel {
+            latest_result: self.feedback.message.clone(),
+            next_step: self
+                .feedback
+                .next_step
+                .clone()
+                .unwrap_or_else(|| fallback_next_step.to_string()),
+        })
     }
 
     fn edit_workspace_target_label(&self) -> String {
@@ -259,9 +409,7 @@ impl AppState {
                 .map(|user| format!("user {user}"))
                 .unwrap_or_else(|| "无可用用户".to_string()),
             Page::Users | Page::Hosts => format!("host {}", self.target_host),
-            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect | Page::Actions => {
-                "<无>".to_string()
-            }
+            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect => "<无>".to_string(),
         }
     }
 
@@ -270,40 +418,38 @@ impl AppState {
             Page::Packages => self.current_package_user().is_some(),
             Page::Home => self.current_home_user().is_some(),
             Page::Users | Page::Hosts => !self.target_host.trim().is_empty(),
-            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect | Page::Actions => {
-                false
-            }
+            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect => false,
         }
     }
 
     fn edit_workspace_recommendation_line(&self) -> String {
-        let page = self.edit_page();
-        let page_label = page.title();
-        let target = self.edit_workspace_target_label();
-
         if !self.edit_workspace_target_available() {
-            return format!(
-                "建议：当前页 {page_label}[{target}] 没有可用目标；先补用户或切到其他编辑页。"
-            );
+            return "建议：先补可用目标，或切到其他编辑页。".to_string();
         }
 
         if self.edit_workspace_current_page_dirty() {
-            return format!("建议：当前页 {page_label}[{target}] 还有未保存修改；先按 s 保存。");
+            return "建议：当前页有未保存修改；先按 s 保存。".to_string();
         }
 
         if let Some(reason) = self.edit_workspace_current_page_guard_reason() {
-            return format!("建议：当前页 {page_label}[{target}] 先处理受管保护：{reason}");
+            return format!(
+                "建议：当前页先处理受管保护：{}",
+                compact_edit_workspace_reason(&reason)
+            );
         }
 
         if let Some((section, item)) = self.preferred_edit_dirty_section() {
-            return format!("建议：先切到 {section}[{item}] 保存未保存修改。");
+            return format!("建议：先去 {section}[{item}] 保存未保存修改。");
         }
 
         if let Some((section, target, reason)) = self.preferred_edit_managed_guard() {
-            return format!("建议：先切到 {section}[{target}] 处理受管保护：{reason}");
+            return format!(
+                "建议：先去 {section}[{target}] 处理受管保护：{}",
+                compact_edit_workspace_reason(&reason)
+            );
         }
 
-        format!("建议：当前页 {page_label}[{target}] 已就绪，可继续编辑或按 s 保存。")
+        "建议：当前页已就绪，可继续编辑或按 s 保存。".to_string()
     }
 
     fn edit_workspace_dirty_summary(&self) -> String {
@@ -335,19 +481,7 @@ impl AppState {
     }
 
     fn edit_workspace_current_page_dirty(&self) -> bool {
-        match self.edit_page() {
-            Page::Packages => self
-                .current_package_user()
-                .is_some_and(|user| self.package_dirty_users.contains(user)),
-            Page::Home => self
-                .current_home_user()
-                .is_some_and(|user| self.home_dirty_users.contains(user)),
-            Page::Users => self.host_dirty_user_hosts.contains(&self.target_host),
-            Page::Hosts => self.host_dirty_runtime_hosts.contains(&self.target_host),
-            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect | Page::Actions => {
-                false
-            }
-        }
+        self.edit_page_is_dirty(self.edit_page())
     }
 
     fn edit_workspace_current_page_guard_reason(&self) -> Option<String> {
@@ -356,9 +490,7 @@ impl AppState {
             Page::Home => self.current_home_managed_guard_errors(),
             Page::Users => self.current_host_users_managed_guard_errors(),
             Page::Hosts => self.current_host_runtime_managed_guard_errors(),
-            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect | Page::Actions => {
-                Vec::new()
-            }
+            Page::Dashboard | Page::Deploy | Page::Advanced | Page::Inspect => Vec::new(),
         };
         errors.drain(..).next()
     }
@@ -372,17 +504,26 @@ fn edit_workspace_dirty_section(label: &str, target: Option<&str>, dirty: bool) 
     }
 }
 
+fn compact_edit_workspace_reason(reason: &str) -> String {
+    reason
+        .split_terminator(['。', '\n'])
+        .next()
+        .unwrap_or(reason)
+        .trim()
+        .to_string()
+}
+
 pub(crate) use deploy::{
     AdvancedActionsListModel, AdvancedContextModel, AdvancedMaintenanceModel,
     AdvancedMaintenancePageModel, AdvancedSummaryModel, AdvancedWizardDetailModel,
-    AdvancedWizardModel, AdvancedWizardPageModel, ApplyAdvancedWorkspaceModel,
-    ApplyExecutionGateModel, ApplyModel, ApplyPageModel, ApplySelectionModel, DeployControlsModel,
-    DeployPageModel,
+    AdvancedWizardModel, AdvancedWizardPageModel, ApplyExecutionGateModel, ApplyModel,
+    ApplyPageModel, ApplySelectionModel, DeployControlRow, DeployControlsModel, DeployPageModel,
 };
 use helpers::*;
-#[cfg(test)]
-pub(crate) use inspect::InspectCommandModel;
-pub(crate) use inspect::{InspectCommandDetailModel, InspectHealthFocus, InspectModel};
+pub(crate) use inspect::{
+    InspectCommandDetailModel, InspectCommandModel, InspectHealthFocus, InspectModel,
+    InspectSummaryModel,
+};
 pub use model::{AppContext, AppState, UiFeedback, UiFeedbackLevel, UiFeedbackScope};
 pub(crate) use overview::{
     ManagedGuardSnapshot, OverviewCheckState, OverviewHealthFocus, OverviewHostStatus,

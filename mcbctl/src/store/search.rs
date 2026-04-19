@@ -100,6 +100,8 @@ pub fn search_catalog_entries(
                 expr,
                 description: combine_description(record.description, record.version),
                 keywords: vec![record.attr_path],
+                workflow_tags: Vec::new(),
+                lifecycle: None,
                 source: Some(format!("search/{}", record.source)),
                 platforms: vec![system.to_string()],
                 desktop_entry_flag: None,

@@ -1,0 +1,15 @@
+# 软件目录分片：ai-tools
+# 项目特有工作流元数据：用 workflow_tags 表示“为什么在这个仓库里推荐它”，
+# 而不是重复做一份比 nixpkgs 搜索更差的包目录。
+
+[[package]]
+id = "ollama"
+name = "Ollama"
+category = "ai"
+group = "ai-tools"
+expr = "pkgs.ollama"
+description = "本地大模型运行与管理工具。"
+keywords = ["ai", "llm", "local-model"]
+workflow_tags = ["ai"]
+lifecycle = "stable"
+source = "nixpkgs"

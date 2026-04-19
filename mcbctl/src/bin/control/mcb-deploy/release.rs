@@ -1,4 +1,5 @@
 use super::*;
+use mcbctl::release_bundle::{default_release_repository, render_release_manifest_json};
 
 fn summarize_cleanup_failures(context: &str, failures: &[String]) -> String {
     if failures.is_empty() {
@@ -8,13 +9,25 @@ fn summarize_cleanup_failures(context: &str, failures: &[String]) -> String {
     format!("{context}: {}", failures.join(" | "))
 }
 
-fn cleanup_release_notes_file(path: &Path) -> Result<()> {
+fn cleanup_temp_file(path: &Path) -> Result<()> {
     if !path.exists() {
         return Ok(());
     }
 
     fs::remove_file(path)
-        .with_context(|| format!("failed to remove release notes file {}", path.display()))
+        .with_context(|| format!("failed to remove temporary file {}", path.display()))
+}
+
+fn cleanup_temp_files(paths: &[&Path]) -> Result<()> {
+    let failures = paths
+        .iter()
+        .filter_map(|path| cleanup_temp_file(path).err().map(|err| err.to_string()))
+        .collect::<Vec<_>>();
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        bail!("{}", failures.join(" | "))
+    }
 }
 
 fn finalize_with_cleanup(
@@ -242,24 +255,32 @@ impl App {
         }
 
         let notes_file = create_temp_path("mcbctl-release-notes", "md")?;
+        let manifest_file = create_temp_path("mcbctl-release-manifest", "json")?;
         fs::write(&notes_file, notes)?;
+        let manifest_repo = std::env::var("RELEASE_REPOSITORY")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(default_release_repository);
+        fs::write(
+            &manifest_file,
+            render_release_manifest_json(&manifest_repo, &version)?,
+        )?;
         let st = Command::new("gh")
-            .args([
-                "release",
-                "create",
-                &version,
-                "--title",
-                &version,
-                "--notes-file",
-                &notes_file.display().to_string(),
-            ])
+            .arg("release")
+            .arg("create")
+            .arg(&version)
+            .arg("--title")
+            .arg(&version)
+            .arg("--notes-file")
+            .arg(&notes_file)
+            .arg(&manifest_file)
             .status()?;
         let release_result = ensure_release_create_step(st.success());
-        let cleanup_result = cleanup_release_notes_file(&notes_file);
+        let cleanup_result = cleanup_temp_files(&[notes_file.as_path(), manifest_file.as_path()]);
         finalize_with_cleanup(
             release_result,
             cleanup_result,
-            "release notes cleanup failed",
+            "release asset cleanup failed",
         )?;
 
         let workflow = "release-mcbctl.yml";
@@ -348,14 +369,14 @@ mod tests {
     #[test]
     fn summarize_cleanup_failures_joins_messages() {
         let summary = summarize_cleanup_failures(
-            "release notes cleanup failed",
+            "release asset cleanup failed",
             &[
                 "remove temp file failed".to_string(),
                 "another cleanup error".to_string(),
             ],
         );
 
-        assert!(summary.contains("release notes cleanup failed"));
+        assert!(summary.contains("release asset cleanup failed"));
         assert!(summary.contains("remove temp file failed"));
         assert!(summary.contains("another cleanup error"));
     }
@@ -449,7 +470,7 @@ mod tests {
         let err = finalize_with_cleanup(
             ensure_release_create_step(false),
             Err(anyhow::anyhow!("unlink failed")),
-            "release notes cleanup failed",
+            "release asset cleanup failed",
         )
         .expect_err("cleanup aggregation should preserve release creation failure");
 

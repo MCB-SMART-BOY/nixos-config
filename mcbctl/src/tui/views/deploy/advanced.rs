@@ -1,8 +1,6 @@
-use crate::domain::tui::ActionItem;
 use crate::tui::state::{
     AdvancedContextModel, AdvancedMaintenanceModel, AdvancedMaintenancePageModel,
     AdvancedSummaryModel, AdvancedWizardDetailModel, AdvancedWizardModel, AdvancedWizardPageModel,
-    ApplyAdvancedWorkspaceModel,
 };
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -76,7 +74,6 @@ fn render_advanced_maintenance_layout(
         Some(render_advanced_workspace_lines(
             Some(&model.maintenance),
             None,
-            None,
         )),
         model.shell.detail_title,
     );
@@ -97,13 +94,17 @@ fn render_advanced_wizard_layout(
     model: &AdvancedWizardPageModel,
 ) {
     frame.render_widget(
-        Paragraph::new(render_advanced_summary_lines(&model.summary, &model.wizard))
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .title(model.shell.summary_title),
-            )
-            .wrap(Wrap { trim: false }),
+        Paragraph::new(render_advanced_summary_lines(
+            &model.summary,
+            &model.wizard,
+            &model.detail.latest_result,
+        ))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(model.shell.summary_title),
+        )
+        .wrap(Wrap { trim: false }),
         layout.preview_summary,
     );
     frame.render_widget(
@@ -136,11 +137,7 @@ fn render_advanced_wizard_layout(
         frame,
         layout,
         model.advanced_actions.as_ref(),
-        Some(render_advanced_workspace_lines(
-            None,
-            Some(&model.detail),
-            None,
-        )),
+        Some(render_advanced_workspace_lines(None, Some(&model.detail))),
         model.shell.detail_title,
     );
 }
@@ -148,6 +145,7 @@ fn render_advanced_wizard_layout(
 pub(super) fn render_advanced_summary_lines(
     summary: &AdvancedSummaryModel,
     wizard: &AdvancedWizardModel,
+    latest_result: &str,
 ) -> String {
     let alignment = if summary.current_action == summary.recommended_action {
         "当前动作已经对准默认推荐，可直接执行。".to_string()
@@ -159,11 +157,12 @@ pub(super) fn render_advanced_summary_lines(
     };
 
     [
-        format!("当前任务：{}", summary.current_action.label()),
+        format!("当前动作：{}", summary.current_action.label()),
         format!("推荐动作：{}", summary.recommended_action.label()),
         format!("状态：{alignment}"),
+        format!("最近结果：{}", latest_result),
+        format!("下一步：{}", summary.completion_hint),
         format!("原因：{}", summary.reason),
-        format!("完成后：{}", summary.completion_hint),
         format!("交接项：{}", join_or_none(&wizard.handoffs)),
         format!("警告项：{}", join_or_none(&wizard.warnings)),
     ]
@@ -183,12 +182,12 @@ pub(super) fn render_advanced_maintenance_summary_lines(
     };
 
     [
-        format!("当前任务：{}", model.summary.current_action.label()),
+        format!("当前动作：{}", model.summary.current_action.label()),
         format!("推荐动作：{}", model.summary.recommended_action.label()),
         format!("状态：{alignment}"),
+        format!("最近结果：{}", model.latest_result),
+        format!("下一步：{}", model.return_hint),
         format!("原因：{}", model.summary.reason),
-        format!("当前建议：{}", model.summary.completion_hint),
-        format!("回主线：{}", model.return_hint),
         format!("仓库根：{}", model.repo_root.display()),
     ]
     .join("\n")
@@ -203,7 +202,6 @@ pub(super) fn render_advanced_wizard_preview_lines(model: &AdvancedWizardModel) 
         source_detail: model.source_detail.as_deref(),
         action: model.action,
         flake_update: model.flake_update,
-        advanced: true,
         sync_preview: model.sync_preview.as_deref(),
         rebuild_preview: Some(model.command_preview.as_str()),
         command_fallback: model.command_preview.as_str(),
@@ -227,8 +225,6 @@ pub(super) fn render_advanced_maintenance_preview_lines(
 
 pub(super) fn render_advanced_repository_context_lines(model: &AdvancedMaintenanceModel) -> String {
     [
-        format!("当前动作：{}", model.summary.current_action.label()),
-        format!("仓库根：{}", model.repo_root.display()),
         format!(
             "命令预览：{}",
             model
@@ -237,8 +233,8 @@ pub(super) fn render_advanced_repository_context_lines(model: &AdvancedMaintenan
                 .unwrap_or_else(|| "无".to_string())
         ),
         format!("主要写回：{}", model.write_target),
-        format!("回主线：{}", model.return_hint),
-        format!("当前建议：{}", model.summary.completion_hint),
+        format!("仓库根：{}", model.repo_root.display()),
+        format!("下一步：{}", model.return_hint),
     ]
     .join("\n")
 }
@@ -261,18 +257,11 @@ pub(super) fn render_advanced_context_lines(model: &AdvancedContextModel) -> Str
 pub(super) fn render_advanced_workspace_lines(
     maintenance: Option<&AdvancedMaintenanceModel>,
     wizard_detail: Option<&AdvancedWizardDetailModel>,
-    apply_advanced_workspace: Option<&ApplyAdvancedWorkspaceModel>,
 ) -> String {
     if let Some(maintenance) = maintenance {
         return render_advanced_maintenance_detail_lines(maintenance);
     }
-    if let Some(wizard_detail) = wizard_detail {
-        return render_advanced_wizard_detail_lines(wizard_detail);
-    }
-
-    render_apply_advanced_workspace_lines(
-        apply_advanced_workspace.expect("apply advanced workspace model should exist"),
-    )
+    render_advanced_wizard_detail_lines(wizard_detail.expect("advanced wizard detail should exist"))
 }
 
 pub(super) fn render_advanced_maintenance_detail_lines(model: &AdvancedMaintenanceModel) -> String {
@@ -285,17 +274,7 @@ pub(super) fn render_advanced_maintenance_detail_lines(model: &AdvancedMaintenan
     [
         "工作流：Repository Maintenance".to_string(),
         format!("当前动作：{}", model.summary.current_action.label()),
-        format!("分组：{}", model.summary.current_action.group_label()),
-        format!("主要写回：{}", model.write_target),
-        format!("说明：{}", model.summary.current_action.description()),
-        format!(
-            "默认推荐：{}",
-            describe_default_recommendation(
-                model.summary.current_action,
-                model.summary.recommended_action
-            )
-        ),
-        format!("推荐原因：{}", model.summary.reason),
+        format!("最近结果：{}", model.latest_result),
         format!("状态：{status}"),
         format!(
             "命令预览：{}",
@@ -304,9 +283,9 @@ pub(super) fn render_advanced_maintenance_detail_lines(model: &AdvancedMaintenan
                 .clone()
                 .unwrap_or_else(|| "无".to_string())
         ),
-        format!("当前建议：{}", model.summary.completion_hint),
-        format!("最近结果：{}", model.latest_result),
-        format!("回主线：{}", model.return_hint),
+        format!("主要写回：{}", model.write_target),
+        format!("说明：{}", model.summary.current_action.description()),
+        format!("下一步：{}", model.return_hint),
         "操作：J/K 选择高级动作  x/X 执行当前高级动作  b 返回 Apply".to_string(),
     ]
     .join("\n")
@@ -316,42 +295,14 @@ pub(super) fn render_advanced_wizard_detail_lines(model: &AdvancedWizardDetailMo
     [
         "工作流：Deploy Wizard".to_string(),
         format!("当前动作：{}", model.action.label()),
-        format!("分组：{}", model.action.group_label()),
-        "用途：处理远端来源、初始化和复杂交互。".to_string(),
-        format!(
-            "默认推荐：{}",
-            describe_default_recommendation(model.action, model.recommended_action)
-        ),
-        format!("推荐原因：{}", model.reason),
+        format!("最近结果：{}", model.latest_result),
         format!("状态：{}", model.status),
         format!("命令预览：{}", model.command_preview),
-        format!("做完后：{}", model.completion_hint),
-        format!("最近结果：{}", model.latest_result),
+        "用途：处理远端来源、初始化和复杂交互。".to_string(),
+        format!("下一步：{}", model.completion_hint),
         "操作：j/k 选 deploy 参数  J/K 选高级动作  x/X 执行  b 返回 Apply".to_string(),
     ]
     .join("\n")
-}
-
-pub(super) fn render_apply_advanced_workspace_lines(model: &ApplyAdvancedWorkspaceModel) -> String {
-    [
-        format!("顶层区域：{}", model.top_level_label),
-        format!("当前动作：{}", model.action.label()),
-        format!("分组：{}", model.action.group_label()),
-        format!("说明：{}", model.action.description()),
-        format!("状态：{}", model.status),
-        format!("命令预览：{}", model.command_preview),
-        format!("最近结果：{}", model.latest_result),
-        model.operation_hint.clone(),
-    ]
-    .join("\n")
-}
-
-fn describe_default_recommendation(current: ActionItem, recommended: ActionItem) -> String {
-    if current == recommended {
-        "当前动作".to_string()
-    } else {
-        recommended.label().to_string()
-    }
 }
 
 #[cfg(test)]
@@ -365,10 +316,7 @@ mod tests {
     use ratatui::layout::Rect;
 
     fn focus_launch_deploy_wizard(state: &mut crate::tui::state::AppState) {
-        state.actions_focus = ActionItem::ALL
-            .iter()
-            .position(|action| *action == ActionItem::LaunchDeployWizard)
-            .expect("launch deploy wizard should exist");
+        state.advanced_action = ActionItem::LaunchDeployWizard;
     }
 
     fn compact_rendered_text(text: &str) -> String {
@@ -379,7 +327,7 @@ mod tests {
     fn current_selection_lines_use_advanced_wizard_focus_in_advanced_area() {
         let mut state = test_app_state();
         state.open_advanced();
-        state.actions_focus = 6;
+        state.advanced_action = ActionItem::LaunchDeployWizard;
         state.advanced_deploy_focus = 1;
         let wizard = state.advanced_wizard_model();
         let context = state.advanced_context_model();
@@ -393,30 +341,31 @@ mod tests {
     #[test]
     fn advanced_summary_lines_surface_current_task_reason_and_return_path() {
         let mut state = test_app_state();
-        state.show_advanced = true;
-        state.deploy_source = DeploySource::RemoteHead;
-        state.focus_recommended_advanced_action();
+        state.open_advanced();
+        focus_launch_deploy_wizard(&mut state);
+        state.advanced_deploy_source = DeploySource::RemoteHead;
         let wizard = state.advanced_wizard_model();
         let summary = state.advanced_summary_model();
+        let detail = state.advanced_wizard_detail_model();
 
-        let text = render_advanced_summary_lines(&summary, &wizard);
+        let text = render_advanced_summary_lines(&summary, &wizard, &detail.latest_result);
 
-        assert!(text.contains("当前任务：launch deploy wizard"));
+        assert!(text.contains("当前动作：launch deploy wizard"));
         assert!(text.contains("推荐动作：launch deploy wizard"));
         assert!(text.contains("原因：当前来源是远端最新版本"));
-        assert!(text.contains("完成后：做完后回 Apply 或 Overview"));
+        assert!(text.contains("下一步：做完后回 Apply 或 Overview"));
     }
 
     #[test]
     fn advanced_repository_context_lines_switch_to_repo_context_for_maintenance_actions() {
         let mut state = test_app_state();
-        state.show_advanced = true;
+        state.open_advanced();
         state.ensure_advanced_action_focus();
         let maintenance = state.advanced_maintenance_model();
 
         let text = render_advanced_repository_context_lines(&maintenance);
 
-        assert!(text.contains("当前动作：flake update"));
+        assert!(text.contains("命令预览：nix --extra-experimental-features 'nix-command flakes' flake update --flake /repo"));
         assert!(text.contains("主要写回：flake.lock"));
         assert!(text.contains("仓库根：/repo"));
     }
@@ -424,7 +373,7 @@ mod tests {
     #[test]
     fn advanced_workspace_lines_surface_selected_action_and_preview() {
         let mut state = test_app_state();
-        state.show_advanced = true;
+        state.open_advanced();
         state.ensure_advanced_action_focus();
         state.next_advanced_action();
         let maintenance = state.advanced_maintenance_model();
@@ -432,7 +381,6 @@ mod tests {
         let text = render_advanced_maintenance_detail_lines(&maintenance);
 
         assert!(text.contains("当前动作：update upstream pins"));
-        assert!(text.contains("分组：Repository Maintenance"));
         assert!(text.contains("命令预览：update-upstream-apps"));
         assert!(text.contains("工作流：Repository Maintenance"));
         assert!(text.contains("x/X 执行当前高级动作  b 返回 Apply"));
@@ -441,7 +389,7 @@ mod tests {
     #[test]
     fn advanced_workspace_lines_surface_maintenance_specific_detail_language() {
         let mut state = test_app_state();
-        state.show_advanced = true;
+        state.open_advanced();
         state.ensure_advanced_action_focus();
         let maintenance = state.advanced_maintenance_model();
 
@@ -449,8 +397,8 @@ mod tests {
 
         assert!(text.contains("工作流：Repository Maintenance"));
         assert!(text.contains("主要写回：flake.lock"));
-        assert!(text.contains("默认推荐：当前动作"));
-        assert!(text.contains("回主线：完成后回 Inspect 或 Overview 复查"));
+        assert!(text.contains("说明：更新当前仓库的 flake.lock。"));
+        assert!(text.contains("下一步：完成后回 Inspect 或 Overview 复查"));
     }
 
     #[test]
@@ -464,12 +412,7 @@ mod tests {
         let text = render_advanced_maintenance_detail_lines(&maintenance);
 
         assert!(
-            text.contains(
-                "当前建议：做完后回 Inspect 或 Overview 复查仓库状态，必要时再回 Apply。"
-            )
-        );
-        assert!(
-            text.contains("回主线：做完后回 Inspect 或 Overview 复查仓库状态，必要时再回 Apply。")
+            text.contains("下一步：做完后回 Inspect 或 Overview 复查仓库状态，必要时再回 Apply。")
         );
         assert!(text.contains("最近结果：flake update 已完成。 下一步：做完后回 Inspect 或 Overview 复查仓库状态，必要时再回 Apply。"));
     }
@@ -477,17 +420,17 @@ mod tests {
     #[test]
     fn advanced_workspace_lines_surface_wizard_specific_detail_language() {
         let mut state = test_app_state();
-        state.show_advanced = true;
-        state.deploy_source = DeploySource::RemoteHead;
-        state.actions_focus = 6;
+        state.open_advanced();
+        focus_launch_deploy_wizard(&mut state);
+        state.advanced_deploy_source = DeploySource::RemoteHead;
         let detail = state.advanced_wizard_detail_model();
 
         let text = render_advanced_wizard_detail_lines(&detail);
 
         assert!(text.contains("工作流：Deploy Wizard"));
+        assert!(text.contains("当前动作：launch deploy wizard"));
         assert!(text.contains("用途：处理远端来源、初始化和复杂交互。"));
-        assert!(text.contains("默认推荐：当前动作"));
-        assert!(text.contains("推荐原因：当前来源是远端最新版本"));
+        assert!(text.contains("下一步：做完后回 Apply 或 Overview 检查默认路径、健康和下一步。"));
         assert!(text.contains("操作：j/k 选 deploy 参数  J/K 选高级动作  x/X 执行  b 返回 Apply"));
     }
 
@@ -501,7 +444,7 @@ mod tests {
         let detail = state.advanced_wizard_detail_model();
         let text = render_advanced_wizard_detail_lines(&detail);
 
-        assert!(text.contains("做完后：继续在 Advanced 完成复杂部署"));
+        assert!(text.contains("下一步：继续在 Advanced 完成复杂部署"));
         assert!(
             text.contains("最近结果：已返回完整部署向导。 下一步：继续在 Advanced 完成复杂部署")
         );
@@ -510,8 +453,8 @@ mod tests {
     #[test]
     fn advanced_preview_lines_surface_deploy_preview_for_wizard_action() {
         let mut state = test_app_state();
-        state.show_advanced = true;
-        state.actions_focus = 6;
+        state.open_advanced();
+        focus_launch_deploy_wizard(&mut state);
         let wizard = state.advanced_wizard_model();
 
         let text = render_advanced_wizard_preview_lines(&wizard);
@@ -560,11 +503,10 @@ mod tests {
         let repository_context = render_advanced_repository_context_lines(&page.maintenance);
         let detail = render_advanced_maintenance_detail_lines(&page.maintenance);
 
-        assert!(summary.contains("当前任务：update upstream pins"));
+        assert!(summary.contains("当前动作：update upstream pins"));
         assert!(summary.contains("推荐动作：update upstream pins"));
         assert!(context.contains("当前聚焦：动作 = update upstream pins"));
         assert!(preview.contains("当前动作：update upstream pins"));
-        assert!(repository_context.contains("当前动作：update upstream pins"));
         assert!(detail.contains("当前动作：update upstream pins"));
         assert!(preview.contains("主要写回：source.nix / upstream pins"));
         assert!(repository_context.contains("主要写回：source.nix / upstream pins"));
@@ -587,15 +529,18 @@ mod tests {
         let repository_context = render_advanced_repository_context_lines(&page.maintenance);
         let detail = render_advanced_maintenance_detail_lines(&page.maintenance);
 
-        assert!(summary.contains("当前任务：flake update"));
+        assert!(summary.contains("当前动作：flake update"));
         assert!(summary.contains("推荐动作：launch deploy wizard"));
         assert!(context.contains("建议：先切到 launch deploy wizard"));
         assert!(
             repository_context
-                .contains("当前建议：做完后回 Apply 或 Overview 检查默认路径、健康和下一步。")
+                .contains("下一步：完成后回 Inspect / Overview 复查；如果要继续复杂部署，切到 launch deploy wizard。")
         );
-        assert!(detail.contains("默认推荐：launch deploy wizard"));
-        assert!(detail.contains("回主线：完成后回 Inspect / Overview 复查；如果要继续复杂部署，切到 launch deploy wizard。"));
+        assert!(
+            detail.contains(
+                "下一步：完成后回 Inspect / Overview 复查；如果要继续复杂部署，切到 launch deploy wizard。"
+            )
+        );
     }
 
     #[test]
@@ -615,10 +560,7 @@ mod tests {
         let compact = compact_rendered_text(&text);
 
         assert!(
-            compact.contains("当前建议：做完后回Inspect或Overview复查仓库状态，必要时再回Apply。")
-        );
-        assert!(
-            compact.contains("回主线：做完后回Inspect或Overview复查仓库状态，必要时再回Apply。")
+            compact.contains("下一步：做完后回Inspect或Overview复查仓库状态，必要时再回Apply。")
         );
         assert!(compact.contains("最近结果：flakeupdate已完成。"));
     }
@@ -667,7 +609,7 @@ mod tests {
         assert!(compact.contains("远端固定版本"));
         assert!(compact.contains("固定ref=v5.0.0"));
         assert!(compact.contains("当前聚焦：固定ref=v5.0.0"));
-        assert!(compact.contains("默认推荐：当前动作"));
+        assert!(compact.contains("当前动作：launchdeploywizard"));
         assert!(compact.contains("mcb-deploy"));
     }
 
@@ -717,7 +659,6 @@ mod tests {
         assert!(context.contains("默认目标：先选右侧高级动作，再决定是否调整左侧向导参数"));
         assert!(context.contains("默认执行：高级动作优先"));
         assert!(detail.contains("当前动作：launch deploy wizard"));
-        assert!(detail.contains("默认推荐：当前动作"));
         assert!(detail.contains("命令预览：mcb-deploy"));
     }
 
@@ -733,18 +674,18 @@ mod tests {
             other => panic!("expected advanced wizard page model, got {other:?}"),
         };
 
-        let summary = render_advanced_summary_lines(&page.summary, &page.wizard);
+        let summary =
+            render_advanced_summary_lines(&page.summary, &page.wizard, &page.detail.latest_result);
         let context = render_advanced_context_lines(&page.context);
         let detail = render_advanced_wizard_detail_lines(&page.detail);
 
-        assert!(summary.contains("当前任务：launch deploy wizard"));
+        assert!(summary.contains("当前动作：launch deploy wizard"));
         assert!(summary.contains("推荐动作：launch deploy wizard"));
         assert!(summary.contains("原因：当前来源是远端最新版本"));
         assert!(context.contains("当前聚焦：来源 = 远端最新版本"));
         assert!(context.contains("建议：当前动作就是默认推荐，可直接按 x/X。"));
         assert!(detail.contains("当前动作：launch deploy wizard"));
-        assert!(detail.contains("推荐原因：当前来源是远端最新版本"));
-        assert!(detail.contains("默认推荐：当前动作"));
+        assert!(detail.contains("下一步：做完后回 Apply 或 Overview 检查默认路径、健康和下一步。"));
     }
 
     #[test]
@@ -758,14 +699,13 @@ mod tests {
 
         assert!(text.contains("来源：远端固定版本"));
         assert!(text.contains("来源细节：v5.0.0"));
-        assert!(text.contains("高级模式：开启"));
         assert!(text.contains("命令预览：mcb-deploy"));
     }
 
     #[test]
     fn advanced_preview_lines_surface_maintenance_preview_for_repo_actions() {
         let mut state = test_app_state();
-        state.show_advanced = true;
+        state.open_advanced();
         state.ensure_advanced_action_focus();
         let maintenance = state.advanced_maintenance_model();
 
@@ -780,12 +720,9 @@ mod tests {
     #[test]
     fn advanced_context_lines_recommend_switching_to_default_task_when_needed() {
         let mut state = test_app_state();
-        state.show_advanced = true;
-        state.deploy_source = DeploySource::RemoteHead;
-        state.actions_focus = ActionItem::ALL
-            .iter()
-            .position(|action| *action == ActionItem::FlakeUpdate)
-            .expect("flake update should exist");
+        state.open_advanced();
+        state.advanced_deploy_source = DeploySource::RemoteHead;
+        state.advanced_action = ActionItem::FlakeUpdate;
         let context = state.advanced_context_model();
 
         let text = render_advanced_context_lines(&context);
@@ -796,7 +733,7 @@ mod tests {
     #[test]
     fn advanced_context_lines_hide_deploy_parameter_language_for_repo_maintenance() {
         let mut state = test_app_state();
-        state.show_advanced = true;
+        state.open_advanced();
         state.ensure_advanced_action_focus();
         let context = state.advanced_context_model();
 
@@ -805,21 +742,5 @@ mod tests {
         assert!(text.contains("当前动作是仓库维护"));
         assert!(text.contains("当前动作不使用 deploy 参数"));
         assert!(text.contains("j/k 或 J/K 切高级动作"));
-    }
-
-    #[test]
-    fn apply_advanced_workspace_lines_use_explicit_workspace_model() {
-        let mut state = test_app_state();
-        state.show_advanced = true;
-        state.ensure_advanced_action_focus();
-        let model = state.apply_advanced_workspace_model();
-
-        let text = render_apply_advanced_workspace_lines(&model);
-
-        assert!(text.contains("顶层区域：Apply / 高级工作区"));
-        assert!(text.contains("当前动作：flake update"));
-        assert!(text.contains("分组：Repository Maintenance"));
-        assert!(text.contains("命令预览：nix --extra-experimental-features"));
-        assert!(text.contains("操作：J/K 选择高级动作  X 执行当前高级动作"));
     }
 }

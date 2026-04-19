@@ -58,14 +58,29 @@ impl AppState {
 
     pub fn adjust_home_field(&mut self, delta: i8) {
         let Some(user) = self.current_home_user().map(ToOwned::to_owned) else {
-            self.status = "Home 页没有可操作的用户目录。".to_string();
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Home,
+                "Home 页没有可操作的用户目录。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return;
         };
 
         let Some(option_id) = self.current_home_option_id().map(ToOwned::to_owned) else {
-            self.status = "Home 页当前没有可编辑的结构化选项。".to_string();
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Home,
+                "Home 页当前没有可编辑的结构化选项。",
+                "检查 Home 元数据，或切换到其他字段。",
+            );
             return;
         };
+        let option_label = self
+            .home_desktop_options()
+            .get(self.home_focus)
+            .map(|option| option.label.clone())
+            .unwrap_or_else(|| option_id.clone());
 
         let locked_noctalia_path = if option_id == "noctalia.barProfile" {
             self.current_home_user_noctalia_override_path()
@@ -77,9 +92,15 @@ impl AppState {
         match option_id.as_str() {
             "noctalia.barProfile" => {
                 if let Some(path) = locked_noctalia_path {
-                    self.status = format!(
-                        "用户 {user} 的 Noctalia 顶栏由 {} 接管；Home 页不会覆盖它。",
-                        path.display()
+                    self.set_feedback_with_next_step(
+                        UiFeedbackLevel::Warning,
+                        UiFeedbackScope::Home,
+                        format!(
+                            "Home 保持 {} 的 Noctalia 顶栏不变；它仍由 {} 接管。",
+                            user,
+                            path.display()
+                        ),
+                        "切换其他字段，或改手写覆盖文件后再回来。",
                     );
                     return;
                 }
@@ -94,12 +115,22 @@ impl AppState {
                 delta,
             ),
             _ => {
-                self.status = format!("Home 选项 {option_id} 还没有接入可编辑实现。");
+                self.set_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    UiFeedbackScope::Home,
+                    format!("Home 选项 {option_id} 还没有接入可编辑实现。"),
+                    "切换其他已接入字段继续编辑。",
+                );
                 return;
             }
         }
         self.home_dirty_users.insert(user.clone());
-        self.status = format!("已更新用户 {user} 的 Home 结构化设置。");
+        self.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Home,
+            format!("Home 已更新用户 {user} 的 {option_label}。"),
+            "继续调整当前字段，完成后按 s 保存。",
+        );
     }
 
     pub(crate) fn home_rows(&self) -> Vec<EditRow> {
@@ -151,6 +182,8 @@ impl AppState {
         } else {
             "状态：当前用户没有未保存的 Home 设置修改".to_string()
         };
+        let action_summary =
+            self.edit_action_summary(UiFeedbackScope::Home, "继续调整当前字段，完成后按 s 保存。");
         let guard_errors = self.current_home_managed_guard_errors();
         let managed_guard = if self.current_home_user().is_none() {
             EditCheckModel {
@@ -201,6 +234,7 @@ impl AppState {
             field_lines,
             detail: EditDetailModel {
                 status,
+                action_summary,
                 validation: None,
                 managed_guard,
                 notes,
@@ -210,7 +244,12 @@ impl AppState {
 
     pub fn save_current_home_settings(&mut self) -> Result<()> {
         let Some(user) = self.current_home_user().map(ToOwned::to_owned) else {
-            self.status = "没有可保存的用户。".to_string();
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Home,
+                "Home 没有可保存的用户。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return Ok(());
         };
 
@@ -239,23 +278,34 @@ impl AppState {
                 &["# 机器管理的桌面设置分片"],
             )
         }) {
-            self.status = format!("Home 未写入：{err:#}");
+            self.set_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                UiFeedbackScope::Home,
+                format!("Home 未写入：{err:#}"),
+                "先处理 Home Summary 里的受管保护，再重试保存。",
+            );
             return Ok(());
         }
         self.home_dirty_users.remove(&user);
-        self.status = if let Some(override_path) = self.current_home_user_noctalia_override_path() {
+        let message = if let Some(override_path) = self.current_home_user_noctalia_override_path() {
             if override_path.is_file() {
                 format!(
-                    "已写入 {}；Noctalia 顶栏仍由 {} 接管。",
+                    "Home 已写入 {}；Noctalia 顶栏仍由 {} 接管。",
                     path.display(),
                     override_path.display()
                 )
             } else {
-                format!("已写入 {}", path.display())
+                format!("Home 已写入 {}", path.display())
             }
         } else {
-            format!("已写入 {}", path.display())
+            format!("Home 已写入 {}", path.display())
         };
+        self.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Home,
+            message,
+            "继续编辑 Home，或切到 Apply / Overview 复查。",
+        );
         Ok(())
     }
 
@@ -389,11 +439,45 @@ mod tests {
 
         state.adjust_home_field(1);
 
-        assert!(state.status.contains("Home 页不会覆盖它"));
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Home);
+        assert!(
+            state
+                .status
+                .contains("Home 保持 alice 的 Noctalia 顶栏不变")
+        );
         assert!(!state.home_dirty_users.contains("alice"));
         assert_eq!(
             state.home_settings_by_user["alice"].bar_profile,
             ManagedBarProfile::Inherit
+        );
+
+        std::fs::remove_dir_all(root)?;
+        Ok(())
+    }
+
+    #[test]
+    fn adjust_home_field_sets_home_feedback_and_summary_lines() -> Result<()> {
+        let root = create_temp_repo("mcbctl-home-feedback")?;
+        let mut state = test_state(&root);
+
+        state.adjust_home_field(1);
+
+        assert_eq!(state.feedback.scope, UiFeedbackScope::Home);
+        assert!(
+            state
+                .status
+                .contains("Home 已更新用户 alice 的 Noctalia 顶栏")
+        );
+        let lines = state.home_summary_model().lines();
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.contains("最近结果：Home 已更新用户 alice 的 Noctalia 顶栏"))
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|line| line == "下一步：继续调整当前字段，完成后按 s 保存。")
         );
 
         std::fs::remove_dir_all(root)?;
@@ -538,6 +622,7 @@ mod tests {
                 catalog_path: root.join("catalog/packages"),
                 catalog_groups_path: root.join("catalog/groups.toml"),
                 catalog_home_options_path: root.join("catalog/home-options.toml"),
+                catalog_workflows_path: root.join("catalog/workflows.toml"),
                 catalog_entries: Vec::new(),
                 catalog_groups: BTreeMap::new(),
                 catalog_home_options: vec![
@@ -556,6 +641,7 @@ mod tests {
                         order: 20,
                     },
                 ],
+                catalog_workflows: BTreeMap::new(),
                 catalog_categories: Vec::new(),
                 catalog_sources: Vec::new(),
             },
@@ -575,7 +661,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -592,12 +678,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -606,7 +694,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: settings,
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

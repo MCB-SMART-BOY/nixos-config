@@ -3,11 +3,19 @@ use super::*;
 impl AppState {
     pub fn toggle_current_package(&mut self) {
         let Some(user) = self.current_package_user().map(ToOwned::to_owned) else {
-            self.status = "Packages 页没有可操作的用户目录。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 页没有可操作的用户目录。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return;
         };
         let Some(entry) = self.current_package_entry().cloned() else {
-            self.status = "当前过滤条件下没有可切换的软件。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "当前过滤条件下没有可切换的软件。",
+                self.package_browse_next_step(),
+            );
             return;
         };
 
@@ -29,16 +37,24 @@ impl AppState {
         self.package_dirty_users.insert(user.clone());
         self.ensure_valid_package_group_filter();
         self.clamp_package_cursor();
-        self.status = if enabled {
-            format!("已为用户 {user} 选中软件：{}", entry.name)
-        } else {
-            format!("已为用户 {user} 取消软件：{}", entry.name)
-        };
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            if enabled {
+                format!("Packages 已选中 {}：{}", user, entry.name)
+            } else {
+                format!("Packages 已取消 {}：{}", user, entry.name)
+            },
+            self.package_edit_next_step(),
+        );
     }
 
     pub fn open_package_group_creation(&mut self) {
         let Some(entry_name) = self.current_package_entry().map(|entry| entry.name.clone()) else {
-            self.status = "当前过滤条件下没有可新建分组的软件。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "当前过滤条件下没有可新建分组的软件。",
+                self.package_browse_next_step(),
+            );
             return;
         };
 
@@ -47,9 +63,10 @@ impl AppState {
         self.package_group_rename_source.clear();
         self.package_group_create_mode = true;
         self.package_group_input.clear();
-        self.status = format!(
-            "开始为软件 {} 创建新组；输入组名后按 Enter，Esc 取消。",
-            entry_name
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Info,
+            format!("Packages 准备为 {entry_name} 创建新组。"),
+            self.package_group_input_next_step(),
         );
     }
 
@@ -67,7 +84,11 @@ impl AppState {
                 self.package_group_rename_mode = false;
                 self.package_group_rename_source.clear();
                 self.package_group_input.clear();
-                self.status = "已取消软件组编辑。".to_string();
+                self.set_package_feedback_with_next_step(
+                    UiFeedbackLevel::Info,
+                    "Packages 已取消组编辑。",
+                    self.package_browse_next_step(),
+                );
             }
             crossterm::event::KeyCode::Backspace => {
                 self.package_group_input.pop();
@@ -81,11 +102,19 @@ impl AppState {
 
     pub fn open_package_group_rename(&mut self) {
         let Some(user) = self.current_package_user().map(ToOwned::to_owned) else {
-            self.status = "Packages 页没有可操作的用户目录。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 页没有可操作的用户目录。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return;
         };
         let Some(entry) = self.current_package_entry().cloned() else {
-            self.status = "当前过滤条件下没有可重命名分组的软件。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "当前过滤条件下没有可重命名分组的软件。",
+                self.package_browse_next_step(),
+            );
             return;
         };
 
@@ -95,7 +124,11 @@ impl AppState {
             .and_then(|selection| selection.get(&entry.id))
             .cloned()
         else {
-            self.status = "请先为当前用户选中这个软件，再重命名它所在的组。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "请先选中当前软件，再重命名它所在的组。",
+                self.package_edit_next_step(),
+            );
             return;
         };
 
@@ -104,22 +137,38 @@ impl AppState {
         self.package_group_rename_mode = true;
         self.package_group_rename_source = current_group.clone();
         self.package_group_input = current_group.clone();
-        self.status = format!("开始重命名组 {current_group}；输入新组名后按 Enter，Esc 取消。");
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Info,
+            format!("Packages 准备重命名组：{current_group}"),
+            self.package_group_input_next_step(),
+        );
     }
 
     pub fn adjust_current_package_group(&mut self, delta: i8) {
         let Some(user) = self.current_package_user().map(ToOwned::to_owned) else {
-            self.status = "Packages 页没有可操作的用户目录。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 页没有可操作的用户目录。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return;
         };
         let Some(entry) = self.current_package_entry().cloned() else {
-            self.status = "当前过滤条件下没有可调整分组的软件。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "当前过滤条件下没有可调整分组的软件。",
+                self.package_browse_next_step(),
+            );
             return;
         };
 
         let groups = self.package_groups_for_user(&user);
         if groups.is_empty() {
-            self.status = "当前用户没有可用的软件组。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "当前用户没有可用的软件组。",
+                self.package_browse_next_step(),
+            );
             return;
         }
 
@@ -140,25 +189,42 @@ impl AppState {
         self.package_dirty_users.insert(user.clone());
         self.ensure_valid_package_group_filter();
         self.clamp_package_cursor();
-        self.status = format!(
-            "已将用户 {user} 的软件 {} 调整到组：{next_group}",
-            entry.name
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            format!(
+                "Packages 已把 {} 调整到组 {}。",
+                entry.name,
+                self.package_group_display(&next_group)
+            ),
+            self.package_edit_next_step(),
         );
     }
 
     pub fn move_current_selected_group(&mut self, delta: i8) {
         let Some(user) = self.current_package_user().map(ToOwned::to_owned) else {
-            self.status = "Packages 页没有可操作的用户目录。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 页没有可操作的用户目录。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return;
         };
         let Some(current_group) = self.current_selected_group_name() else {
-            self.status = "请先选中当前软件，再整组移动它所在的组。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "请先选中当前软件，再整组移动它所在的组。",
+                self.package_edit_next_step(),
+            );
             return;
         };
 
         let groups = self.package_groups_for_user(&user);
         if groups.len() < 2 {
-            self.status = "当前用户只有一个可用组，无法整组移动。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "当前用户只有一个可用组，无法整组移动。",
+                self.package_browse_next_step(),
+            );
             return;
         }
 
@@ -166,7 +232,14 @@ impl AppState {
             return;
         };
         if next_group == current_group {
-            self.status = format!("当前组未变化：{current_group}");
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                format!(
+                    "Packages 当前组未变化：{}",
+                    self.package_group_display(&current_group)
+                ),
+                self.package_browse_next_step(),
+            );
             return;
         }
 
@@ -187,8 +260,14 @@ impl AppState {
             self.ensure_valid_package_group_filter();
         }
         self.clamp_package_cursor();
-        self.status = format!(
-            "已将用户 {user} 的组 {current_group} 整体移动到 {next_group}，影响 {moved} 个软件"
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            format!(
+                "Packages 已将组 {} 整体移动到 {}，影响 {moved} 个软件。",
+                self.package_group_display(&current_group),
+                self.package_group_display(&next_group)
+            ),
+            self.package_edit_next_step(),
         );
     }
 

@@ -1,5 +1,4 @@
 use super::*;
-use crate::domain::tui::ActionDestination;
 use crate::repo::ensure_repository_integrity;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -10,7 +9,6 @@ pub(crate) struct ApplyModel {
     pub(crate) source_detail: Option<String>,
     pub(crate) action: DeployAction,
     pub(crate) flake_update: bool,
-    pub(crate) advanced: bool,
     pub(crate) sync_preview: Option<String>,
     pub(crate) rebuild_preview: Option<String>,
     pub(crate) can_execute_directly: bool,
@@ -91,16 +89,6 @@ pub(crate) struct AdvancedWizardDetailModel {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ApplyAdvancedWorkspaceModel {
-    pub(crate) top_level_label: String,
-    pub(crate) action: ActionItem,
-    pub(crate) status: String,
-    pub(crate) command_preview: String,
-    pub(crate) latest_result: String,
-    pub(crate) operation_hint: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ApplySelectionModel {
     pub(crate) focused_row: DeployControlRow,
     pub(crate) default_target: String,
@@ -114,6 +102,7 @@ pub(crate) struct ApplySelectionModel {
 pub(crate) struct ApplyExecutionGateModel {
     pub(crate) status: String,
     pub(crate) latest_result: String,
+    pub(crate) next_step: String,
     pub(crate) primary_action: String,
     pub(crate) blockers: Vec<String>,
     pub(crate) warnings: Vec<String>,
@@ -124,7 +113,6 @@ pub(crate) struct ApplyExecutionGateModel {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum ApplyGuidanceState {
     Direct,
-    WorkspaceOpen,
     Handoff,
     Blocked,
     Review,
@@ -133,7 +121,6 @@ enum ApplyGuidanceState {
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum ApplyGuidanceCopyKind {
     Direct,
-    WorkspaceOpen,
     Handoff(ActionItem),
     Blocked,
     Review,
@@ -141,20 +128,11 @@ enum ApplyGuidanceCopyKind {
 
 enum ApplyRouteOrigin {
     Overview,
-    Actions(ActionItem),
     AdvancedReturn,
 }
 
 enum AdvancedRouteOrigin {
-    Overview,
     Apply,
-    Actions(ActionItem),
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum RebuildCompletionOrigin {
-    Apply,
-    CurrentHostAction,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -246,8 +224,6 @@ pub(crate) struct ApplyPageModel {
     pub(crate) preview_command_fallback: String,
     pub(crate) selection: ApplySelectionModel,
     pub(crate) controls: DeployControlsModel,
-    pub(crate) advanced_actions: Option<AdvancedActionsListModel>,
-    pub(crate) workspace: Option<ApplyAdvancedWorkspaceModel>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -507,7 +483,7 @@ impl AppState {
     }
 
     pub fn can_execute_deploy_directly(&self) -> bool {
-        can_execute_deploy_directly_for(self.deploy_source, self.show_advanced)
+        can_execute_deploy_directly_for(self.deploy_source)
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -519,7 +495,7 @@ impl AppState {
         self.build_deploy_controls_model(
             &self.apply_parameter_snapshot(),
             self.deploy_focus,
-            deploy_area_row_for(false, self.show_advanced),
+            deploy_area_row_for(false),
         )
     }
 
@@ -527,7 +503,7 @@ impl AppState {
         self.build_deploy_controls_model(
             &self.advanced_parameter_snapshot(),
             self.advanced_deploy_focus,
-            deploy_area_row_for(true, false),
+            deploy_area_row_for(true),
         )
     }
 
@@ -567,6 +543,22 @@ impl AppState {
         deploy_wizard_validation_error_for_snapshot(&self.apply_parameter_snapshot())
     }
 
+    pub(crate) fn advanced_action_available(&self, action: ActionItem) -> bool {
+        is_advanced_action(action)
+    }
+
+    pub(crate) fn advanced_action_command_preview(&self, action: ActionItem) -> Option<String> {
+        match action {
+            ActionItem::FlakeUpdate => Some(format!(
+                "nix --extra-experimental-features 'nix-command flakes' flake update --flake {}",
+                self.context.repo_root.display()
+            )),
+            ActionItem::UpdateUpstreamPins => Some("update-upstream-apps".to_string()),
+            ActionItem::LaunchDeployWizard => Some(self.current_deploy_wizard_command_preview()),
+            ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => None,
+        }
+    }
+
     pub(crate) fn advanced_action_items(&self) -> Vec<ActionItem> {
         ordered_advanced_actions(self.recommended_advanced_action()).to_vec()
     }
@@ -591,7 +583,7 @@ impl AppState {
             if action == recommended {
                 tags.push("推荐");
             }
-            tags.push(if self.action_available(action) {
+            tags.push(if self.advanced_action_available(action) {
                 "可执行"
             } else {
                 "需切换场景"
@@ -615,7 +607,7 @@ impl AppState {
     }
 
     pub(crate) fn ensure_advanced_action_focus(&mut self) {
-        if self.current_action_item().destination() != ActionDestination::Advanced {
+        if !is_advanced_action(self.advanced_action) {
             self.set_advanced_action_focus(self.advanced_action_items()[0]);
         }
     }
@@ -645,7 +637,7 @@ impl AppState {
 
     pub(crate) fn current_advanced_action(&self) -> ActionItem {
         let action = self.current_advanced_action_or_default();
-        if action.destination() == ActionDestination::Advanced {
+        if is_advanced_action(action) {
             action
         } else {
             self.recommended_advanced_action()
@@ -680,17 +672,17 @@ impl AppState {
 
     pub(crate) fn deploy_shell_model(&self) -> DeployShellModel {
         let advanced_entry = self.page() == Page::Advanced;
-        let workspace_visible = self.advanced_workspace_visible();
+        let workspace_visible = advanced_entry;
 
         if !advanced_entry {
             return DeployShellModel {
                 mode: DeployShellMode::Apply,
-                workspace_visible,
-                summary_title: "Execution Gate",
+                workspace_visible: false,
+                summary_title: "Apply Summary",
                 preview_title: "Apply Preview",
                 context_title: "Current Selection",
                 controls_title: "Apply Controls",
-                detail_title: "Advanced Detail",
+                detail_title: "Apply Detail",
             };
         }
 
@@ -719,7 +711,6 @@ impl AppState {
 
     pub(crate) fn deploy_page_model(&self) -> DeployPageModel {
         let shell = self.deploy_shell_model();
-        let workspace_visible = shell.workspace_visible;
         let advanced_actions = shell
             .workspace_visible
             .then(|| self.advanced_actions_list_model());
@@ -732,8 +723,6 @@ impl AppState {
                 preview_command_fallback: self.apply_preview_command_fallback(),
                 selection: self.apply_selection_model(),
                 controls: self.apply_controls_model(),
-                advanced_actions,
-                workspace: workspace_visible.then(|| self.apply_advanced_workspace_model()),
             })),
             DeployShellMode::AdvancedMaintenance => {
                 DeployPageModel::AdvancedMaintenance(Box::new(AdvancedMaintenancePageModel {
@@ -759,7 +748,65 @@ impl AppState {
 
     pub(crate) fn execute_current_advanced_action_from_apply(&mut self) -> Result<()> {
         self.ensure_advanced_action_focus();
-        self.execute_current_action()
+        self.execute_current_advanced_action()
+    }
+
+    pub(crate) fn execute_current_advanced_action(&mut self) -> Result<()> {
+        self.ensure_advanced_action_focus();
+        self.ensure_no_unsaved_changes_for_execution()?;
+        ensure_repository_integrity(&self.context.repo_root)?;
+
+        let action = self.current_advanced_action();
+        if !self.advanced_action_available(action) {
+            anyhow::bail!("当前环境暂不适合直接执行动作：{}", action.label());
+        }
+
+        match action {
+            ActionItem::FlakeUpdate => {
+                let mut cmd = std::process::Command::new("nix");
+                cmd.arg("--extra-experimental-features")
+                    .arg("nix-command flakes")
+                    .arg("flake")
+                    .arg("update")
+                    .arg("--flake")
+                    .arg(self.context.repo_root.display().to_string())
+                    .env("NIX_CONFIG", merged_nix_config())
+                    .stdin(std::process::Stdio::inherit())
+                    .stdout(std::process::Stdio::inherit())
+                    .stderr(std::process::Stdio::inherit());
+                let status = cmd.status().context("failed to run nix flake update")?;
+                if !status.success() {
+                    anyhow::bail!("flake update exited with {}", status.code().unwrap_or(1));
+                }
+                self.set_advanced_maintenance_completion_feedback(ActionItem::FlakeUpdate);
+            }
+            ActionItem::UpdateUpstreamPins => {
+                let status = self.run_sibling_in_repo("update-upstream-apps", &[])?;
+                if !status.success() {
+                    anyhow::bail!(
+                        "update-upstream-apps exited with {}",
+                        status.code().unwrap_or(1)
+                    );
+                }
+                self.set_advanced_maintenance_completion_feedback(ActionItem::UpdateUpstreamPins);
+            }
+            ActionItem::LaunchDeployWizard => {
+                if let Some(error) = self.current_deploy_wizard_validation_error() {
+                    anyhow::bail!("{error}");
+                }
+                let status =
+                    self.run_sibling_in_repo("mcb-deploy", &self.current_deploy_wizard_args())?;
+                if !status.success() {
+                    anyhow::bail!("mcb-deploy exited with {}", status.code().unwrap_or(1));
+                }
+                self.set_deploy_wizard_return_feedback();
+            }
+            ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => {
+                anyhow::bail!("当前动作不属于 Advanced：{}", action.label())
+            }
+        }
+
+        Ok(())
     }
 
     pub(crate) fn recommended_advanced_action(&self) -> ActionItem {
@@ -775,10 +822,6 @@ impl AppState {
 
     pub(crate) fn focus_recommended_advanced_action(&mut self) {
         self.set_advanced_action_focus(self.recommended_advanced_action());
-    }
-
-    pub(crate) fn focus_advanced_action(&mut self, action: ActionItem) {
-        self.set_advanced_action_focus(action);
     }
 
     fn advanced_route_next_step(
@@ -809,48 +852,17 @@ impl AppState {
         let summary = self.advanced_summary_model();
 
         let message = match origin {
-            AdvancedRouteOrigin::Overview => format!(
-                "Overview 已跳到 Advanced，并对准 {}。推荐原因：{}",
-                summary.current_action.label(),
-                summary.reason
-            ),
             AdvancedRouteOrigin::Apply => format!(
                 "Apply 已跳到 Advanced，并对准 {}。推荐原因：{}",
                 summary.current_action.label(),
                 summary.reason
             ),
-            AdvancedRouteOrigin::Actions(action) => {
-                if summary.current_action == summary.recommended_action {
-                    format!(
-                        "{} 归属 Advanced；已跳到 Advanced，并对准 {}。推荐原因：{}",
-                        action.label(),
-                        summary.current_action.label(),
-                        summary.reason
-                    )
-                } else {
-                    format!(
-                        "{} 归属 Advanced；已跳到 Advanced，并定位到 {}；默认推荐是 {}。推荐原因：{}",
-                        action.label(),
-                        summary.current_action.label(),
-                        summary.recommended_action.label(),
-                        summary.reason
-                    )
-                }
-            }
         };
 
         let next_step =
             self.advanced_route_next_step(summary.current_action, summary.recommended_action);
 
         RouteFeedback { message, next_step }
-    }
-
-    pub(crate) fn actions_advanced_route_feedback(&self, action: ActionItem) -> RouteFeedback {
-        self.advanced_route_feedback_for(AdvancedRouteOrigin::Actions(action))
-    }
-
-    pub(crate) fn overview_advanced_route_feedback(&self) -> RouteFeedback {
-        self.advanced_route_feedback_for(AdvancedRouteOrigin::Overview)
     }
 
     pub(crate) fn apply_advanced_route_feedback(&self) -> RouteFeedback {
@@ -887,10 +899,10 @@ impl AppState {
             summary,
             write_target: advanced_action_write_target(current_action),
             impact: advanced_maintenance_impact(current_action),
-            command_preview: self.action_command_preview(current_action),
+            command_preview: self.advanced_action_command_preview(current_action),
             latest_result: feedback.latest_result,
             repo_root: self.context.repo_root.clone(),
-            available: self.action_available(current_action),
+            available: self.advanced_action_available(current_action),
         }
     }
 
@@ -948,7 +960,7 @@ impl AppState {
 
     pub(crate) fn advanced_wizard_model(&self) -> AdvancedWizardModel {
         let snapshot = self.advanced_parameter_snapshot();
-        let apply = self.build_deploy_model(&snapshot, false, true);
+        let apply = self.build_deploy_model(&snapshot);
         AdvancedWizardModel {
             target_host: apply.target_host,
             task: apply.task,
@@ -979,44 +991,16 @@ impl AppState {
             action,
             recommended_action: summary.recommended_action,
             reason: summary.reason,
-            status: if self.action_available(action) {
+            status: if self.advanced_action_available(action) {
                 "当前环境可直接执行".to_string()
             } else {
                 "当前环境需切换场景或权限".to_string()
             },
             command_preview: self
-                .action_command_preview(action)
+                .advanced_action_command_preview(action)
                 .unwrap_or_else(|| "无".to_string()),
             completion_hint: feedback.completion_hint,
             latest_result: feedback.latest_result,
-        }
-    }
-
-    pub(crate) fn apply_advanced_workspace_model(&self) -> ApplyAdvancedWorkspaceModel {
-        let action = self.current_advanced_action();
-        let feedback = self.current_advanced_feedback_state(advanced_completion_hint(action));
-
-        ApplyAdvancedWorkspaceModel {
-            top_level_label: if self.page() == Page::Advanced {
-                "Advanced".to_string()
-            } else {
-                "Apply / 高级工作区".to_string()
-            },
-            action,
-            status: if self.action_available(action) {
-                "当前环境可直接执行".to_string()
-            } else {
-                "当前环境需切换场景或权限".to_string()
-            },
-            command_preview: self
-                .action_command_preview(action)
-                .unwrap_or_else(|| "无".to_string()),
-            latest_result: feedback.latest_result,
-            operation_hint: if self.page() == Page::Advanced {
-                "操作：J/K 选择高级动作  x/X 执行当前高级动作  b 返回 Apply".to_string()
-            } else {
-                "操作：J/K 选择高级动作  X 执行当前高级动作".to_string()
-            },
         }
     }
 
@@ -1050,7 +1034,27 @@ impl AppState {
     }
 
     fn apply_route_model(&self) -> ApplyModel {
-        self.build_deploy_model(&self.apply_parameter_snapshot(), false, false)
+        self.build_deploy_model(&self.apply_parameter_snapshot())
+    }
+
+    fn apply_health_blockers(&self) -> Vec<String> {
+        let mut blockers = Vec::new();
+        if let Some(blocker) = apply_health_blocker("repo-integrity", &self.overview_repo_integrity)
+        {
+            blockers.push(blocker);
+        }
+        if let Some(blocker) = apply_health_blocker("doctor", &self.overview_doctor) {
+            blockers.push(blocker);
+        }
+        blockers
+    }
+
+    fn ensure_apply_health_ready(&self) -> Result<()> {
+        let blockers = self.apply_health_blockers();
+        if blockers.is_empty() {
+            return Ok(());
+        }
+        anyhow::bail!("{}", blockers.join("\n"));
     }
 
     fn apply_guidance_for(&self, apply: &ApplyModel) -> ApplyGuidanceModel {
@@ -1070,11 +1074,11 @@ impl AppState {
             };
         }
 
-        if apply.advanced {
-            let copy = apply_guidance_copy(ApplyGuidanceCopyKind::WorkspaceOpen);
+        if !apply.blockers.is_empty() {
+            let copy = apply_guidance_copy(ApplyGuidanceCopyKind::Blocked);
             return ApplyGuidanceModel {
-                state: ApplyGuidanceState::WorkspaceOpen,
-                feedback_detail: "当前已打开高级工作区。".to_string(),
+                state: ApplyGuidanceState::Blocked,
+                feedback_detail: format!("当前组合仍有 blocker：{}。", apply.blockers.join(" | ")),
                 next_step: copy.next_step,
                 gate_status: copy.gate_status,
                 gate_primary_action: copy.gate_primary_action,
@@ -1089,20 +1093,6 @@ impl AppState {
             return ApplyGuidanceModel {
                 state: ApplyGuidanceState::Handoff,
                 feedback_detail: apply.handoffs.join(" | "),
-                next_step: copy.next_step,
-                gate_status: copy.gate_status,
-                gate_primary_action: copy.gate_primary_action,
-                recommendation: copy.recommendation,
-                execution_hint: copy.execution_hint,
-                advanced_action_hint: copy.advanced_action_hint,
-            };
-        }
-
-        if !apply.blockers.is_empty() {
-            let copy = apply_guidance_copy(ApplyGuidanceCopyKind::Blocked);
-            return ApplyGuidanceModel {
-                state: ApplyGuidanceState::Blocked,
-                feedback_detail: format!("当前组合仍有 blocker：{}。", apply.blockers.join(" | ")),
                 next_step: copy.next_step,
                 gate_status: copy.gate_status,
                 gate_primary_action: copy.gate_primary_action,
@@ -1129,39 +1119,11 @@ impl AppState {
         self.apply_guidance_for(&self.apply_model())
     }
 
-    pub(crate) fn current_apply_next_step(&self) -> String {
-        self.current_apply_guidance().next_step
-    }
-
-    pub(crate) fn current_apply_feedback_detail(&self) -> String {
-        self.current_apply_guidance().feedback_detail
-    }
-
     pub(crate) fn current_apply_feedback_summary(&self) -> RouteFeedback {
         let feedback = self.current_apply_feedback_state();
         RouteFeedback {
             message: feedback.recent_feedback,
             next_step: feedback.next_step,
-        }
-    }
-
-    pub(crate) fn current_advanced_feedback_summary(
-        &self,
-        fallback_feedback: &str,
-        fallback_next_step: &str,
-    ) -> RouteFeedback {
-        let feedback = self.current_advanced_feedback_state(fallback_next_step.to_string());
-
-        if feedback.active {
-            RouteFeedback {
-                message: feedback.recent_feedback,
-                next_step: feedback.completion_hint,
-            }
-        } else {
-            RouteFeedback {
-                message: fallback_feedback.to_string(),
-                next_step: feedback.completion_hint,
-            }
         }
     }
 
@@ -1177,6 +1139,7 @@ impl AppState {
         ApplyExecutionGateModel {
             status: guidance.gate_status,
             latest_result: feedback.latest_result,
+            next_step: feedback.next_step,
             primary_action: guidance.gate_primary_action,
             blockers: apply.blockers,
             warnings: apply.warnings,
@@ -1210,7 +1173,6 @@ impl AppState {
 
         apply_guidance_copy(match guidance.state {
             ApplyGuidanceState::Direct => ApplyGuidanceCopyKind::Direct,
-            ApplyGuidanceState::WorkspaceOpen => ApplyGuidanceCopyKind::WorkspaceOpen,
             ApplyGuidanceState::Handoff => {
                 ApplyGuidanceCopyKind::Handoff(self.recommended_advanced_action())
             }
@@ -1223,23 +1185,8 @@ impl AppState {
     fn apply_route_feedback_for(&self, origin: ApplyRouteOrigin) -> RouteFeedback {
         let guidance = self.apply_route_guidance();
         let message = match origin {
-            ApplyRouteOrigin::Overview => match guidance.state {
-                ApplyGuidanceState::Direct => {
-                    format!("Overview 已把你带到 Apply；{}", guidance.feedback_detail)
-                }
-                ApplyGuidanceState::WorkspaceOpen
-                | ApplyGuidanceState::Handoff
-                | ApplyGuidanceState::Blocked
-                | ApplyGuidanceState::Review => {
-                    format!("Overview 已跳到 Apply；{}", guidance.feedback_detail)
-                }
-            },
-            ApplyRouteOrigin::Actions(action) => {
-                format!(
-                    "{} 归属 Apply；{}",
-                    action.label(),
-                    guidance.feedback_detail
-                )
+            ApplyRouteOrigin::Overview => {
+                format!("Overview 已进入 Apply 预览；{}", guidance.feedback_detail)
             }
             ApplyRouteOrigin::AdvancedReturn => {
                 format!("已从 Advanced 返回 Apply；{}", guidance.feedback_detail)
@@ -1253,10 +1200,6 @@ impl AppState {
 
     pub(crate) fn overview_apply_route_feedback(&self) -> RouteFeedback {
         self.apply_route_feedback_for(ApplyRouteOrigin::Overview)
-    }
-
-    pub(crate) fn actions_apply_route_feedback(&self, action: ActionItem) -> RouteFeedback {
-        self.apply_route_feedback_for(ApplyRouteOrigin::Actions(action))
     }
 
     pub(crate) fn return_from_advanced_to_apply(&mut self) {
@@ -1285,17 +1228,11 @@ impl AppState {
     }
 
     pub(crate) fn apply_model(&self) -> ApplyModel {
-        self.build_deploy_model(&self.apply_parameter_snapshot(), self.show_advanced, false)
+        self.build_deploy_model(&self.apply_parameter_snapshot())
     }
 
-    fn build_deploy_model(
-        &self,
-        snapshot: &DeployParameterSnapshot,
-        apply_advanced_handoff: bool,
-        advanced_workspace_active: bool,
-    ) -> ApplyModel {
-        let can_execute_directly =
-            can_execute_deploy_directly_for(snapshot.source, apply_advanced_handoff);
+    fn build_deploy_model(&self, snapshot: &DeployParameterSnapshot) -> ApplyModel {
+        let can_execute_directly = can_execute_deploy_directly_for(snapshot.source);
         let sync_preview =
             deploy_sync_plan_for_snapshot(self, snapshot).map(|plan| plan.command_preview());
         let rebuild_preview = if can_execute_directly {
@@ -1308,6 +1245,7 @@ impl AppState {
         if let Err(err) = self.ensure_no_unsaved_changes_for_execution() {
             blockers.push(err.to_string());
         }
+        blockers.extend(self.apply_health_blockers());
         if let Some(error) = deploy_wizard_validation_error_for_snapshot(snapshot) {
             blockers.push(error);
         }
@@ -1351,9 +1289,6 @@ impl AppState {
             }
             DeploySource::CurrentRepo | DeploySource::EtcNixos => {}
         }
-        if apply_advanced_handoff {
-            handoffs.push("当前已打开 Apply 内高级工作区，应交给 Advanced 区处理。".to_string());
-        }
 
         let mut infos = Vec::new();
         if !can_execute_directly {
@@ -1368,7 +1303,6 @@ impl AppState {
             source_detail: deploy_source_detail_for_snapshot(snapshot),
             action: snapshot.action,
             flake_update: snapshot.flake_update,
-            advanced: advanced_workspace_active || apply_advanced_handoff,
             sync_preview,
             rebuild_preview,
             can_execute_directly,
@@ -1412,16 +1346,6 @@ impl AppState {
         );
     }
 
-    pub(crate) fn set_sync_repo_completion_feedback(&mut self) {
-        let feedback = sync_repo_completion_feedback();
-        self.set_feedback_with_next_step(
-            UiFeedbackLevel::Success,
-            UiFeedbackScope::Apply,
-            feedback.message,
-            feedback.next_step,
-        );
-    }
-
     pub(crate) fn set_advanced_maintenance_completion_feedback(&mut self, action: ActionItem) {
         let feedback = advanced_maintenance_completion_feedback(action);
         self.set_feedback_with_next_step(
@@ -1433,19 +1357,7 @@ impl AppState {
     }
 
     pub(crate) fn set_apply_rebuild_completion_feedback(&mut self, plan: &NixosRebuildPlan) {
-        self.set_rebuild_completion_feedback(RebuildCompletionOrigin::Apply, plan);
-    }
-
-    pub(crate) fn set_current_host_rebuild_completion_feedback(&mut self, plan: &NixosRebuildPlan) {
-        self.set_rebuild_completion_feedback(RebuildCompletionOrigin::CurrentHostAction, plan);
-    }
-
-    fn set_rebuild_completion_feedback(
-        &mut self,
-        origin: RebuildCompletionOrigin,
-        plan: &NixosRebuildPlan,
-    ) {
-        let feedback = rebuild_completion_feedback(origin, plan);
+        let feedback = rebuild_completion_feedback(plan);
         self.set_feedback_with_next_step(
             UiFeedbackLevel::Success,
             UiFeedbackScope::Apply,
@@ -1454,8 +1366,154 @@ impl AppState {
         );
     }
 
+    pub(crate) fn should_use_sudo(&self) -> bool {
+        matches!(
+            self.context.privilege_mode.as_str(),
+            "sudo-session" | "sudo-available"
+        )
+    }
+
+    pub(crate) fn ensure_no_unsaved_changes_for_execution(&self) -> Result<()> {
+        let mut dirty = Vec::new();
+        if !self.host_dirty_user_hosts.is_empty() {
+            dirty.push(format!(
+                "Users: {}",
+                self.host_dirty_user_hosts
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if !self.host_dirty_runtime_hosts.is_empty() {
+            dirty.push(format!(
+                "Hosts: {}",
+                self.host_dirty_runtime_hosts
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if !self.package_dirty_users.is_empty() {
+            dirty.push(format!(
+                "Packages: {}",
+                self.package_dirty_users
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+        if !self.home_dirty_users.is_empty() {
+            dirty.push(format!(
+                "Home: {}",
+                self.home_dirty_users
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
+
+        if dirty.is_empty() {
+            return Ok(());
+        }
+
+        anyhow::bail!("仍有未保存修改；请先保存后再执行：{}", dirty.join(" | "))
+    }
+
+    pub(crate) fn clean_etc_dir_keep_hardware(&self) -> Result<()> {
+        if self.context.etc_root.as_os_str().is_empty()
+            || self.context.etc_root.as_path() == std::path::Path::new("/")
+        {
+            anyhow::bail!(
+                "ETC_ROOT 无效，拒绝清理：{}",
+                self.context.etc_root.display()
+            );
+        }
+        if !self.context.etc_root.is_dir() {
+            return Ok(());
+        }
+
+        let preserve = std::env::temp_dir().join(format!(
+            "mcbctl-hw-preserve-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(&preserve)
+            .with_context(|| format!("failed to create {}", preserve.display()))?;
+
+        let etc_hw = host_hardware_config_path(&self.context.etc_root, &self.context.current_host);
+        if etc_hw.is_file() {
+            let preserved = preserve
+                .join("hosts")
+                .join(&self.context.current_host)
+                .join("hardware-configuration.nix");
+            if let Some(parent) = preserved.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create {}", parent.display()))?;
+            }
+            fs::copy(&etc_hw, &preserved)
+                .with_context(|| format!("failed to preserve {}", etc_hw.display()))?;
+        }
+
+        for entry in fs::read_dir(&self.context.etc_root)
+            .with_context(|| format!("failed to read {}", self.context.etc_root.display()))?
+        {
+            let entry = entry?;
+            let path = entry.path();
+            let is_hw = path == etc_hw;
+            if is_hw {
+                continue;
+            }
+            if path.is_dir() {
+                fs::remove_dir_all(&path)
+                    .with_context(|| format!("failed to remove {}", path.display()))?;
+            } else {
+                fs::remove_file(&path)
+                    .with_context(|| format!("failed to remove {}", path.display()))?;
+            }
+        }
+
+        let preserved_root = preserve
+            .join("hosts")
+            .join(&self.context.current_host)
+            .join("hardware-configuration.nix");
+        if preserved_root.is_file() {
+            if let Some(parent) = etc_hw.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create {}", parent.display()))?;
+            }
+            fs::copy(&preserved_root, &etc_hw)
+                .with_context(|| format!("failed to restore {}", etc_hw.display()))?;
+        }
+        fs::remove_dir_all(preserve).ok();
+        Ok(())
+    }
+
+    pub(crate) fn run_sibling_in_repo(
+        &self,
+        name: &str,
+        args: &[String],
+    ) -> Result<std::process::ExitStatus> {
+        let binary = resolve_sibling_binary(name)?;
+        std::process::Command::new(&binary)
+            .args(args)
+            .current_dir(&self.context.repo_root)
+            .stdin(std::process::Stdio::inherit())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .status()
+            .with_context(|| format!("failed to run {}", binary.display()))
+    }
+
     pub fn execute_deploy(&mut self) -> Result<()> {
         self.ensure_no_unsaved_changes_for_execution()?;
+        self.ensure_apply_health_ready()?;
         ensure_repository_integrity(&self.context.repo_root)?;
         self.ensure_host_configuration_is_valid(&self.target_host)?;
 
@@ -1610,29 +1668,33 @@ impl AppState {
     }
 }
 
-fn can_execute_deploy_directly_for(source: DeploySource, apply_advanced_handoff: bool) -> bool {
+fn can_execute_deploy_directly_for(source: DeploySource) -> bool {
     !matches!(
         source,
         DeploySource::RemotePinned | DeploySource::RemoteHead
-    ) && !apply_advanced_handoff
+    )
 }
 
-fn deploy_area_row_for(advanced_entry: bool, show_advanced: bool) -> DeployControlRow {
+fn deploy_area_row_for(advanced_entry: bool) -> DeployControlRow {
     if advanced_entry {
         DeployControlRow {
             label: "区域切换".to_string(),
             value: "Enter 返回 Apply".to_string(),
-        }
-    } else if show_advanced {
-        DeployControlRow {
-            label: "高级工作区".to_string(),
-            value: "Apply 内兼容模式".to_string(),
         }
     } else {
         DeployControlRow {
             label: "区域切换".to_string(),
             value: "Enter 进入 Advanced".to_string(),
         }
+    }
+}
+
+fn apply_health_blocker(label: &'static str, state: &OverviewCheckState) -> Option<String> {
+    match state {
+        OverviewCheckState::Error { summary, .. } => Some(format!("{label} 当前失败：{summary}")),
+        OverviewCheckState::NotRun
+        | OverviewCheckState::Running
+        | OverviewCheckState::Healthy { .. } => None,
     }
 }
 
@@ -1771,32 +1833,13 @@ fn command_preview_for_program(program: &str, args: &[String]) -> String {
     }
 }
 
-fn sync_repo_completion_feedback() -> CompletionFeedback {
+fn rebuild_completion_feedback(plan: &NixosRebuildPlan) -> CompletionFeedback {
     CompletionFeedback {
-        message: "仓库已同步到 /etc/nixos。".to_string(),
-        next_step: "回到 Apply 或 Overview 继续后续重建".to_string(),
-    }
-}
-
-fn rebuild_completion_feedback(
-    origin: RebuildCompletionOrigin,
-    plan: &NixosRebuildPlan,
-) -> CompletionFeedback {
-    let message = match origin {
-        RebuildCompletionOrigin::Apply => format!(
+        message: format!(
             "Apply 已执行完成：{} {}",
             plan.action.label(),
             plan.target_host
         ),
-        RebuildCompletionOrigin::CurrentHostAction => format!(
-            "当前主机 {} 已完成一次 {}。",
-            plan.target_host,
-            plan.action.label()
-        ),
-    };
-
-    CompletionFeedback {
-        message,
         next_step: "回到 Overview 检查健康和下一步".to_string(),
     }
 }
@@ -1806,10 +1849,9 @@ fn advanced_maintenance_completion_feedback(action: ActionItem) -> CompletionFee
         ActionItem::FlakeUpdate => "flake update 已完成。".to_string(),
         ActionItem::UpdateUpstreamPins => "上游 pin 刷新已完成。".to_string(),
         ActionItem::LaunchDeployWizard => "已返回完整部署向导。".to_string(),
-        ActionItem::FlakeCheck
-        | ActionItem::UpdateUpstreamCheck
-        | ActionItem::SyncRepoToEtc
-        | ActionItem::RebuildCurrentHost => format!("{} 已完成。", action.label()),
+        ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => {
+            format!("{} 已完成。", action.label())
+        }
     };
 
     CompletionFeedback {
@@ -1887,20 +1929,24 @@ fn ordered_advanced_actions(recommended: ActionItem) -> [ActionItem; 3] {
 
 impl AppState {
     fn set_advanced_action_focus(&mut self, action: ActionItem) {
-        self.actions_focus = ActionItem::ALL
-            .iter()
-            .position(|candidate| *candidate == action)
-            .expect("advanced action must exist in ActionItem::ALL");
+        self.advanced_action = action;
     }
 
     fn current_advanced_action_or_default(&self) -> ActionItem {
-        let action = self.current_action_item();
-        if action.destination() == ActionDestination::Advanced {
+        let action = self.advanced_action;
+        if is_advanced_action(action) {
             action
         } else {
             ActionItem::FlakeUpdate
         }
     }
+}
+
+fn is_advanced_action(action: ActionItem) -> bool {
+    matches!(
+        action,
+        ActionItem::FlakeUpdate | ActionItem::UpdateUpstreamPins | ActionItem::LaunchDeployWizard
+    )
 }
 
 fn advanced_summary_reason(
@@ -1927,10 +1973,9 @@ fn advanced_summary_reason(
             "当前没有 direct apply 的唯一主路径；如需远端来源、初始化或复杂交互，请走完整向导。"
                 .to_string()
         }
-        ActionItem::FlakeCheck
-        | ActionItem::UpdateUpstreamCheck
-        | ActionItem::SyncRepoToEtc
-        | ActionItem::RebuildCurrentHost => "当前动作不属于 Advanced。".to_string(),
+        ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => {
+            "当前动作不属于 Advanced。".to_string()
+        }
     }
 }
 
@@ -1964,10 +2009,9 @@ fn advanced_completion_hint(action: ActionItem) -> String {
         ActionItem::LaunchDeployWizard => {
             "做完后回 Apply 或 Overview 检查默认路径、健康和下一步。".to_string()
         }
-        ActionItem::FlakeCheck
-        | ActionItem::UpdateUpstreamCheck
-        | ActionItem::SyncRepoToEtc
-        | ActionItem::RebuildCurrentHost => "完成后回到对应归宿页继续主线。".to_string(),
+        ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => {
+            "完成后回到对应归宿页继续主线。".to_string()
+        }
     }
 }
 
@@ -1975,24 +2019,13 @@ fn apply_guidance_copy(kind: ApplyGuidanceCopyKind) -> ApplyGuidanceCopy {
     match kind {
         ApplyGuidanceCopyKind::Direct => ApplyGuidanceCopy {
             gate_status: "当前可直接 Apply".to_string(),
-            next_step: "在 Apply 查看预览，或按 a / x 直接运行".to_string(),
+            next_step: "在 Apply 查看预览；确认后按 x 直接运行".to_string(),
             gate_primary_action: "主动作：按 x 立即执行当前 Apply".to_string(),
             recommendation: "建议：左侧预览已可直接执行；确认无误后可按 x Apply。".to_string(),
             execution_hint: "可执行：当前组合可直接 Apply".to_string(),
-            advanced_action_hint: "高级动作：打开高级模式后可在右下角执行 Advanced 动作"
-                .to_string(),
+            advanced_action_hint:
+                "高级动作：如需完整向导或仓库维护，切到最后一行并按 Enter 进入 Advanced".to_string(),
             preview_command_fallback: "当前组合可直接执行 Apply".to_string(),
-        },
-        ApplyGuidanceCopyKind::WorkspaceOpen => ApplyGuidanceCopy {
-            gate_status: "当前已打开高级工作区".to_string(),
-            next_step: "在 Apply 先看右下角高级工作区；x 仍按当前 Apply 路径处理".to_string(),
-            gate_primary_action: "主动作：在右侧高级工作区选择动作并按 X 执行".to_string(),
-            recommendation:
-                "建议：当前已打开高级工作区；先确认右下角动作，再决定是否回默认 Apply。".to_string(),
-            execution_hint: "当前已打开高级工作区".to_string(),
-            advanced_action_hint: "高级动作：J/K 选择  X 执行  x 仍按当前 Apply 路径处理"
-                .to_string(),
-            preview_command_fallback: "当前组合会在右下角高级工作区继续执行".to_string(),
         },
         ApplyGuidanceCopyKind::Handoff(action) => ApplyGuidanceCopy {
             gate_status: "当前组合应转交给 Advanced".to_string(),
@@ -2007,7 +2040,7 @@ fn apply_guidance_copy(kind: ApplyGuidanceCopyKind) -> ApplyGuidanceCopy {
             ),
             execution_hint: format!("需交接：默认应切到 Advanced 执行 {}", action.label()),
             advanced_action_hint: format!(
-                "高级动作：当前默认应切到 Advanced 执行 {}",
+                "高级动作：按 Enter 进入 Advanced，然后执行 {}",
                 action.label()
             ),
             preview_command_fallback: format!("当前组合会转交给 Advanced 执行 {}", action.label()),
@@ -2018,7 +2051,8 @@ fn apply_guidance_copy(kind: ApplyGuidanceCopyKind) -> ApplyGuidanceCopy {
             gate_primary_action: "主动作：先修复阻塞项，再回到 Apply".to_string(),
             recommendation: "建议：先看 blocker / warning，再决定是否直接 Apply。".to_string(),
             execution_hint: "不可执行：当前仍有 blocker".to_string(),
-            advanced_action_hint: "高级动作：修复 blocker 后，仍可切到 Advanced".to_string(),
+            advanced_action_hint:
+                "高级动作：如需完整向导或仓库维护，修复 blocker 后再进入 Advanced".to_string(),
             preview_command_fallback: "当前组合暂不生成直接命令预览；请先处理 blocker / warning"
                 .to_string(),
         },
@@ -2028,8 +2062,8 @@ fn apply_guidance_copy(kind: ApplyGuidanceCopyKind) -> ApplyGuidanceCopy {
             gate_primary_action: "主动作：先确认预览和执行门槛".to_string(),
             recommendation: "建议：先看左侧预览和执行门槛，再决定是否直接 Apply。".to_string(),
             execution_hint: "待确认：先看预览和执行门槛".to_string(),
-            advanced_action_hint: "高级动作：打开高级模式后可在右下角执行 Advanced 动作"
-                .to_string(),
+            advanced_action_hint:
+                "高级动作：如需完整向导或仓库维护，切到最后一行并按 Enter 进入 Advanced".to_string(),
             preview_command_fallback: "当前组合暂不生成直接命令预览；请先确认预览和执行门槛"
                 .to_string(),
         },
@@ -2041,10 +2075,7 @@ fn advanced_action_write_target(action: ActionItem) -> &'static str {
         ActionItem::FlakeUpdate => "flake.lock",
         ActionItem::UpdateUpstreamPins => "source.nix / upstream pins",
         ActionItem::LaunchDeployWizard => "完整部署向导参数",
-        ActionItem::FlakeCheck
-        | ActionItem::UpdateUpstreamCheck
-        | ActionItem::SyncRepoToEtc
-        | ActionItem::RebuildCurrentHost => "当前动作不属于 Advanced",
+        ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => "当前动作不属于 Advanced",
     }
 }
 
@@ -2053,10 +2084,7 @@ fn advanced_maintenance_impact(action: ActionItem) -> &'static str {
         ActionItem::FlakeUpdate => "会刷新 flake.lock；执行后建议先复查仓库健康。",
         ActionItem::UpdateUpstreamPins => "会刷新上游 pin；执行后建议回 Inspect 或 Overview 复查。",
         ActionItem::LaunchDeployWizard => "会切回完整部署向导，继续处理复杂交互。",
-        ActionItem::FlakeCheck
-        | ActionItem::UpdateUpstreamCheck
-        | ActionItem::SyncRepoToEtc
-        | ActionItem::RebuildCurrentHost => "当前动作不属于 Advanced。",
+        ActionItem::FlakeCheck | ActionItem::UpdateUpstreamCheck => "当前动作不属于 Advanced。",
     }
 }
 
@@ -2133,7 +2161,7 @@ mod tests {
     #[test]
     fn advanced_focus_falls_back_to_first_advanced_action() {
         let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
-        state.actions_focus = 0;
+        state.advanced_action = ActionItem::FlakeCheck;
 
         state.ensure_advanced_action_focus();
 
@@ -2270,7 +2298,6 @@ mod tests {
 
         assert_eq!(summary.current_action, ActionItem::FlakeUpdate);
         assert_eq!(summary.recommended_action, ActionItem::FlakeUpdate);
-        assert!(!state.show_advanced);
         assert!(summary.reason.contains("更新 flake.lock"));
     }
 
@@ -2280,15 +2307,10 @@ mod tests {
 
         let apply_shell = state.deploy_shell_model();
         assert_eq!(apply_shell.mode, DeployShellMode::Apply);
-        assert_eq!(apply_shell.summary_title, "Execution Gate");
+        assert_eq!(apply_shell.summary_title, "Apply Summary");
         assert_eq!(apply_shell.controls_title, "Apply Controls");
         assert!(!apply_shell.workspace_visible);
-
-        state.show_advanced = true;
-        let apply_workspace_shell = state.deploy_shell_model();
-        assert_eq!(apply_workspace_shell.mode, DeployShellMode::Apply);
-        assert!(apply_workspace_shell.workspace_visible);
-        assert_eq!(apply_workspace_shell.detail_title, "Advanced Detail");
+        assert_eq!(apply_shell.detail_title, "Apply Detail");
 
         state.open_advanced();
         state.ensure_advanced_action_focus();
@@ -2321,21 +2343,8 @@ mod tests {
                 );
                 assert_eq!(model.controls.focused_row.label, "目标主机");
                 assert_eq!(model.controls.focused_row.value, "demo");
-                assert!(model.advanced_actions.is_none());
-                assert!(model.workspace.is_none());
             }
             other => panic!("expected apply page model, got {other:?}"),
-        }
-
-        state.show_advanced = true;
-        match state.deploy_page_model() {
-            DeployPageModel::Apply(model) => {
-                assert!(model.shell.workspace_visible);
-                assert_eq!(model.selection.execution_hint, "当前已打开高级工作区");
-                assert!(model.advanced_actions.is_some());
-                assert!(model.workspace.is_some());
-            }
-            other => panic!("expected apply page model with workspace, got {other:?}"),
         }
 
         state.open_advanced();
@@ -2366,30 +2375,18 @@ mod tests {
     }
 
     #[test]
-    fn overview_apply_route_feedback_ignores_stale_apply_workspace_state() {
+    fn overview_apply_route_feedback_ignores_stale_advanced_state() {
         let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
-        state.show_advanced = true;
+        state.open_advanced();
+        state.advanced_deploy_source = DeploySource::RemoteHead;
 
         let feedback = state.overview_apply_route_feedback();
 
         assert_eq!(
             feedback.message,
-            "Overview 已把你带到 Apply；当前组合可直接执行。"
+            "Overview 已进入 Apply 预览；当前组合可直接执行。"
         );
-        assert_eq!(feedback.next_step, "在 Apply 查看预览，或按 a / x 直接运行");
-    }
-
-    #[test]
-    fn actions_apply_route_feedback_keeps_direct_apply_copy_aligned() {
-        let state = test_state("/repo", "/etc/nixos", "sudo-available");
-
-        let feedback = state.actions_apply_route_feedback(ActionItem::SyncRepoToEtc);
-
-        assert_eq!(
-            feedback.message,
-            "sync to /etc/nixos 归属 Apply；当前组合可直接执行。"
-        );
-        assert_eq!(feedback.next_step, "在 Apply 查看预览，或按 a / x 直接运行");
+        assert_eq!(feedback.next_step, "在 Apply 查看预览；确认后按 x 直接运行");
     }
 
     #[test]
@@ -2400,7 +2397,6 @@ mod tests {
         state.return_from_advanced_to_apply();
 
         assert_eq!(state.page(), Page::Deploy);
-        assert!(!state.show_advanced);
         assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.message,
@@ -2408,7 +2404,7 @@ mod tests {
         );
         assert_eq!(
             state.feedback.next_step.as_deref(),
-            Some("在 Apply 查看预览，或按 a / x 直接运行")
+            Some("在 Apply 查看预览；确认后按 x 直接运行")
         );
     }
 
@@ -2422,7 +2418,6 @@ mod tests {
         state.return_from_advanced_to_apply();
 
         assert_eq!(state.page(), Page::Deploy);
-        assert!(!state.show_advanced);
         assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(
             state.feedback.message,
@@ -2452,7 +2447,55 @@ mod tests {
         );
         assert_eq!(
             selection.advanced_action_hint,
-            "高级动作：当前默认应切到 Advanced 执行 launch deploy wizard"
+            "高级动作：按 Enter 进入 Advanced，然后执行 launch deploy wizard"
+        );
+    }
+
+    #[test]
+    fn apply_execution_gate_model_prefers_apply_feedback_result_and_next_step() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.set_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            UiFeedbackScope::Apply,
+            "Apply 已执行完成：switch demo",
+            "回到 Overview 检查健康和下一步",
+        );
+
+        let gate = state.apply_execution_gate_model();
+
+        assert_eq!(gate.status, "当前可直接 Apply");
+        assert_eq!(
+            gate.latest_result,
+            "Apply 已执行完成：switch demo 下一步：回到 Overview 检查健康和下一步"
+        );
+        assert_eq!(gate.next_step, "回到 Overview 检查健康和下一步");
+        assert_eq!(gate.primary_action, "主动作：按 x 立即执行当前 Apply");
+    }
+
+    #[test]
+    fn apply_execution_gate_model_keeps_blocker_next_step_ahead_of_handoff() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.deploy_source = DeploySource::RemotePinned;
+        state.deploy_source_ref = "v5.0.0".to_string();
+        state.overview_repo_integrity = OverviewCheckState::Error {
+            summary: "failed (1 finding(s))".to_string(),
+            details: vec!["- [rule] path: detail".to_string()],
+        };
+
+        let gate = state.apply_execution_gate_model();
+
+        assert_eq!(gate.status, "当前不能直接 Apply");
+        assert_eq!(
+            gate.next_step,
+            "在 Apply 先看 blocker / warning，再决定是否调整 Apply 项"
+        );
+        assert_eq!(gate.primary_action, "主动作：先修复阻塞项，再回到 Apply");
+        assert_eq!(
+            gate.handoffs,
+            vec![
+                "当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+                    .to_string()
+            ]
         );
     }
 
@@ -2717,7 +2760,6 @@ mod tests {
         assert_eq!(model.summary.current_action, ActionItem::FlakeUpdate);
         assert_eq!(model.summary.recommended_action, ActionItem::FlakeUpdate);
         assert_eq!(model.write_target, "flake.lock");
-        assert!(!state.show_advanced);
         assert!(model.impact.contains("flake.lock"));
         assert!(model.return_hint.contains("按 b 返回 Apply"));
     }
@@ -2725,8 +2767,8 @@ mod tests {
     #[test]
     fn advanced_maintenance_model_points_back_to_wizard_when_remote_source_is_selected() {
         let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
-        state.show_advanced = true;
-        state.deploy_source = DeploySource::RemoteHead;
+        state.open_advanced();
+        state.advanced_deploy_source = DeploySource::RemoteHead;
         state.set_advanced_action_focus(ActionItem::FlakeUpdate);
 
         let model = state.advanced_maintenance_model();
@@ -2834,6 +2876,120 @@ mod tests {
     }
 
     #[test]
+    fn apply_model_surfaces_cached_health_failures_as_blockers() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.overview_repo_integrity = OverviewCheckState::Error {
+            summary: "failed (1 finding(s))".to_string(),
+            details: vec!["- [rule] path: detail".to_string()],
+        };
+        state.overview_doctor = OverviewCheckState::Error {
+            summary: "failed (1 check(s))".to_string(),
+            details: vec!["missing nix".to_string()],
+        };
+
+        let model = state.apply_model();
+
+        assert!(!model.can_apply_current_host);
+        assert!(
+            model
+                .blockers
+                .iter()
+                .any(|item| item == "repo-integrity 当前失败：failed (1 finding(s))")
+        );
+        assert!(
+            model
+                .blockers
+                .iter()
+                .any(|item| item == "doctor 当前失败：failed (1 check(s))")
+        );
+    }
+
+    #[test]
+    fn apply_guidance_prioritizes_blockers_over_handoffs() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.deploy_source = DeploySource::RemotePinned;
+        state.deploy_source_ref = "v5.0.0".to_string();
+        state.overview_repo_integrity = OverviewCheckState::Error {
+            summary: "failed (1 finding(s))".to_string(),
+            details: vec!["- [rule] path: detail".to_string()],
+        };
+
+        let feedback = state.overview_apply_route_feedback();
+        let selection = state.apply_selection_model();
+
+        assert_eq!(
+            feedback.message,
+            "Overview 已进入 Apply 预览；当前组合仍有 blocker：repo-integrity 当前失败：failed (1 finding(s))。"
+        );
+        assert_eq!(
+            feedback.next_step,
+            "在 Apply 先看 blocker / warning，再决定是否调整 Apply 项"
+        );
+        assert_eq!(selection.execution_hint, "不可执行：当前仍有 blocker");
+        assert_eq!(
+            state.apply_model().handoffs,
+            vec![
+                "当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
+                    .to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn should_use_sudo_only_for_sudo_capable_modes() {
+        assert!(test_state("/repo", "/etc/nixos", "sudo-session").should_use_sudo());
+        assert!(test_state("/repo", "/etc/nixos", "sudo-available").should_use_sudo());
+        assert!(!test_state("/repo", "/etc/nixos", "root").should_use_sudo());
+        assert!(!test_state("/repo", "/etc/nixos", "rootless").should_use_sudo());
+    }
+
+    #[test]
+    fn ensure_no_unsaved_changes_reports_all_dirty_sections() {
+        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
+        state.host_dirty_user_hosts.insert("demo".to_string());
+        state.host_dirty_runtime_hosts.insert("demo".to_string());
+        state.package_dirty_users.insert("alice".to_string());
+        state.home_dirty_users.insert("alice".to_string());
+
+        let err = state
+            .ensure_no_unsaved_changes_for_execution()
+            .expect_err("dirty state should block execution");
+        let text = err.to_string();
+        assert!(text.contains("Users: demo"));
+        assert!(text.contains("Hosts: demo"));
+        assert!(text.contains("Packages: alice"));
+        assert!(text.contains("Home: alice"));
+    }
+
+    #[test]
+    fn advanced_action_availability_is_limited_to_advanced_actions() {
+        let state = test_state("/repo", "/etc/nixos", "sudo-available");
+        assert!(state.advanced_action_available(ActionItem::FlakeUpdate));
+        assert!(state.advanced_action_available(ActionItem::UpdateUpstreamPins));
+        assert!(state.advanced_action_available(ActionItem::LaunchDeployWizard));
+        assert!(!state.advanced_action_available(ActionItem::FlakeCheck));
+        assert!(!state.advanced_action_available(ActionItem::UpdateUpstreamCheck));
+    }
+
+    #[test]
+    fn advanced_action_previews_cover_repo_maintenance_and_wizard() {
+        let state = test_state("/repo", "/etc/nixos", "sudo-available");
+        let flake_update = state
+            .advanced_action_command_preview(ActionItem::FlakeUpdate)
+            .expect("flake update preview should exist");
+        let upstream = state
+            .advanced_action_command_preview(ActionItem::UpdateUpstreamPins)
+            .expect("upstream preview should exist");
+        let wizard = state
+            .advanced_action_command_preview(ActionItem::LaunchDeployWizard)
+            .expect("wizard preview should exist");
+
+        assert!(flake_update.contains("flake update --flake /repo"));
+        assert_eq!(upstream, "update-upstream-apps");
+        assert!(wizard.starts_with("mcb-deploy --mode update-existing"));
+    }
+
+    #[test]
     fn execute_deploy_rejects_unsaved_changes_before_other_checks() {
         let mut state = test_state("/definitely/missing/repo", "/etc/nixos", "sudo-available");
         state.home_dirty_users.insert("alice".to_string());
@@ -2846,6 +3002,21 @@ mod tests {
         assert!(text.contains("仍有未保存修改"));
         assert!(text.contains("Packages: alice"));
         assert!(text.contains("Home: alice"));
+    }
+
+    #[test]
+    fn execute_deploy_rejects_doctor_failure_before_other_checks() {
+        let mut state = test_state("/definitely/missing/repo", "/etc/nixos", "sudo-available");
+        state.overview_doctor = OverviewCheckState::Error {
+            summary: "failed (1 check(s))".to_string(),
+            details: vec!["missing nix".to_string()],
+        };
+
+        let err = state
+            .execute_deploy()
+            .expect_err("doctor failure should block execution immediately");
+
+        assert_eq!(err.to_string(), "doctor 当前失败：failed (1 check(s))");
     }
 
     #[test]
@@ -2886,22 +3057,7 @@ mod tests {
     }
 
     #[test]
-    fn sync_repo_completion_feedback_uses_shared_apply_copy() {
-        let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
-
-        state.set_sync_repo_completion_feedback();
-
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
-        assert_eq!(state.feedback.level, UiFeedbackLevel::Success);
-        assert_eq!(state.feedback.message, "仓库已同步到 /etc/nixos。");
-        assert_eq!(
-            state.feedback.next_step.as_deref(),
-            Some("回到 Apply 或 Overview 继续后续重建")
-        );
-    }
-
-    #[test]
-    fn rebuild_completion_feedback_keeps_apply_and_action_copy_aligned() {
+    fn rebuild_completion_feedback_keeps_apply_copy_aligned() {
         let mut state = test_state("/repo", "/etc/nixos", "sudo-available");
         let plan = NixosRebuildPlan {
             action: DeployAction::Switch,
@@ -2914,15 +3070,6 @@ mod tests {
         assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
         assert_eq!(state.feedback.level, UiFeedbackLevel::Success);
         assert_eq!(state.feedback.message, "Apply 已执行完成：switch demo");
-        assert_eq!(
-            state.feedback.next_step.as_deref(),
-            Some("回到 Overview 检查健康和下一步")
-        );
-
-        state.set_current_host_rebuild_completion_feedback(&plan);
-        assert_eq!(state.feedback.scope, UiFeedbackScope::Apply);
-        assert_eq!(state.feedback.level, UiFeedbackLevel::Success);
-        assert_eq!(state.feedback.message, "当前主机 demo 已完成一次 switch。");
         assert_eq!(
             state.feedback.next_step.as_deref(),
             Some("回到 Overview 检查健康和下一步")
@@ -2965,9 +3112,11 @@ mod tests {
             catalog_path: PathBuf::from("catalog/packages"),
             catalog_groups_path: PathBuf::from("catalog/groups.toml"),
             catalog_home_options_path: PathBuf::from("catalog/home-options.toml"),
+            catalog_workflows_path: PathBuf::from("catalog/workflows.toml"),
             catalog_entries: Vec::new(),
             catalog_groups: BTreeMap::new(),
             catalog_home_options: Vec::new(),
+            catalog_workflows: BTreeMap::new(),
             catalog_categories: Vec::new(),
             catalog_sources: Vec::new(),
         };
@@ -2993,7 +3142,7 @@ mod tests {
             advanced_deploy_source_ref: String::new(),
             advanced_deploy_action: DeployAction::Switch,
             advanced_flake_update: false,
-            show_advanced: false,
+            help_overlay_visible: false,
             deploy_text_mode: None,
             users_focus: 0,
             hosts_focus: 0,
@@ -3010,12 +3159,14 @@ mod tests {
             package_category_index: 0,
             package_group_filter: None,
             package_source_filter: None,
+            package_workflow_filter: None,
             package_search: String::new(),
             package_search_result_indices: Vec::new(),
             package_local_entry_ids: BTreeSet::new(),
             package_search_mode: false,
             package_group_create_mode: false,
             package_group_rename_mode: false,
+            package_workflow_add_confirm_mode: false,
             package_group_rename_source: String::new(),
             package_group_input: String::new(),
             package_user_selections: BTreeMap::new(),
@@ -3024,7 +3175,8 @@ mod tests {
             home_focus: 0,
             home_settings_by_user: BTreeMap::new(),
             home_dirty_users: BTreeSet::new(),
-            actions_focus: 0,
+            inspect_action: crate::domain::tui::ActionItem::FlakeCheck,
+            advanced_action: crate::domain::tui::ActionItem::FlakeUpdate,
             overview_repo_integrity: OverviewCheckState::NotRun,
             overview_doctor: OverviewCheckState::NotRun,
             feedback: UiFeedback::default(),

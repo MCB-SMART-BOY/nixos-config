@@ -16,7 +16,7 @@ fn render_with_model(frame: &mut Frame, area: Rect, page_model: &PackagePageMode
         PackagePageConfig {
             summary_percentage: 28,
             list_percentage: 39,
-            summary_title: "Package Context",
+            summary_title: "Packages Summary",
             selection_title: "Selection",
         },
         page_model,
@@ -68,6 +68,73 @@ mod tests {
                 field_lines: vec!["当前用户：alice".to_string()],
                 detail: EditDetailModel {
                     status: "状态：当前用户没有未保存修改".to_string(),
+                    action_summary: None,
+                    validation: None,
+                    managed_guard: EditCheckModel {
+                        summary: "受管保护：通过".to_string(),
+                        details: Vec::new(),
+                    },
+                    notes: Vec::new(),
+                },
+            },
+            list: PackageListModel {
+                title: "Packages (local)".to_string(),
+                empty_text: None,
+                items: vec![crate::tui::state::PackageListItemModel {
+                    selected: true,
+                    name: "Hello".to_string(),
+                    category: "cli".to_string(),
+                    group_label: "misc".to_string(),
+                }],
+                selected_index: Some(0),
+            },
+            selection: PackageSelectionModel {
+                current_entry_fields: vec![crate::tui::state::EditRow {
+                    label: "当前条目".to_string(),
+                    value: "Hello".to_string(),
+                }],
+                group_rows: vec![crate::tui::state::PackageGroupOverviewRow {
+                    group_label: "misc".to_string(),
+                    count: 1,
+                    filter_selected: true,
+                    current_selected: true,
+                }],
+                workflow_rows: vec![crate::tui::state::PackageWorkflowOverviewRow {
+                    workflow_label: "容器与集群 [containers]".to_string(),
+                    total_count: 1,
+                    selected_count: 1,
+                    filter_selected: true,
+                    current_selected: true,
+                }],
+                active_workflow: None,
+                action_summary: None,
+                selected_rows: vec![crate::tui::state::PackageSelectedEntryRow {
+                    name: "Hello".to_string(),
+                    category: "cli".to_string(),
+                    group_label: "misc".to_string(),
+                }],
+                status: "ready".to_string(),
+            },
+        };
+
+        let text = render_view_text(120, 24, |frame| {
+            render_with_model(frame, Rect::new(0, 0, 120, 24), &page_model)
+        });
+
+        assert!(text.contains("Packages Summary"));
+        assert!(text.contains("Selection"));
+    }
+
+    #[test]
+    fn render_with_model_keeps_titles_visible_on_narrow_width() {
+        let page_model = PackagePageModel {
+            summary: EditSummaryModel {
+                header_lines: vec!["数据源：本地覆盖/已声明".to_string()],
+                focused_row: None,
+                field_lines: vec!["当前用户：alice".to_string()],
+                detail: EditDetailModel {
+                    status: "状态：当前用户没有未保存修改".to_string(),
+                    action_summary: None,
                     validation: None,
                     managed_guard: EditCheckModel {
                         summary: "受管保护：通过".to_string(),
@@ -98,6 +165,15 @@ mod tests {
                     filter_selected: true,
                     current_selected: true,
                 }],
+                workflow_rows: vec![crate::tui::state::PackageWorkflowOverviewRow {
+                    workflow_label: "容器与集群 [containers]".to_string(),
+                    total_count: 1,
+                    selected_count: 1,
+                    filter_selected: true,
+                    current_selected: true,
+                }],
+                active_workflow: None,
+                action_summary: None,
                 selected_rows: vec![crate::tui::state::PackageSelectedEntryRow {
                     name: "Hello".to_string(),
                     category: "cli".to_string(),
@@ -107,12 +183,13 @@ mod tests {
             },
         };
 
-        let text = render_view_text(120, 24, |frame| {
-            render_with_model(frame, Rect::new(0, 0, 120, 24), &page_model)
+        let text = render_view_text(104, 24, |frame| {
+            render_with_model(frame, Rect::new(0, 0, 104, 24), &page_model)
         });
 
-        assert!(text.contains("Package Context"));
+        assert!(text.contains("Packages Summary"));
         assert!(text.contains("Selection"));
+        assert!(text.contains("Hello"));
     }
 
     fn render_view_text(

@@ -6,7 +6,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "mcbctl";
-  version = "6.0.0";
+  version = "6.1.0";
 
   src = lib.cleanSourceWith {
     src = ../../mcbctl;

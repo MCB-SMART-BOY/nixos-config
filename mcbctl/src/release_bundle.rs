@@ -2,6 +2,7 @@ use crate::write_file_atomic;
 use anyhow::{Context, Result, bail};
 use flate2::Compression;
 use flate2::write::GzEncoder;
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Read;
@@ -41,6 +42,14 @@ const RELEASE_BINARIES: &[&str] = &[
     "update-zed-source",
 ];
 
+const DEFAULT_RELEASE_REPOSITORY: &str = "MCB-SMART-BOY/nixos-config";
+const RELEASE_BUNDLE_TARGETS: &[&str] = &[
+    "x86_64-unknown-linux-gnu",
+    "x86_64-pc-windows-msvc",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+];
+
 pub struct ReleaseBundleOptions {
     pub target: String,
     pub version: String,
@@ -51,6 +60,65 @@ pub struct ReleaseBundleOptions {
 pub struct ReleaseBundleReport {
     pub archive: PathBuf,
     pub checksum_file: PathBuf,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ReleaseAssetManifest {
+    pub target: String,
+    pub archive_name: String,
+    pub archive_url: String,
+    pub checksum_name: String,
+    pub checksum_url: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct ReleaseManifest {
+    pub repository: String,
+    pub version: String,
+    pub tag: String,
+    pub release_url: String,
+    pub assets: Vec<ReleaseAssetManifest>,
+}
+
+pub fn default_release_repository() -> String {
+    std::env::var("GITHUB_REPOSITORY")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_RELEASE_REPOSITORY.to_string())
+}
+
+pub fn build_release_manifest(repository: &str, version: &str) -> ReleaseManifest {
+    let tag = normalize_release_tag(version);
+    let normalized_repository = repository.trim().trim_matches('/').to_string();
+    let release_base =
+        format!("https://github.com/{normalized_repository}/releases/download/{tag}");
+    let assets = RELEASE_BUNDLE_TARGETS
+        .iter()
+        .map(|target| {
+            let archive_name = release_bundle_archive_name(&tag, target);
+            let checksum_name = release_bundle_checksum_name(&archive_name);
+            ReleaseAssetManifest {
+                target: (*target).to_string(),
+                archive_url: format!("{release_base}/{archive_name}"),
+                checksum_url: format!("{release_base}/{checksum_name}"),
+                archive_name,
+                checksum_name,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    ReleaseManifest {
+        repository: normalized_repository.clone(),
+        version: normalized_release_version(&tag),
+        tag: tag.clone(),
+        release_url: format!("https://github.com/{normalized_repository}/releases/tag/{tag}"),
+        assets,
+    }
+}
+
+pub fn render_release_manifest_json(repository: &str, version: &str) -> Result<String> {
+    serde_json::to_string_pretty(&build_release_manifest(repository, version))
+        .context("failed to render release manifest")
 }
 
 pub fn build_release_bundle(options: &ReleaseBundleOptions) -> Result<ReleaseBundleReport> {
@@ -90,22 +158,27 @@ pub fn build_release_bundle(options: &ReleaseBundleOptions) -> Result<ReleaseBun
     )?;
 
     let archive = if options.target.contains("windows") {
-        let path = options.out_dir.join(format!("{bundle_name}.zip"));
+        let path = options.out_dir.join(release_bundle_archive_name(
+            &options.version,
+            &options.target,
+        ));
         write_zip_bundle(&path, &staging_dir, &bundle_root)?;
         path
     } else {
-        let path = options.out_dir.join(format!("{bundle_name}.tar.gz"));
+        let path = options.out_dir.join(release_bundle_archive_name(
+            &options.version,
+            &options.target,
+        ));
         write_tar_gz_bundle(&path, &staging_dir, &bundle_root)?;
         path
     };
 
     let checksum = sha256_file(&archive)?;
-    let checksum_file = options.out_dir.join(format!(
-        "{}.sha256",
+    let checksum_file = options.out_dir.join(release_bundle_checksum_name(
         archive
             .file_name()
             .and_then(|name| name.to_str())
-            .unwrap_or("mcbctl-release")
+            .unwrap_or("mcbctl-release"),
     ));
     write_file_atomic(
         &checksum_file,
@@ -139,6 +212,30 @@ fn render_release_readme(version: &str, target: &str) -> String {
     format!(
         "mcbctl {version}\nTarget: {target}\n\nThis archive contains the prebuilt Rust command suite for this repository.\n\nPrimary entrypoints:\n- mcbctl\n- mcb-deploy\n- deploy\n"
     )
+}
+
+fn normalize_release_tag(version: &str) -> String {
+    if version.starts_with('v') {
+        version.to_string()
+    } else {
+        format!("v{version}")
+    }
+}
+
+fn normalized_release_version(tag: &str) -> String {
+    tag.strip_prefix('v').unwrap_or(tag).to_string()
+}
+
+fn release_bundle_archive_name(version: &str, target: &str) -> String {
+    if target.contains("windows") {
+        format!("mcbctl-{version}-{target}.zip")
+    } else {
+        format!("mcbctl-{version}-{target}.tar.gz")
+    }
+}
+
+fn release_bundle_checksum_name(archive_name: &str) -> String {
+    format!("{archive_name}.sha256")
 }
 
 fn write_tar_gz_bundle(path: &Path, root: &Path, bundle_root: &Path) -> Result<()> {
@@ -214,4 +311,45 @@ fn chrono_like_millis() -> u128 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_release_manifest_uses_tagged_asset_urls_for_all_targets() {
+        let manifest = build_release_manifest("MCB-SMART-BOY/nixos-config", "6.0.0");
+
+        assert_eq!(manifest.version, "6.0.0");
+        assert_eq!(manifest.tag, "v6.0.0");
+        assert_eq!(
+            manifest.release_url,
+            "https://github.com/MCB-SMART-BOY/nixos-config/releases/tag/v6.0.0"
+        );
+        assert_eq!(manifest.assets.len(), 4);
+        assert_eq!(
+            manifest.assets[0].archive_name,
+            "mcbctl-v6.0.0-x86_64-unknown-linux-gnu.tar.gz"
+        );
+        assert_eq!(
+            manifest.assets[0].checksum_name,
+            "mcbctl-v6.0.0-x86_64-unknown-linux-gnu.tar.gz.sha256"
+        );
+        assert!(
+            manifest.assets[0]
+                .archive_url
+                .ends_with("/download/v6.0.0/mcbctl-v6.0.0-x86_64-unknown-linux-gnu.tar.gz")
+        );
+    }
+
+    #[test]
+    fn render_release_manifest_json_outputs_pretty_json() {
+        let json = render_release_manifest_json("MCB-SMART-BOY/nixos-config", "v6.0.0")
+            .expect("manifest json should render");
+
+        assert!(json.contains("\"tag\": \"v6.0.0\""));
+        assert!(json.contains("\"repository\": \"MCB-SMART-BOY/nixos-config\""));
+        assert!(json.contains("x86_64-pc-windows-msvc"));
+    }
 }

@@ -5,20 +5,31 @@ impl AppState {
         let Some(user) = self.current_package_user().map(ToOwned::to_owned) else {
             self.package_group_create_mode = false;
             self.package_group_input.clear();
-            self.status = "Packages 页没有可操作的用户目录。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 页没有可操作的用户目录。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return;
         };
         let Some(entry) = self.current_package_entry().cloned() else {
             self.package_group_create_mode = false;
             self.package_group_input.clear();
-            self.status = "当前过滤条件下没有可新建分组的软件。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                "当前过滤条件下没有可新建分组的软件。",
+                self.package_browse_next_step(),
+            );
             return;
         };
 
         let normalized = normalize_package_group_name(&self.package_group_input);
         if normalized.is_empty() {
-            self.status =
-                "组名不能为空；建议使用字母、数字和连字符，例如 research-writing。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 组名不能为空；建议使用字母、数字和连字符，例如 research-writing。",
+                self.package_group_input_next_step(),
+            );
             return;
         }
 
@@ -32,36 +43,56 @@ impl AppState {
         self.clamp_package_cursor();
         self.package_group_create_mode = false;
         self.package_group_input.clear();
-        self.status = if existed {
-            format!(
-                "已将用户 {user} 的软件 {} 指向现有组：{normalized}",
-                entry.name
-            )
-        } else {
-            format!(
-                "已为用户 {user} 新建组：{normalized}，并将软件 {} 分配到该组",
-                entry.name
-            )
-        };
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            if existed {
+                format!(
+                    "Packages 已将 {} 指向现有组 {}。",
+                    entry.name,
+                    self.package_group_display(&normalized)
+                )
+            } else {
+                format!(
+                    "Packages 已新建组 {}，并把 {} 放进去。",
+                    self.package_group_display(&normalized),
+                    entry.name
+                )
+            },
+            self.package_edit_next_step(),
+        );
     }
 
     pub(super) fn confirm_package_group_rename(&mut self) {
         let Some(user) = self.current_package_user().map(ToOwned::to_owned) else {
             self.reset_package_group_edit_state();
-            self.status = "Packages 页没有可操作的用户目录。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 页没有可操作的用户目录。",
+                "先补可用 user 目标，或切到其他编辑页。",
+            );
             return;
         };
 
         let old_group = self.package_group_rename_source.clone();
         let normalized = normalize_package_group_name(&self.package_group_input);
         if normalized.is_empty() {
-            self.status =
-                "组名不能为空；建议使用字母、数字和连字符，例如 database-tools。".to_string();
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Error,
+                "Packages 组名不能为空；建议使用字母、数字和连字符，例如 database-tools。",
+                self.package_group_input_next_step(),
+            );
             return;
         }
         if normalized == old_group {
             self.reset_package_group_edit_state();
-            self.status = format!("组名未变化：{old_group}");
+            self.set_package_feedback_with_next_step(
+                UiFeedbackLevel::Info,
+                format!(
+                    "Packages 组名未变化：{}",
+                    self.package_group_display(&old_group)
+                ),
+                self.package_browse_next_step(),
+            );
             return;
         }
 
@@ -83,8 +114,14 @@ impl AppState {
         }
         self.clamp_package_cursor();
         self.reset_package_group_edit_state();
-        self.status = format!(
-            "已将用户 {user} 的组 {old_group} 重命名为 {normalized}，影响 {renamed_count} 个软件"
+        self.set_package_feedback_with_next_step(
+            UiFeedbackLevel::Success,
+            format!(
+                "Packages 已将组 {} 重命名为 {}，影响 {renamed_count} 个软件。",
+                self.package_group_display(&old_group),
+                self.package_group_display(&normalized)
+            ),
+            self.package_edit_next_step(),
         );
     }
 
@@ -106,6 +143,18 @@ impl AppState {
 
         if !self.package_groups_for_user(user).contains(&filter) {
             self.package_group_filter = None;
+        }
+    }
+
+    pub(crate) fn ensure_valid_package_workflow_filter(&mut self) {
+        let Some(filter) = self.package_workflow_filter.clone() else {
+            return;
+        };
+
+        if self.package_mode == PackageDataMode::Search
+            || !self.package_workflows().contains(&filter)
+        {
+            self.package_workflow_filter = None;
         }
     }
 }

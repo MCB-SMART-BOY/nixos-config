@@ -1,4 +1,4 @@
-use crate::domain::tui::{CatalogEntry, GroupMeta, HomeOptionMeta};
+use crate::domain::tui::{CatalogEntry, GroupMeta, HomeOptionMeta, WorkflowMeta};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -20,6 +20,12 @@ struct GroupCatalog {
 struct HomeOptionsCatalog {
     #[serde(default, rename = "option")]
     options: Vec<HomeOptionMeta>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct WorkflowCatalog {
+    #[serde(default, rename = "workflow")]
+    workflows: Vec<WorkflowMeta>,
 }
 
 pub fn load_catalog(path: &Path) -> (Vec<CatalogEntry>, Vec<String>, Vec<String>) {
@@ -110,6 +116,21 @@ pub fn load_home_options_catalog(path: &Path) -> Vec<HomeOptionMeta> {
             .then_with(|| left.id.cmp(&right.id))
     });
     options
+}
+
+pub fn load_workflow_catalog(path: &Path) -> BTreeMap<String, WorkflowMeta> {
+    let Ok(content) = fs::read_to_string(path) else {
+        return BTreeMap::new();
+    };
+    let Ok(parsed) = toml::from_str::<WorkflowCatalog>(&content) else {
+        return BTreeMap::new();
+    };
+
+    parsed
+        .workflows
+        .into_iter()
+        .map(|workflow| (workflow.id.clone(), workflow))
+        .collect()
 }
 
 fn default_home_options() -> Vec<HomeOptionMeta> {

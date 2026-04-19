@@ -8,7 +8,6 @@ pub(super) struct DeployPreviewFields<'a> {
     pub(super) source_detail: Option<&'a str>,
     pub(super) action: DeployAction,
     pub(super) flake_update: bool,
-    pub(super) advanced: bool,
     pub(super) sync_preview: Option<&'a str>,
     pub(super) rebuild_preview: Option<&'a str>,
     pub(super) command_fallback: &'a str,
@@ -39,10 +38,6 @@ pub(super) fn render_deploy_preview_lines(preview: DeployPreviewFields<'_>) -> S
             } else {
                 "关闭"
             }
-        ),
-        format!(
-            "高级模式：{}",
-            if preview.advanced { "开启" } else { "关闭" }
         ),
         format!(
             "同步预览：{}",
