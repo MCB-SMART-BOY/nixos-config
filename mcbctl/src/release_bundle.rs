@@ -125,8 +125,11 @@ pub fn build_release_bundle(options: &ReleaseBundleOptions) -> Result<ReleaseBun
     fs::create_dir_all(&options.out_dir)
         .with_context(|| format!("failed to create {}", options.out_dir.display()))?;
 
+    // Normalize version to v-prefix, matching build_release_manifest behavior.
+    let version = normalize_release_tag(&options.version);
+
     let suffix = binary_suffix(&options.target);
-    let bundle_name = format!("mcbctl-{}-{}", options.version, options.target);
+    let bundle_name = format!("mcbctl-{version}-{}", options.target);
     let staging_dir = std::env::temp_dir().join(format!(
         "mcbctl-release-bundle-{}-{}",
         std::process::id(),
@@ -154,21 +157,19 @@ pub fn build_release_bundle(options: &ReleaseBundleOptions) -> Result<ReleaseBun
 
     write_file_atomic(
         &bundle_root.join("README.txt"),
-        &render_release_readme(&options.version, &options.target),
+        &render_release_readme(&version, &options.target),
     )?;
 
     let archive = if options.target.contains("windows") {
-        let path = options.out_dir.join(release_bundle_archive_name(
-            &options.version,
-            &options.target,
-        ));
+        let path = options
+            .out_dir
+            .join(release_bundle_archive_name(&version, &options.target));
         write_zip_bundle(&path, &staging_dir, &bundle_root)?;
         path
     } else {
-        let path = options.out_dir.join(release_bundle_archive_name(
-            &options.version,
-            &options.target,
-        ));
+        let path = options
+            .out_dir
+            .join(release_bundle_archive_name(&version, &options.target));
         write_tar_gz_bundle(&path, &staging_dir, &bundle_root)?;
         path
     };

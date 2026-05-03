@@ -89,7 +89,7 @@ pub fn ensure_required_layout(root: &Path) -> Result<()> {
     ] {
         let path = root.join(rel);
         if !path.exists() {
-            bail!("缺少必须保留的仓库边界：{}", path.display());
+            bail!("缺少必需的仓库边界：{}", path.display());
         }
     }
     Ok(())
@@ -100,7 +100,7 @@ pub fn assess_doctor_environment(tools: DoctorToolStatus) -> DoctorAssessment {
     if !tools.nix {
         assessment
             .blocking_issues
-            .push("缺少 nix，无法评估或执行 flake。".to_string());
+            .push("缺少 nix，无法求值或构建 flake。".to_string());
     }
     if !tools.nixos_rebuild {
         assessment
@@ -110,7 +110,7 @@ pub fn assess_doctor_environment(tools: DoctorToolStatus) -> DoctorAssessment {
     if !tools.git {
         assessment
             .warnings
-            .push("缺少 git，远端来源、release 与部分追新流程不可用。".to_string());
+            .push("缺少 git，远端来源、release 与部分更新流程不可用。".to_string());
     }
     if !tools.cargo {
         assessment
@@ -126,19 +126,23 @@ pub fn collect_doctor_report(root: &Path) -> Result<DoctorReport> {
         .err()
         .map(|err| err.to_string());
     let tools = DoctorToolStatus::detect();
-    let assessment = assess_doctor_environment(tools);
+    let mut assessment = assess_doctor_environment(tools);
     let current_host = detect_hostname();
-    let repo_hardware =
-        if !current_host.is_empty() && root.join("hosts").join(&current_host).is_dir() {
-            let path = host_hardware_config_path(root, &current_host);
-            if path.is_file() {
-                format!("present ({})", path.display())
-            } else {
-                format!("missing for {current_host} (eval fallback active)")
-            }
+    let repo_hardware = if !current_host.is_empty()
+        && root.join("hosts").join(&current_host).is_dir()
+    {
+        let path = host_hardware_config_path(root, &current_host);
+        if path.is_file() {
+            format!("present ({})", path.display())
         } else {
-            "unknown (current host not mapped into repo)".to_string()
-        };
+            assessment.warnings.push(format!(
+                    "缺少 {current_host} 的 hardware-configuration.nix；switch/test/boot 不可用，当前仅允许 build 和求值。"
+                ));
+            format!("missing for {current_host} (eval fallback active)")
+        }
+    } else {
+        "unknown (current host not mapped into repo)".to_string()
+    };
 
     Ok(DoctorReport {
         repo_root: root.to_path_buf(),
@@ -223,7 +227,7 @@ mod tests {
     fn doctor_report_failure_lines_include_integrity_layout_and_environment() {
         let report = DoctorReport {
             repo_root: PathBuf::from("/repo"),
-            remote_branch: "rust脚本分支".to_string(),
+            remote_branch: "main".to_string(),
             tools: DoctorToolStatus::default(),
             repo_hardware: "missing".to_string(),
             legacy_root_hardware: false,
