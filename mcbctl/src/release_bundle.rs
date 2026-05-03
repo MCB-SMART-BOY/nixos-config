@@ -354,3 +354,62 @@ mod tests {
         assert!(json.contains("x86_64-pc-windows-msvc"));
     }
 }
+
+#[cfg(test)]
+mod release_binaries_sync_tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    fn cargo_bin_names(
+        manifest_path: &std::path::Path,
+    ) -> Result<std::collections::BTreeSet<String>> {
+        #[derive(serde::Deserialize)]
+        struct CargoBin {
+            name: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct CargoManifest {
+            bin: Option<Vec<CargoBin>>,
+        }
+
+        let content = std::fs::read_to_string(manifest_path)
+            .with_context(|| format!("failed to read {}", manifest_path.display()))?;
+        let manifest: CargoManifest = toml::from_str(&content)
+            .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
+
+        Ok(manifest
+            .bin
+            .unwrap_or_default()
+            .into_iter()
+            .map(|b| b.name)
+            .collect())
+    }
+
+    #[test]
+    fn release_binaries_matches_cargo_toml_bins() {
+        let manifest_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml");
+        let cargo_bins =
+            cargo_bin_names(&manifest_path).expect("failed to read Cargo.toml [[bin]] entries");
+
+        let release_bins: BTreeSet<String> =
+            RELEASE_BINARIES.iter().map(|s| s.to_string()).collect();
+
+        // Every [[bin]] in Cargo.toml should be in RELEASE_BINARIES
+        let missing_from_release: Vec<_> = cargo_bins.difference(&release_bins).collect();
+        assert!(
+            missing_from_release.is_empty(),
+            "Cargo.toml [[bin]] entries not in RELEASE_BINARIES: {:?}\n\
+             Add them to RELEASE_BINARIES in release_bundle.rs",
+            missing_from_release
+        );
+
+        // Every entry in RELEASE_BINARIES should be a [[bin]] in Cargo.toml
+        let extra_in_release: Vec<_> = release_bins.difference(&cargo_bins).collect();
+        assert!(
+            extra_in_release.is_empty(),
+            "RELEASE_BINARIES entries not in Cargo.toml [[bin]]: {:?}\n\
+             Remove them from RELEASE_BINARIES or add the [[bin]] to Cargo.toml",
+            extra_in_release
+        );
+    }
+}
