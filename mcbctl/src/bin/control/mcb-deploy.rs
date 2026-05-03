@@ -132,6 +132,7 @@ enum WizardAction {
 }
 
 struct App {
+    // ── 来源配置 ──
     repo_dir: PathBuf,
     source_dir_override: Option<PathBuf>,
     repo_urls: Vec<String>,
@@ -140,6 +141,8 @@ struct App {
     allow_remote_head: bool,
     source_commit: String,
     source_choice_set: bool,
+
+    // ── 目标主机与用户 ──
     target_name: String,
     target_users: Vec<String>,
     target_admin_users: Vec<String>,
@@ -152,6 +155,8 @@ struct App {
     host_profile_kind: HostProfileKind,
     user_tun: BTreeMap<String, String>,
     user_dns: BTreeMap<String, u16>,
+
+    // ── 服务器覆盖项 ──
     server_overrides_enabled: bool,
     server_enable_network_cli: String,
     server_enable_network_gui: String,
@@ -163,7 +168,11 @@ struct App {
     server_enable_insecure_tools: String,
     server_enable_docker: String,
     server_enable_libvirtd: String,
+
+    // ── GPU 配置 ──
     created_home_users: Vec<String>,
+
+    // ── per-user TUN ──
     gpu_override: bool,
     gpu_override_from_detection: bool,
     gpu_mode: String,
@@ -177,9 +186,13 @@ struct App {
     gpu_specialisations_set: bool,
     gpu_specialisation_modes: Vec<String>,
     detected_gpu: DetectedGpuProfile,
+
+    // ── 重建参数 ──
     mode: String,
     rebuild_upgrade: bool,
     rebuild_upgrade_set: bool,
+
+    // ── 运行时状态 ──
     etc_dir: PathBuf,
     dns_enabled: bool,
     temp_dns_backend: String,
@@ -188,6 +201,8 @@ struct App {
     tmp_dir: Option<PathBuf>,
     sudo_cmd: Option<String>,
     rootless: bool,
+
+    // ── 执行控制 ──
     run_action: RunAction,
     progress_total: u32,
     progress_current: u32,
