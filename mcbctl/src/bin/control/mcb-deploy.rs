@@ -209,6 +209,29 @@ struct App {
     git_clone_timeout_sec: u64,
 }
 
+fn default_repo_urls() -> Vec<String> {
+    if let Ok(urls) = std::env::var("MCB_REPO_URLS") {
+        let trimmed = urls.trim().to_string();
+        if !trimmed.is_empty() {
+            return trimmed
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+        }
+    }
+    if let Some(url) = run_capture_allow_fail("git", &["remote", "get-url", "origin"]) {
+        let trimmed = url.trim().to_string();
+        if !trimmed.is_empty() {
+            return vec![trimmed];
+        }
+    }
+    vec![
+        "https://gitee.com/MCB-SMART-BOY/nixos-config.git".to_string(),
+        "https://github.com/MCB-SMART-BOY/nixos-config.git".to_string(),
+    ]
+}
+
 impl App {
     fn new() -> Result<Self> {
         let repo_dir = detect_repo_dir()?;
@@ -222,10 +245,7 @@ impl App {
         Ok(Self {
             repo_dir,
             source_dir_override: None,
-            repo_urls: vec![
-                "https://gitee.com/MCB-SMART-BOY/nixos-config.git".to_string(),
-                "https://github.com/MCB-SMART-BOY/nixos-config.git".to_string(),
-            ],
+            repo_urls: default_repo_urls(),
             branch,
             source_ref: String::new(),
             allow_remote_head: false,

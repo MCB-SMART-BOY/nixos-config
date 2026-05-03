@@ -2,7 +2,7 @@
 
 这份文档不是历史说明，而是接下来继续收 `mcb-deploy` / `mcbctl deploy` 主线时的工作基线。
 
-如果要从“工程主线”继续往“日用体验主线”推进，产品级方案见 [UX_MAINLINE_CN.md](/home/mcbgaruda/projects/nixos-config/docs/UX_MAINLINE_CN.md)，去二义性的实现规格见 [UX_SPEC_CN.md](/home/mcbgaruda/projects/nixos-config/docs/UX_SPEC_CN.md)。
+如果要从“工程主线”继续往“日用体验主线”推进，产品级方案见 [UX_MAINLINE_CN.md](./UX_MAINLINE_CN.md)，去二义性的实现规格见 [UX_SPEC_CN.md](./UX_SPEC_CN.md)。
 
 目标只有三个：
 
@@ -90,53 +90,53 @@
 
 ### 3.1 强依赖命令
 
-- `[release.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/release.rs)`
+- `[release.rs](../mcbctl/src/bin/control/mcb-deploy/release.rs)`
   命令：`gh auth status`、`git status --porcelain`、`git rev-parse <tag>`、`git push`、`gh release create`、`gh workflow run`
   当前语义：失败直接中止
   剩余工作：`dirty worktree / allow_dirty / probe failure / git push / gh release create / gh workflow run` 失败传播测试都已补；后续如果还要继续收，只剩更接近真实 CLI 的端到端样例
 
-- `[orchestrate/env.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/orchestrate/env.rs)`
+- `[orchestrate/env.rs](../mcbctl/src/bin/control/mcb-deploy/orchestrate/env.rs)`
   命令：`cargo check`
   当前语义：失败直接中止；缺 `cargo` 只告警
   剩余工作：这条边界和最小测试都已补；后续如果还要继续收，只剩更接近真实终端输出的样例
 
 ### 3.2 增强型探测命令
 
-- `[orchestrate/dns.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/orchestrate/dns.rs)`
+- `[orchestrate/dns.rs](../mcbctl/src/bin/control/mcb-deploy/orchestrate/dns.rs)`
   命令：`ip route show default`
   当前语义：`ip` 缺失时静默回退；命令异常或输出无效时显式告警后回退
   剩余工作：如果后续需要，再补更接近终端输出的集成样例
 
-- `[execute.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/execute.rs)`
+- `[execute.rs](../mcbctl/src/bin/control/mcb-deploy/execute.rs)`
   命令：`date +%Y%m%d-%H%M%S`
   当前语义：命令失败或输出为空会显式告警，并回退到 `unknown`
   剩余工作：如果后续需要，再补更接近真实终端输出的样例
 
-- `[source/local.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/source/local.rs)`
+- `[source/local.rs](../mcbctl/src/bin/control/mcb-deploy/source/local.rs)`
   命令：`git rev-parse HEAD`
   当前语义：命令失败或输出为空会显式告警，继续复制本地源，并清空旧的 `source_commit`
   剩余工作：这条语义已经收口；后续只需在需要时补更接近真实终端输出的样例
 
-- `[source/remote.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/source/remote.rs)`
+- `[source/remote.rs](../mcbctl/src/bin/control/mcb-deploy/source/remote.rs)`
   命令：`git rev-parse HEAD`
   当前语义：命令失败或输出为空会显式告警，继续保留已成功拉取的远端源，并清空旧的 `source_commit`
   剩余工作：如果后续需要，再补更接近真实终端输出的 clone + probe 样例
 
 ### 3.3 权限与环境探测
 
-- `[orchestrate/env.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/orchestrate/env.rs)`
+- `[orchestrate/env.rs](../mcbctl/src/bin/control/mcb-deploy/orchestrate/env.rs)`
   命令：`id -u`
   当前语义：`id` 缺失或探测异常会显式告警，并按非 root 环境继续
   剩余工作：如果后续还要继续收，重点应转向 backup 时间戳和本地源 commit 探测，不再是 `id -u`
 
 ### 3.4 清理与辅助路径
 
-- `[utils.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/utils.rs)`
+- `[utils.rs](../mcbctl/src/bin/control/mcb-deploy/utils.rs)`
   路径：`can_write_dir()`
   当前语义：保留 best-effort；探针文件删除失败不会升级成业务错误
   剩余工作：这条语义和最小测试都已补；后续如果还要继续收，只剩更接近真实 rootless 终端环境的样例
 
-- `[scaffold/users.rs](/home/mcbgaruda/projects/nixos-config/mcbctl/src/bin/control/mcb-deploy/scaffold/users.rs)`
+- `[scaffold/users.rs](../mcbctl/src/bin/control/mcb-deploy/scaffold/users.rs)`
   路径：`MCBCTL_COPY_USER_TEMPLATE`
   当前语义：只有字面值 `true` 开启；缺失、无效值或读取失败都等价于关闭
   剩余工作：这条语义和最小测试都已补；后续如果还要继续收，只剩更接近真实脚手架样例的端到端验证
