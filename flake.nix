@@ -191,6 +191,7 @@
         );
 
       checks.${defaultSystem} = {
+        # 仓库边界守门人：检查 managed 协议、禁止项和主线目录
         rust-repo-integrity =
           pkgsForDefault.runCommand "rust-repo-integrity"
             {
@@ -201,7 +202,12 @@
               touch "$out"
             '';
 
+        # mcbctl 编译检查
         mcbctl-build = mcbctlPkg;
+
+        # cargo test 无法在 Nix sandbox 中运行（需要网络下载依赖），
+        # 改为在 GitHub Actions CI (.github/workflows/ci.yml) 中运行。
+        # 本地验证：cargo test --manifest-path mcbctl/Cargo.toml
       };
 
       formatter.${defaultSystem} = pkgsForDefault.nixfmt;
