@@ -1,8 +1,8 @@
 # mcbctl-managed: host-virtualization
-# mcbctl-checksum: dab824f8bc482137a33408e694adb058f4691dc29b3e90aa030515978ed7b5b8
-# 机器管理的虚拟化分片。
-# 当前为空；当 mcbctl 的 Hosts 页保存 Docker / Libvirt 设置时，会写入这里。
+# mcbctl-checksum: 882d49d3e6601454a90c801076e37e404fca5bcc9ea99ba9d02b5e026d6f4808
+{ lib, ... }:
 
-{ ... }:
-
-{ }
+{
+  mcb.virtualisation.docker.enable = lib.mkForce false;
+  mcb.virtualisation.libvirtd.enable = lib.mkForce false;
+}

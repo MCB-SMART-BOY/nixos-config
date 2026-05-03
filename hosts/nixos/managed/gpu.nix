@@ -1,8 +1,17 @@
 # mcbctl-managed: host-gpu
-# mcbctl-checksum: cef76a07d7dc0b7490eae47fa8d6fb038b53f468adc0d17a84ec47716326424f
-# 机器管理的 GPU 分片。
-# 当前为空；当 mcbctl 的 Hosts 页保存 GPU 相关设置时，会写入这里。
+# mcbctl-checksum: a804b65a81b10c5e956e84059e1d801e860f0e1391a0fbfda467c00275b1a791
+{ lib, ... }:
 
-{ ... }:
-
-{ }
+{
+  mcb.hardware.gpu.mode = lib.mkForce "hybrid";
+  mcb.hardware.gpu.igpuVendor = lib.mkForce "intel";
+  mcb.hardware.gpu.prime = lib.mkForce {
+    mode = "offload";
+    intelBusId = "PCI:0:2:0";
+    amdgpuBusId = null;
+    nvidiaBusId = "PCI:1:0:0";
+  };
+  mcb.hardware.gpu.nvidia.open = lib.mkForce true;
+  mcb.hardware.gpu.specialisations.enable = lib.mkForce true;
+  mcb.hardware.gpu.specialisations.modes = lib.mkForce [ "igpu" "hybrid" "dgpu" ];
+}

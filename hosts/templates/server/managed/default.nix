@@ -1,9 +1,17 @@
 # mcbctl-managed: host-managed-default
-# mcbctl-checksum: 4d18b54d362ce95946f4493dce8a687569d4f7ac2e176da951315b4de6155a0e
+# mcbctl-checksum: f9c88961636d7d8af40f745b7517dbf0388aa2ef04c03074be183bf8e48f0dd9
 # TUI / 自动化工具专用主机入口。
 
 { lib, ... }:
 
+let
+  splitImports = lib.concatLists [
+    (lib.optional (builtins.pathExists ./users.nix) ./users.nix)
+    (lib.optional (builtins.pathExists ./network.nix) ./network.nix)
+    (lib.optional (builtins.pathExists ./gpu.nix) ./gpu.nix)
+    (lib.optional (builtins.pathExists ./virtualization.nix) ./virtualization.nix)
+  ];
+in
 {
-  imports = [ ] ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
+  imports = splitImports ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
 }
