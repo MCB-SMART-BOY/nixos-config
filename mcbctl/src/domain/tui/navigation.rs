@@ -100,12 +100,10 @@ impl ActionItem {
     pub fn description(self) -> &'static str {
         match self {
             ActionItem::FlakeCheck => "运行 flake 自检，确认当前仓库仍可评估与构建。",
-            ActionItem::UpdateUpstreamCheck => "检查 Zed / YesPlayMusic 等上游 pin 是否已落后。",
+            ActionItem::UpdateUpstreamCheck => "检查 Zed / YesPlayMusic 等上游 pin 是否需要更新。",
             ActionItem::FlakeUpdate => "更新当前仓库的 flake.lock。",
             ActionItem::UpdateUpstreamPins => "刷新上游 pin 并回写仓库里的 source.nix。",
-            ActionItem::LaunchDeployWizard => {
-                "退回到完整部署向导，处理远端来源、初始化与复杂交互。"
-            }
+            ActionItem::LaunchDeployWizard => "启动完整部署向导，处理远端来源、初始化与复杂交互。",
         }
     }
 

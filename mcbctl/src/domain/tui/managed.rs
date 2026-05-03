@@ -17,7 +17,7 @@ impl ManagedToggle {
 
     pub fn label(self) -> &'static str {
         match self {
-            ManagedToggle::Inherit => "跟随现有",
+            ManagedToggle::Inherit => "继承",
             ManagedToggle::Enabled => "强制启用",
             ManagedToggle::Disabled => "强制禁用",
         }
@@ -49,7 +49,7 @@ impl ManagedBarProfile {
 
     pub fn label(self) -> &'static str {
         match self {
-            ManagedBarProfile::Inherit => "跟随现有",
+            ManagedBarProfile::Inherit => "继承",
             ManagedBarProfile::Default => "default",
             ManagedBarProfile::None => "none",
         }

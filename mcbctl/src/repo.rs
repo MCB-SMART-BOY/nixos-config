@@ -90,7 +90,7 @@ pub fn detect_current_branch(repo_root: &Path) -> Option<String> {
 }
 
 pub fn preferred_remote_branch(repo_root: &Path) -> String {
-    detect_current_branch(repo_root).unwrap_or_else(|| "rust脚本分支".to_string())
+    detect_current_branch(repo_root).unwrap_or_else(|| "main".to_string())
 }
 
 pub fn migrate_managed_files(root: &Path) -> Result<ManagedMigrationReport> {
@@ -681,8 +681,8 @@ fn extraction_plan(rel: &str) -> Result<ExtractionPlan> {
 fn render_local_auto_file() -> String {
     [
         "# mcbctl-local-auto",
-        "# 这个文件由 mcbctl 维护，用于导入从 managed/ 中抽离出的手写模块。",
-        "# 不要在这里放长期手写逻辑；请在确认后手动折叠到 local.nix。",
+        "# 这个文件由 mcbctl 维护，用于导入从 managed/ 中提取的手写模块。",
+        "# 不要在这里放长期手写逻辑；请在确认后手动合并到 local.nix。",
         "",
         "{ lib, ... }:",
         "",

@@ -212,7 +212,7 @@ mod tests {
             repo_dir: tmp_dir.clone(),
             source_dir_override: None,
             repo_urls: Vec::new(),
-            branch: "rust脚本分支".to_string(),
+            branch: "main".to_string(),
             source_ref: String::new(),
             allow_remote_head: false,
             source_commit: String::new(),

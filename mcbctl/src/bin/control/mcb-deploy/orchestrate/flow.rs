@@ -830,7 +830,7 @@ mod tests {
             repo_dir,
             source_dir_override: None,
             repo_urls: Vec::new(),
-            branch: "rust脚本分支".to_string(),
+            branch: "main".to_string(),
             source_ref: "deadbeef".to_string(),
             allow_remote_head: false,
             source_commit: String::new(),

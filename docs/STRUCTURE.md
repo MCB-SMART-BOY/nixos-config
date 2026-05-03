@@ -2,10 +2,13 @@
 
 这份文档只描述当前分支的真实主线，不讨论已经删除的旧脚本路线。
 
+最后更新：2026-05-03
+
 ## 顶层目录
 
 ```text
 .
+├── .github/workflows/
 ├── flake.nix
 ├── configuration.nix
 ├── mcbctl/
@@ -19,12 +22,25 @@
 
 边界固定如下：
 
+- `.github/workflows/`：CI 质量门禁（fmt + clippy + test + flake check）和 release 资产构建
 - `mcbctl/`：唯一业务逻辑实现层
 - `hosts/`：真实主机、主机模板、主机 managed 分片
 - `modules/`：NixOS 模块、`mcb.*` 选项和系统能力
 - `home/`：真实用户、用户模板、静态程序配置、Home Manager 模块
 - `catalog/`：TUI 元数据
 - `pkgs/`：Rust 包和其他仓库内包的打包层
+
+## 当前验证基线
+
+```bash
+cargo fmt --check --manifest-path mcbctl/Cargo.toml        ✅
+cargo clippy --manifest-path mcbctl/Cargo.toml \
+  --all-targets --all-features -- -D warnings              ✅
+cargo test --manifest-path mcbctl/Cargo.toml               ✅ (456 tests)
+nix flake check --option eval-cache false                  ✅
+nix run .#mcbctl -- repo-integrity                         ✅
+nix run .#mcbctl -- doctor                                 ✅
+```
 
 ## `hosts/`
 
@@ -98,7 +114,7 @@
 - `catalog/workflows.toml`
 
 它不承担写回逻辑、网络访问或状态计算。
-它的价值也不在于重复 nixpkgs 官网搜索；当前主线里，`packages/*.toml` 更偏向项目自己的工作流、生命周期和 TUI 元数据层。
+它的作用不是重复 nixpkgs 官网搜索；当前主线里，`packages/*.toml` 更偏向项目自己的工作流、生命周期和 TUI 元数据层。
 
 ## `pkgs/`
 
@@ -139,7 +155,7 @@
 
 ## 受管文件保护
 
-这一分支的 `managed/*.nix` 现在有统一约定：
+本分支的 `managed/*.nix` 现在有统一约定：
 
 - 新写入文件带 `mcbctl-managed` 标记和校验摘要
 - `mcbctl migrate-managed` 负责显式升级可识别的旧受管文件
@@ -148,3 +164,8 @@
 - 如果文件内容不再像受管文件，`mcbctl` 会拒绝覆盖
 
 这条规则同样适用于 `managed/packages/*.nix` 的陈旧组文件删除。
+
+## CI (新增于 2026-05-03)
+
+- `.github/workflows/ci.yml`：PR 和 push 触发，跑 `cargo fmt --check`、`cargo clippy`、`cargo test`、`nix flake check`、`repo-integrity`、`doctor`
+- `.github/workflows/release-mcbctl.yml`：手动或 tag 触发，构建并上传多平台预编译资产

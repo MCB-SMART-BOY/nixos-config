@@ -20,7 +20,7 @@
 - `Edit` 外壳现在会显示可见的子导航和区域摘要，不再只靠 footer 记忆当前子页
 - `Edit Pages` 顶栏现在会直接用 `*` 标出 dirty 子页，减少为了找未保存页来回切换
 - `Edit` 的区域摘要现在固定压成三行：`当前页/目标`、`Dirty`、`建议`；推荐顺序仍然优先指出当前页 dirty，其次指出当前页受管保护，再回退到其他 dirty/guard 页
-- `Home` / `Users` / `Hosts` 的叶子标题已经统一收成目标导向短标题，例如 `Home (alice)`、`Users (demo)`、`Hosts (demo)`，不再继续暴露 `Home Settings`、`Users Model`、`Host Override` 这类历史过渡文案
+- `Home` / `Users` / `Hosts` 的叶子标题已经统一收成目标导向短标题，例如 `Home (alice)`、`Users (demo)`、`Hosts (demo)`，不再显示 `Home Settings`、`Users Model`、`Host Override` 这类历史过渡文案
 - `Packages` 的左侧摘要标题也已收成 `Packages Summary`，不再继续保留 `Package Context` 这类过渡命名
 - 当终端宽度变窄时，`Edit` 正文不再硬撑左右分栏：`Home / Users / Hosts` 会优先显示主列表，再把摘要下沉；`Packages` 会先把 `Packages Summary` 提到上方，再把列表与 `Selection` 放到下半区；更窄时三块继续顺序堆叠，优先保住标题和第一屏定位
 - `Home Summary` 在窄宽或低高下不再原样灌入长状态和长说明；会优先压成 `用户 / 目标 / 聚焦 / 状态 / 受管保护 / 写回` 这类稳定短句，并把 `已接入` 列表压成短标签
@@ -32,7 +32,7 @@
 - `Edit` 的 `?` 帮助面板也改成统一阅读顺序：先看 `Edit Workspace` 和当前页主列表/摘要，再看共同骨架，最后看当前页主动作与扩展键；这样 `Packages / Home / Users / Hosts` 不再各自重复一套不同结构的说明页
 - 默认页脚现在只保留当前页的短键位摘要；详细热键统一收进 `?` 帮助面板，避免继续把整套操作说明塞在长 footer 里
 - `Advanced` 现在已经是独立顶层区域，也有独立的 `Page::Advanced` 叶子和按键分支；完整向导的参数焦点和参数值都已经从 `Apply` 分离出来，并会在进入 `mcb-deploy` 时通过内部 handoff 参数显式传递 `host / mode / action / source / ref / upgrade`；当来源是 `RemotePinned` 时，TUI 会额外显示并校验 `固定 ref` 输入，缺失时不会启动 deploy wizard；进入后会先显示按动作路径分流的区域摘要，仓库维护现在使用独立的 `Maintenance Summary`，不再复用 deploy 参数或 Apply 告警；左侧预览、中间上下文和右下角详情也都会按当前高级动作切换成“仓库维护”或“完整部署”两种视图，动作列表则按推荐分组自动重排
-- 历史 `Actions` 已经降成迁移期内部模块，不再作为顶层区域继续暴露
+- 历史 `Actions` 已经降成迁移期内部模块，不再作为顶层区域显示
 
 当前 `Dashboard` 已经演进成 `Overview` 过渡视图，不再只是静态路线图文本。
 

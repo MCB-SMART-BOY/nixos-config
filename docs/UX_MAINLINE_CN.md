@@ -124,7 +124,7 @@
 | repo-integrity: ok     | Packages: clean                      |
 | doctor: warning(1)     | Home: dirty                          |
 | flake-check: clean     | Users: clean                         |
-| branch: rust脚本分支   | Hosts: clean                         |
+| branch: main   | Hosts: clean                         |
 +---------------------------------------------------------------+
 | Current Source         | Last Action                          |
 | local repo             | rebuild switch succeeded             |

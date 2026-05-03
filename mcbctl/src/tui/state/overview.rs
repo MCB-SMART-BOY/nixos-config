@@ -1503,7 +1503,7 @@ mod tests {
     fn doctor_check_state_surfaces_warnings_without_marking_failure() {
         let state = doctor_check_state_from_report(Ok(crate::health::DoctorReport {
             repo_root: PathBuf::from("/repo"),
-            remote_branch: "rust脚本分支".to_string(),
+            remote_branch: "main".to_string(),
             tools: crate::health::DoctorToolStatus::default(),
             repo_hardware: "present".to_string(),
             legacy_root_hardware: false,
@@ -1531,7 +1531,7 @@ mod tests {
     fn doctor_check_state_surfaces_failures_and_warnings() {
         let state = doctor_check_state_from_report(Ok(crate::health::DoctorReport {
             repo_root: PathBuf::from("/repo"),
-            remote_branch: "rust脚本分支".to_string(),
+            remote_branch: "main".to_string(),
             tools: crate::health::DoctorToolStatus::default(),
             repo_hardware: "missing".to_string(),
             legacy_root_hardware: true,

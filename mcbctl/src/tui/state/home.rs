@@ -573,7 +573,7 @@ mod tests {
             model.focused_row,
             Some(EditRow {
                 label: "Zed 桌面入口".to_string(),
-                value: "跟随现有".to_string(),
+                value: "继承".to_string(),
             })
         );
 

@@ -25,7 +25,7 @@ nix run .#mcb-deploy -- --help
 - `Apply`
   做当前 host 的默认应用预览、同步和 `nixos-rebuild`
 - `Advanced`
-  承接高级部署与维护入口；现在已经是独立顶层区域，进入后会显示推荐高级动作、进入原因和完成后的返回路径；左侧预览和中间面板都会按当前高级动作自适应，仓库维护看 `Maintenance Preview + Repository Context`，完整向导才看 `Deploy Preview + Deploy Parameters`，其中 `RemotePinned` 会额外显示 `固定 ref` 输入；`x/X` 默认执行当前高级动作，`b` 返回 `Apply`
+  承接高级部署与维护入口；已是独立顶层区域，进入后会显示推荐高级动作、进入原因和完成后的返回路径；左侧预览和中间面板都会按当前高级动作自适应，仓库维护看 `Maintenance Preview + Repository Context`，完整向导才看 `Deploy Preview + Deploy Parameters`，其中 `RemotePinned` 会额外显示 `固定 ref` 输入；`x/X` 默认执行当前高级动作，`b` 返回 `Apply`
 - `Inspect`
   看健康详情，并执行 `flake check` / 上游 pin 检查等 Inspect 动作
 
@@ -54,7 +54,7 @@ nix run .#mcb-deploy -- --help
 - `Inspect`：`j/k` 选检查动作，`r/d/R` 刷新健康项，`x` 执行当前 Inspect 动作；右上角 `Health Details` 现在会带上四条写回链的 `受管保护` 快照和阻塞细节
 - `Packages / Home / Users / Hosts`：右侧摘要现在会提前显示 `受管保护` 状态；如果同一 `managed` 子树里已有损坏分片，或者 `managed/packages/` 里混入了非受管陈旧组文件，会先在页面里提示
 - `Packages`：除了分类 / 来源 / 组过滤，现在还支持按项目工作流过滤；`workflow` 用来表达这个仓库为什么推荐某个软件，而不是重复做一份 nixpkgs 搜索目录；切换工作流后，左侧摘要会直接显示当前工作流的说明、可选数量和已选数量，右侧 `Package Context` 也会把当前 workflow 下“已选 / 未选”的差异直接列出来；`A` 会先预览当前 workflow 下尚未选中的软件，`Enter` 确认后才批量加入当前用户选择；真正写回仍然要按 `s`；批量加入成功后，右侧会直接显示最近动作、下一步和最近结果
-- 历史 `Actions` 已降为迁移期内部模块，不再作为顶层区域继续暴露
+- 历史 `Actions` 已降为迁移期内部模块，不再作为顶层区域显示
 
 ## 3. 保存规则
 

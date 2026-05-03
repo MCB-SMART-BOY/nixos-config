@@ -306,7 +306,7 @@ mod tests {
             repo_dir: PathBuf::from("/tmp/repo"),
             source_dir_override: None,
             repo_urls: vec![],
-            branch: "rust脚本分支".to_string(),
+            branch: "main".to_string(),
             source_ref: String::new(),
             allow_remote_head: false,
             source_commit: String::new(),
