@@ -93,7 +93,7 @@ fn render_health_lines(overview: &OverviewModel) -> String {
             format!("host-config: unavailable ({message})")
         }
         OverviewHostStatus::Invalid { errors } => match errors.split_first() {
-            Some((first, rest)) if rest.is_empty() => format!("host-config: invalid ({first})"),
+            Some((first, [])) => format!("host-config: invalid ({first})"),
             Some((first, rest)) => format!("host-config: invalid ({first}，另 {} 项)", rest.len()),
             None => "host-config: invalid".to_string(),
         },

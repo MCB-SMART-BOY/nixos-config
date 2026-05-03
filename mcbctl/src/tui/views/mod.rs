@@ -606,10 +606,8 @@ fn compact_package_summary_lines(model: &EditSummaryModel, tight: bool) -> Vec<S
         user
     ));
 
-    if !tight {
-        if let Some(target) = package_summary_header_value(model, "目标目录") {
-            lines.push(format!("目标：{}", compact_path_tail(target, 4)));
-        }
+    if !tight && let Some(target) = package_summary_header_value(model, "目标目录") {
+        lines.push(format!("目标：{}", compact_path_tail(target, 4)));
     }
 
     let category = package_summary_field_value(model, "分类过滤").unwrap_or("全部");
@@ -658,10 +656,8 @@ fn compact_package_summary_lines(model: &EditSummaryModel, tight: bool) -> Vec<S
         ));
     }
 
-    if !tight {
-        if let Some(path) = package_summary_field_value(model, "当前组落点") {
-            lines.push(format!("落点：{}", compact_path_tail(path, 4)));
-        }
+    if !tight && let Some(path) = package_summary_field_value(model, "当前组落点") {
+        lines.push(format!("落点：{}", compact_path_tail(path, 4)));
     }
 
     lines.push(compact_edit_status_line(&model.detail.status));

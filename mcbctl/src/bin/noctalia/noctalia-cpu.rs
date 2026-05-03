@@ -36,11 +36,7 @@ fn main() {
 
     let diff_total = total.saturating_sub(prev_total);
     let diff_idle = idle_all.saturating_sub(prev_idle);
-    let usage = if diff_total > 0 {
-        ((100 * diff_total.saturating_sub(diff_idle)) / diff_total) as u32
-    } else {
-        0
-    };
+    let usage = ((100 * diff_total.saturating_sub(diff_idle)) / diff_total.max(1)) as u32;
 
     let _ = fs::write(&state_file, format!("{total} {idle_all}\n"));
     emit_json(&format!("{usage}%"), &format!("CPU {usage}%"), "cpu");

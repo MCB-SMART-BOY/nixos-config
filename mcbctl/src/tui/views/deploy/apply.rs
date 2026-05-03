@@ -257,10 +257,10 @@ fn compact_gate_item(item: &str) -> String {
     if let Some(rest) = item.strip_prefix("doctor 当前失败：") {
         return format!("doctor 失败：{rest}");
     }
-    if let Some(rest) = item.strip_prefix("主机 ") {
-        if let Some((host, error)) = rest.split_once(" 的 TUI 配置未通过校验：") {
-            return format!("{host} 校验失败：{error}");
-        }
+    if let Some(rest) = item.strip_prefix("主机 ")
+        && let Some((host, error)) = rest.split_once(" 的 TUI 配置未通过校验：")
+    {
+        return format!("{host} 校验失败：{error}");
     }
     if item
         == "rootless 模式下当前页只能直接执行 build；如需 switch/test/boot，请使用 sudo/root 或退回 deploy wizard。"
@@ -276,10 +276,10 @@ fn compact_gate_item(item: &str) -> String {
     if item == "当前组合会使用 sudo -E 执行受权命令。" {
         return "sudo -E 执行".to_string();
     }
-    if let Some(rest) = item.strip_prefix("当前组合要求 ") {
-        if let Some(path) = rest.strip_suffix(" 存在真实 hardware-configuration.nix。") {
-            return format!("hardware-config：{path}");
-        }
+    if let Some(rest) = item.strip_prefix("当前组合要求 ")
+        && let Some(path) = rest.strip_suffix(" 存在真实 hardware-configuration.nix。")
+    {
+        return format!("hardware-config：{path}");
     }
     if item == "当前来源是远端固定版本；默认 Apply 不会直接执行，必须交给完整高级路径。"
     {

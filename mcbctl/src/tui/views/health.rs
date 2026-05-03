@@ -23,12 +23,10 @@ fn render_compact_check_lines(
     include_detail: bool,
 ) -> Vec<String> {
     let mut lines = vec![format!("{label}: {}", state.summary_label())];
-    if include_detail {
-        if let Some((first, rest)) = state.detail_lines().split_first() {
-            lines.push(format!("优先项：{first}"));
-            if !rest.is_empty() {
-                lines.push(format!("其余：另 {} 项", rest.len()));
-            }
+    if include_detail && let Some((first, rest)) = state.detail_lines().split_first() {
+        lines.push(format!("优先项：{first}"));
+        if !rest.is_empty() {
+            lines.push(format!("其余：另 {} 项", rest.len()));
         }
     }
     lines

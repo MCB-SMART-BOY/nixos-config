@@ -258,15 +258,15 @@ impl AppState {
     }
 
     pub(crate) fn package_workflows(&self) -> Vec<String> {
-        let mut workflows = self
+        let mut workflows: Vec<String> = self
             .context
             .catalog_entries
             .iter()
             .filter(|entry| self.package_local_entry_ids.contains(&entry.id))
             .flat_map(|entry| entry.workflow_tags.iter().cloned())
-            .collect::<BTreeSet<_>>()
+            .collect::<BTreeSet<String>>()
             .into_iter()
-            .collect::<Vec<_>>();
+            .collect();
         workflows.sort_by(|left, right| self.compare_package_workflows(left, right));
         workflows
     }
