@@ -141,7 +141,7 @@ let
     neovim # 模态编辑器
     helix # 模态编辑器（现代配置）
     vscode-fhs # VS Code（FHS 兼容封装）
-    isabelle # 定理证明环境
+    zed-editor-fhs
   ];
 
   # 语言服务器与格式化工具（LSP / Formatter）。
@@ -319,7 +319,6 @@ in
 {
   # 让桌面入口模块按实际可用性决定是否写入 .desktop 文件。
   mcb.desktopEntries = {
-    enableZed = true;
     enableYesPlayMusic = yesplaymusicPkg != null; # 仅 x86_64-linux 且 derivation 可评估时启用
   };
 

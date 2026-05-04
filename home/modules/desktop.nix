@@ -203,7 +203,7 @@ in
     desktopEntries = {
       enableZed = lib.mkOption {
         type = lib.types.bool;
-        default = false;
+        default = true;
         description = "Enable Zed desktop entry override for this user.";
       };
 
