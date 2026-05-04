@@ -67,6 +67,9 @@
         valkey = prev.valkey.overrideAttrs (old: {
           doCheck = false;
         });
+        openldap = prev.openldap.overrideAttrs (old: {
+          doCheck = false;
+        });
         wireshark = prev.wireshark.overrideAttrs (old: {
           src = final.fetchzip {
             url = "https://www.wireshark.org/download/src/wireshark-${old.version}.tar.xz";
