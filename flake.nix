@@ -67,6 +67,12 @@
         valkey = prev.valkey.overrideAttrs (old: {
           doCheck = false;
         });
+        wireshark = prev.wireshark.overrideAttrs (old: {
+          src = final.fetchzip {
+            url = "https://www.wireshark.org/download/src/wireshark-${old.version}.tar.xz";
+            hash = "sha256-CMybqzDHi+HiC7zCcVTz0aGMY93K4BbtMLg2sDHypc8=";
+          };
+        });
       };
       # 为每个主机构造 nixosSystem，并注入 Home Manager
       mkHost =
