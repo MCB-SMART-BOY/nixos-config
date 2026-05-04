@@ -295,8 +295,5 @@ in
       "223.5.5.5"
       "1.1.1.1"
     ];
-  }
-  // lib.optionalAttrs (resolvedExtraConfig != "") {
-    extraConfig = resolvedExtraConfig;
   };
 }
