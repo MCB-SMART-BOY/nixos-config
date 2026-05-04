@@ -38,5 +38,32 @@
       "com.tencent.WeChat"
       "com.tencent.wemeet"
     ];
+    overrides = {
+      # 腾讯系应用需要 X11 回退（Wayland 兼容性差）
+      # GPU 渲染（--device=dri）+ IPC + 输入法
+      filesystem = [
+        "xdg-desktop"
+        "xdg-documents"
+        "xdg-download"
+        "xdg-music"
+        "xdg-pictures"
+        "xdg-public-share"
+        "xdg-videos"
+        "home"
+      ];
+      env = {
+        "QT_QPA_PLATFORM" = "xcb";
+        "QT_IM_MODULE" = "fcitx";
+        "GTK_IM_MODULE" = "fcitx";
+        "XMODIFIERS" = "@im=fcitx";
+      };
+      extraArgs = [
+        "--device=dri"
+        "--socket=x11"
+        "--socket=wayland"
+        "--socket=pulseaudio"
+        "--share=ipc"
+      ];
+    };
   };
 }
