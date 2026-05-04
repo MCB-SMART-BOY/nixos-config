@@ -177,7 +177,7 @@ let
 
   # Windows 兼容层。
   emulation = with pkgs; [
-    wineWowPackages.stable # Wine（32/64 位兼容）
+    wineWow64Packages.stable # Wine（32/64 位兼容）
     winetricks # Wine 运行库安装脚本
   ];
 

@@ -34,7 +34,8 @@ let
   };
   xwaylandBridgePkg =
     if pkgs ? xwaylandvideobridge then
-      (builtins.tryEval pkgs.xwaylandvideobridge).value or null
+      let eval = builtins.tryEval pkgs.xwaylandvideobridge;
+      in if eval.success then eval.value else null
     else
       null;
 

@@ -69,7 +69,7 @@ let
     qq
     telegram-desktop
     discord
-    wineWowPackages.stable
+    wineWow64Packages.stable
     winetricks
   ];
 
