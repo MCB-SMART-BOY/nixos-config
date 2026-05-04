@@ -146,8 +146,8 @@ let
 
   # 语言服务器与格式化工具（LSP / Formatter）。
   languageTools = with pkgs; [
-    nodePackages.typescript-language-server # TS/JS LSP
-    nodePackages.prettier # 通用格式化器
+    typescript-language-server # TS/JS LSP
+    prettier # 通用格式化器
     bash-language-server # Bash LSP
     pyright # Python 类型检查/LSP
     vscode-langservers-extracted # HTML/CSS/JSON/ESLint 等 LSP
