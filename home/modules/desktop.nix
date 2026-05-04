@@ -34,7 +34,10 @@ let
   };
   xwaylandBridgePkg =
     if pkgs ? xwaylandvideobridge then
-      (builtins.tryEval pkgs.xwaylandvideobridge).value or null
+      let
+        evaluated = builtins.tryEval pkgs.xwaylandvideobridge;
+      in
+      if evaluated.success && lib.isDerivation evaluated.value then evaluated.value else null
     else
       null;
 

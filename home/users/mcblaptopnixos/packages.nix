@@ -47,8 +47,8 @@ let
 
   # LSP / 格式化
   devLanguageTools = with pkgs; [
-    nodePackages.typescript-language-server
-    nodePackages.prettier
+    typescript-language-server
+    prettier
     bash-language-server
     pyright
     vscode-langservers-extracted
@@ -69,7 +69,7 @@ let
     qq
     telegram-desktop
     discord
-    wineWowPackages.stable
+    wineWow64Packages.stable
     winetricks
   ];
 
