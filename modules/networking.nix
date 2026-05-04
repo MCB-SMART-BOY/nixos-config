@@ -34,11 +34,22 @@ let
   proxyDnsPort = config.mcb.proxyDnsPort;
   proxyDnsTarget =
     if proxyDnsPort == 53 then proxyDnsAddr else "${proxyDnsAddr}:${toString proxyDnsPort}";
+  fallbackDnsTargets = [
+    "223.5.5.5"
+    "1.1.1.1"
+  ];
+  fallbackDnsLine = lib.concatStringsSep " " fallbackDnsTargets;
+  resolvedHasSettings = lib.hasAttrByPath [ "services" "resolved" "settings" ] options;
   resolvedHasDns = lib.hasAttrByPath [ "services" "resolved" "dns" ] options;
-  resolvedHasFallback = lib.hasAttrByPath [ "services" "resolved" "settings" ] options;
-    ${lib.optionalString (!resolvedHasDns && proxyDnsEnabled) "DNS=${proxyDnsTarget}"}
-    ${lib.optionalString (!resolvedHasFallback && !proxyDnsEnabled) "FallbackDNS=223.5.5.5 1.1.1.1"}
-  '';
+  resolvedHasFallbackDns = lib.hasAttrByPath [ "services" "resolved" "fallbackDns" ] options;
+  resolvedHasExtraConfig = lib.hasAttrByPath [ "services" "resolved" "extraConfig" ] options;
+  resolvedExtraConfigLines =
+    lib.optionals (!resolvedHasSettings && !resolvedHasDns && proxyDnsEnabled) [
+      "DNS=${proxyDnsTarget}"
+    ]
+    ++ lib.optionals (!resolvedHasSettings && !resolvedHasFallbackDns && !proxyDnsEnabled) [
+      "FallbackDNS=${fallbackDnsLine}"
+    ];
 
   # 为“每个用户单独 TUN”生成 systemd oneshot 服务
   mkRouteService =
@@ -285,13 +296,19 @@ in
   services.resolved = {
     enable = true;
   }
-  // lib.optionalAttrs (resolvedHasDns && proxyDnsEnabled) {
+  // lib.optionalAttrs (resolvedHasSettings && proxyDnsEnabled) {
+    settings."Resolve"."DNS" = [ proxyDnsTarget ];
+  }
+  // lib.optionalAttrs (!resolvedHasSettings && resolvedHasDns && proxyDnsEnabled) {
     dns = [ proxyDnsTarget ];
   }
-  // lib.optionalAttrs (resolvedHasFallback && !proxyDnsEnabled) {
-    settings."Resolve"."FallbackDNS" = [
-      "223.5.5.5"
-      "1.1.1.1"
-    ];
+  // lib.optionalAttrs (resolvedHasSettings && !proxyDnsEnabled) {
+    settings."Resolve"."FallbackDNS" = fallbackDnsLine;
+  }
+  // lib.optionalAttrs (!resolvedHasSettings && resolvedHasFallbackDns && !proxyDnsEnabled) {
+    fallbackDns = fallbackDnsTargets;
+  }
+  // lib.optionalAttrs (resolvedHasExtraConfig && resolvedExtraConfigLines != [ ]) {
+    extraConfig = lib.concatStringsSep "\n" resolvedExtraConfigLines;
   };
 }
