@@ -4,8 +4,7 @@
 
 let
   # 自维护桌面应用（可选）
-  zedEval = builtins.tryEval (pkgs.callPackage ../../../pkgs/zed { });
-  zedPkg = if zedEval.success then zedEval.value else null;
+  zedPkg = pkgs.zed-editor;
   yesplaymusicPkg =
     if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
       pkgs.callPackage ../../../pkgs/yesplaymusic { }

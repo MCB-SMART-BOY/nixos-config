@@ -17,10 +17,6 @@ let
   hostPkgEnabled = name: lib.attrByPath [ name ] false hostPkgCfg;
   hostNetworkGuiEnabled = (hostPkgEnabled "enableNetwork") || (hostPkgEnabled "enableNetworkGui");
 
-  # 本地自维护 Zed（来自仓库 pkgs/zed）。tryEval 失败时返回 null，避免评估报错。
-  zedEval = builtins.tryEval (pkgs.callPackage ../../../pkgs/zed { });
-  zedPkg = if zedEval.success then zedEval.value else null;
-
   # 本地自维护 YesPlayMusic（仅 x86_64-linux 可用）。
   yesplaymusicPkg =
     if pkgs.stdenv.hostPlatform.system == "x86_64-linux" then
@@ -317,17 +313,13 @@ let
     hexyl # 十六进制查看器
   ];
 
-  # 自维护桌面应用覆盖：
-  # 1) zedPkg 成功时加入 home.packages。
-  # 2) yesplaymusicPkg 在 x86_64-linux 成功时加入 home.packages。
-  desktopOverrides =
-    lib.optionals (zedPkg != null) [ zedPkg ]
-    ++ lib.optionals (yesplaymusicPkg != null) [ yesplaymusicPkg ];
+  # 自维护桌面应用覆盖
+  desktopOverrides = lib.optionals (yesplaymusicPkg != null) [ yesplaymusicPkg ];
 in
 {
   # 让桌面入口模块按实际可用性决定是否写入 .desktop 文件。
   mcb.desktopEntries = {
-    enableZed = zedPkg != null; # 仅当本地 Zed derivation 可评估时启用
+    enableZed = true;
     enableYesPlayMusic = yesplaymusicPkg != null; # 仅 x86_64-linux 且 derivation 可评估时启用
   };
 
