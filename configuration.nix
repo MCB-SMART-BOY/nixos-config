@@ -17,23 +17,17 @@ let
     };
 
   nixpkgsSrc = mkGithubTarball "nixpkgs";
-  nixpkgsUnstableSrc = mkGithubTarball "nixpkgs-unstable";
-  nixpkgs2411Src = mkGithubTarball "nixpkgs-24_11";
   homeManagerSrc = mkGithubTarball "home-manager";
   noctaliaSrc = mkGithubTarball "noctalia";
 
   inputs = {
     nixpkgs = nixpkgsSrc;
-    nixpkgs-unstable = nixpkgsUnstableSrc;
-    nixpkgs-24_11 = nixpkgs2411Src;
     home-manager = homeManagerSrc;
-    # 非 flake 模式下提供 Noctalia Home Manager 模块入口
     noctalia.homeModules.default = "${noctaliaSrc}/homeModules";
   };
 in
 {
   imports = [
-    # 这里固定使用 hosts/nixos 作为默认主机入口
     ./hosts/nixos
     (import "${homeManagerSrc}/nixos")
   ];
@@ -51,7 +45,6 @@ in
           [ config.mcb.user ];
       mkUser = name: {
         inherit name;
-        # Home Manager 用户入口：home/users/<name>/default.nix
         value = import (./home/users + "/${name}");
       };
     in

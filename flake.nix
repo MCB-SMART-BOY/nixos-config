@@ -2,19 +2,17 @@
 # 新增/删除主机时，先看这里如何扫描 hosts/。
 
 {
-  description = "NixOS + Home Manager configuration";
+  description = "NixOS + Home Manager configuration (unstable)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-    nixpkgs-24_11.url = "github:NixOS/nixpkgs/nixos-24.11";
-    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     home-manager = {
-      url = "github:nix-community/home-manager/release-25.11";
+      url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     noctalia = {
-      url = "github:noctalia-dev/noctalia-shell/v4.7.6";
-      inputs.nixpkgs.follows = "nixpkgs-unstable";
+      url = "github:noctalia-dev/noctalia-shell";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
@@ -53,11 +51,17 @@
           hostSystemDefaults.${name}
         else
           throw "Missing hosts/${name}/system.nix. Please define an explicit target system (e.g. \"x86_64-linux\").";
-      # 自动读取 hosts/ 下的主机目录（排除 profiles）
+      # 自动读取 hosts/ 下的主机目录（排除 profiles / _support / templates）
       hostEntries = builtins.readDir ./hosts;
-      hostNames = builtins.filter (name: hostEntries.${name} == "directory" && name != "profiles") (
-        builtins.attrNames hostEntries
-      );
+      hostNames = builtins.filter (
+        name:
+        hostEntries.${name} == "directory"
+        && !(builtins.elem name [
+          "_support"
+          "profiles"
+          "templates"
+        ])
+      ) (builtins.attrNames hostEntries);
       pkgsForDefault = nixpkgs.legacyPackages.${defaultSystem};
       overlay = final: prev: {
         valkey = prev.valkey.overrideAttrs (old: {
