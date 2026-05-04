@@ -40,12 +40,12 @@ appimageTools.wrapType2 {
       nspr
       nss
       pango
-      xorg.libX11
-      xorg.libXcomposite
-      xorg.libXdamage
-      xorg.libXext
-      xorg.libXfixes
-      xorg.libXrandr
+      libx11
+      libxcomposite
+      libxdamage
+      libxext
+      libxfixes
+      libxrandr
       libxcb
     ];
 

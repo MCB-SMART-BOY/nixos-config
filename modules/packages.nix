@@ -273,7 +273,7 @@ let
     # Xwayland 兼容
     xwayland
     xwayland-satellite
-    xorg.xhost
+    xhost
   ];
 
   geekTools = with pkgs; [

@@ -271,7 +271,7 @@ let
   xorgCompat = with pkgs; [
     xwayland # Xwayland 服务
     xwayland-satellite # Xwayland 集成辅助
-    xorg.xhost # X11 访问控制工具
+    xhost # X11 访问控制工具
   ];
 
   # 调试、分析、抓包、性能测试与二进制工具。

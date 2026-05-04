@@ -35,9 +35,7 @@ let
   proxyDnsTarget =
     if proxyDnsPort == 53 then proxyDnsAddr else "${proxyDnsAddr}:${toString proxyDnsPort}";
   resolvedHasDns = lib.hasAttrByPath [ "services" "resolved" "dns" ] options;
-  resolvedHasFallback = lib.hasAttrByPath [ "services" "resolved" "fallbackDns" ] options;
-  # systemd-resolved 额外配置（避免与已有选项重复）
-  resolvedExtraConfig = ''
+  resolvedHasFallback = lib.hasAttrByPath [ "services" "resolved" "settings" ] options;
     ${lib.optionalString (!resolvedHasDns && proxyDnsEnabled) "DNS=${proxyDnsTarget}"}
     ${lib.optionalString (!resolvedHasFallback && !proxyDnsEnabled) "FallbackDNS=223.5.5.5 1.1.1.1"}
   '';
@@ -291,7 +289,7 @@ in
     dns = [ proxyDnsTarget ];
   }
   // lib.optionalAttrs (resolvedHasFallback && !proxyDnsEnabled) {
-    fallbackDns = [
+    settings."Resolve"."FallbackDNS" = [
       "223.5.5.5"
       "1.1.1.1"
     ];
