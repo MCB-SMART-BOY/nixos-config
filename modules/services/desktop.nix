@@ -10,27 +10,25 @@
 let
   flatpakCfg = config.mcb.flatpak;
 
-  # 腾讯会议 libImSDK.so 在多线程中直接调用 X11 但不调用 XInitThreads()
-  # → XSetInputFocus Display hook 指针并发损坏 → SIGSEGV。
-  # 修复: LD_PRELOAD interpose XOpenDisplay，首次调用前自动调 XInitThreads()
+  # 腾讯会议 libImSDK.so 多线程直接调 X11 不调 XInitThreads → SIGSEGV
+  # 修复: LD_PRELOAD interpose XOpenDisplay, pthread_once 保证线程安全
   wemeetX11ThreadFix = pkgs.stdenv.mkDerivation {
     name = "wemeet-x11-thread-fix";
     dontUnpack = true;
     buildPhase = ''
-      $CC -shared -fPIC -o libx11threadfix.so -xc -ldl - <<'SRC'
+      $CC -shared -fPIC -o libx11threadfix.so -xc -ldl -lpthread - <<'SRC'
         #define _GNU_SOURCE
         #include <dlfcn.h>
-        typedef void* (*XOD_type)(const char*);
-        typedef int   (*XIT_type)(void);
-        static int done = 0;
-        void* XOpenDisplay(const char *name) {
-          if (!done) {
-            XIT_type f = dlsym(RTLD_NEXT, "XInitThreads");
-            if (f) f();
-            done = 1;
-          }
-          XOD_type real = dlsym(RTLD_NEXT, "XOpenDisplay");
-          return real(name);
+        #include <pthread.h>
+        static pthread_once_t once = PTHREAD_ONCE_INIT;
+        static void init(void) {
+          int (*f)(void) = dlsym(RTLD_NEXT, "XInitThreads");
+          if (f) f();
+        }
+        void* XOpenDisplay(const char *n) {
+          pthread_once(&once, init);
+          void* (*real)(const char*) = dlsym(RTLD_NEXT, "XOpenDisplay");
+          return real(n);
         }
       SRC
     '';
@@ -92,7 +90,6 @@ let
     ${pkgs.flatpak}/bin/flatpak override --system ${flatpakOverrideArgs}
   '';
 
-  # wemeet 修复脚本
   wemeetFixScript = pkgs.writeShellScript "wemeet-fix" ''
     set -euo pipefail
     SCRIPT="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
@@ -126,37 +123,28 @@ let
       fi
     fi
 
-    # 清除全局 QT_QPA_PLATFORM=xcb
     if $FLATPAK override --show com.tencent.wemeet 2>/dev/null | grep -q 'QT_QPA_PLATFORM=xcb'; then
       $FLATPAK override --system --unset-env=QT_QPA_PLATFORM com.tencent.wemeet || true
     fi
 
-    # 复制 X11 线程修复 .so 到 home（flatpak sandbox 内 /nix/store 不可访问）
     ${pkgs.coreutils}/bin/cp "${wemeetX11ThreadFix}/lib/libx11threadfix.so" "$FIX_DST"
     $FLATPAK override --system --env="LD_PRELOAD=$FIX_DST" com.tencent.wemeet || true
   '';
 in
 {
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    pulse.enable = true;
-    wireplumber.enable = true;
-  };
+  services.pipewire.enable = true;
+  services.pipewire.alsa.enable = true;
+  services.pipewire.pulse.enable = true;
+  services.pipewire.wireplumber.enable = true;
 
-  hardware.bluetooth = {
-    enable = true;
-    powerOnBoot = true;
-  };
+  hardware.bluetooth.enable = true;
+  hardware.bluetooth.powerOnBoot = true;
   services.blueman.enable = true;
-
   services.upower.enable = true;
   services.power-profiles-daemon.enable = true;
 
-  programs.appimage = {
-    enable = true;
-    binfmt = true;
-  };
+  programs.appimage.enable = true;
+  programs.appimage.binfmt = true;
 
   services.flatpak.enable = flatpakCfg.enable;
 
