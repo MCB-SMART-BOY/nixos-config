@@ -61,27 +61,61 @@ let
     ${pkgs.flatpak}/bin/flatpak override --system ${flatpakOverrideArgs}
   '';
 
-  # wemeet 修复脚本：
-  # 1. 注释 wemeetapp.sh 中 Wayland→X11 强制回退 block
-  # 2. 清除全局 QT_QPA_PLATFORM=xcb 对 wemeet 的影响
+  # wemeet 修复：wemeetapp.sh Wayland block + 全局 QT_QPA_PLATFORM override
   wemeetFixScript = pkgs.writeShellScript "wemeet-fix" ''
     set -euo pipefail
     SCRIPT="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
     FLATPAK="${pkgs.flatpak}/bin/flatpak"
 
-    # --- 修复1: wemeetapp.sh ---
     if [ -f "$SCRIPT" ]; then
+      # 修复 shebang（之前的补丁可能误删了 #）
+      ${pkgs.gnused}/bin/sed -i '1s/^!/#!/' "$SCRIPT"
+
+      # 注释 Wayland→X11 回退 block 的 body 行，保留 if/fi 结构
+      # 原始:
+      #   if [ "$XDG_SESSION_TYPE" = "wayland" ];then
+      #     if [ -f "/opt/x11-wayland/x11-ext.sh" ];then
+      #       source /opt/x11-wayland/x11-ext.sh
+      #     else
+      #       export QT_QPA_PLATFORM=xcb
+      #       export XDG_SESSION_TYPE=x11
+      #       unset WAYLAND_DISPLAY
+      #       export WEMEET_XWAYLAND=1
+      #     fi
+      #   fi
+      # 目标: 保留 if/fi，body 全注释（if 体可以为空=合法）
+      if grep -q 'export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null || \
+         grep -q '^#fi$' "$SCRIPT" 2>/dev/null; then
+        # 从 .orig 恢复（如果存在），否则从 flatpak 仓库提取
+        ORIG="$SCRIPT.orig"
+        if [ -f "$ORIG" ]; then
+          ${pkgs.coreutils}/bin/cp "$ORIG" "$SCRIPT"
+        else
+          # 从 flatpak ostree 签出原始文件
+          DEPLOY_DIR="$(${pkgs.coreutils}/bin/dirname "$(${pkgs.coreutils}/bin/dirname "$(${pkgs.coreutils}/bin/dirname "$SCRIPT")")")"
+          # 回退到 active 的原始状态
+          if [ -f "$DEPLOY_DIR/files/extra/opt/wemeet/wemeetapp.sh" ]; then
+            ${pkgs.coreutils}/bin/cp "$DEPLOY_DIR/files/extra/opt/wemeet/wemeetapp.sh" "$SCRIPT"
+          fi
+        fi
+      fi
+
+      # 备份并 patch（仅当仍有未注释的 WEMEET_XWAYLAND=1）
       if grep -q '^[[:space:]]*export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null; then
         [ -f "$SCRIPT.orig" ] || ${pkgs.coreutils}/bin/cp "$SCRIPT" "$SCRIPT.orig"
+
+        # 范围: outer if (^if ... wayland) → outer fi (^fi$)
+        # 跳过 if 和 fi 行本身，其余全部注释
         ${pkgs.gnused}/bin/sed -i \
-          '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then/,/^fi$/s/^/#/' \
-          "$SCRIPT"
+          '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then/,/^fi$/{
+             /^if /b
+             /^fi$/b
+             s/^/#/
+           }' "$SCRIPT"
       fi
     fi
 
-    # --- 修复2: flatpak override ---
-    # 全局 override 有 QT_QPA_PLATFORM=xcb（给 WeChat 用的），
-    # 但 wemeet 必须走 Wayland，否则 X11 多线程崩溃
+    # 清除全局 QT_QPA_PLATFORM=xcb 对 wemeet 的影响
     if $FLATPAK override --show com.tencent.wemeet 2>/dev/null | grep -q 'QT_QPA_PLATFORM=xcb'; then
       $FLATPAK override --system --unset-env=QT_QPA_PLATFORM com.tencent.wemeet || true
     fi
