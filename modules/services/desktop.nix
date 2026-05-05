@@ -1,5 +1,4 @@
 # 桌面服务：音频、图形驱动、AppImage、节能等。
-# 主要影响桌面环境的"基础能力"。
 
 {
   config,
@@ -62,23 +61,29 @@ let
     ${pkgs.flatpak}/bin/flatpak override --system ${flatpakOverrideArgs}
   '';
 
-  # wemeet 修复：wemeetapp.sh 的 Wayland→X11 强制回退 block 全部注释掉
-  # - unset WAYLAND_DISPLAY → Qt SIGABRT
-  # - QT_QPA_PLATFORM=xcb → X11 多线程不安全 → SIGSEGV (XSetInputFocus hook 损坏)
+  # wemeet 修复脚本：
+  # 1. 注释 wemeetapp.sh 中 Wayland→X11 强制回退 block
+  # 2. 清除全局 QT_QPA_PLATFORM=xcb 对 wemeet 的影响
   wemeetFixScript = pkgs.writeShellScript "wemeet-fix" ''
     set -euo pipefail
     SCRIPT="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
-    [ -f "$SCRIPT" ] || exit 0
+    FLATPAK="${pkgs.flatpak}/bin/flatpak"
 
-    # 检测：还有未注释的 WEMEET_XWAYLAND=1 → 需要 patch
-    if grep -q '^[[:space:]]*export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null; then
-      # 备份原始文件（仅首次）
-      [ -f "$SCRIPT.orig" ] || ${pkgs.coreutils}/bin/cp "$SCRIPT" "$SCRIPT.orig"
+    # --- 修复1: wemeetapp.sh ---
+    if [ -f "$SCRIPT" ]; then
+      if grep -q '^[[:space:]]*export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null; then
+        [ -f "$SCRIPT.orig" ] || ${pkgs.coreutils}/bin/cp "$SCRIPT" "$SCRIPT.orig"
+        ${pkgs.gnused}/bin/sed -i \
+          '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then/,/^fi$/s/^/#/' \
+          "$SCRIPT"
+      fi
+    fi
 
-      # 注释掉整个 Wayland→X11 回退 block（outer if → last fi）
-      ${pkgs.gnused}/bin/sed -i \
-        '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then/,/^fi$/s/^/#/' \
-        "$SCRIPT"
+    # --- 修复2: flatpak override ---
+    # 全局 override 有 QT_QPA_PLATFORM=xcb（给 WeChat 用的），
+    # 但 wemeet 必须走 Wayland，否则 X11 多线程崩溃
+    if $FLATPAK override --show com.tencent.wemeet 2>/dev/null | grep -q 'QT_QPA_PLATFORM=xcb'; then
+      $FLATPAK override --system --unset-env=QT_QPA_PLATFORM com.tencent.wemeet || true
     fi
   '';
 in
@@ -159,7 +164,7 @@ in
   systemd.services.flatpak-fix-wemeet =
     lib.mkIf (flatpakCfg.enable && builtins.elem "com.tencent.wemeet" flatpakCfg.apps)
       {
-        description = "Fix Tencent Wemeet Flatpak (Wayland→X11 fallback causes crash)";
+        description = "Fix Tencent Wemeet Flatpak (Wayland native + clear X11 override)";
         after = [
           "flatpak-setup.service"
           "flatpak-update.service"
