@@ -62,103 +62,50 @@ let
     ${pkgs.flatpak}/bin/flatpak override --system ${flatpakOverrideArgs}
   '';
 
-  # wemeet 修复脚本：去掉 wemeetapp.sh 中 Wayland→X11 强制回退逻辑
-  # 问题1: unset WAYLAND_DISPLAY → Qt SIGABRT
-  # 问题2: QT_QPA_PLATFORM=xcb → X11 多线程不安全 → SIGSEGV
-  # 问题3: 半 patch 后 else 块为空 → bash 语法错误
+  # wemeet 修复：wemeetapp.sh 的 Wayland→X11 强制回退 block 全部注释掉
+  # - unset WAYLAND_DISPLAY → Qt SIGABRT
+  # - QT_QPA_PLATFORM=xcb → X11 多线程不安全 → SIGSEGV (XSetInputFocus hook 损坏)
   wemeetFixScript = pkgs.writeShellScript "wemeet-fix" ''
     set -euo pipefail
     SCRIPT="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
     [ -f "$SCRIPT" ] || exit 0
 
-    # 检查是否已损坏（空 else 块语法错误）或未 patch
+    # 检测：还有未注释的 WEMEET_XWAYLAND=1 → 需要 patch
     if grep -q '^[[:space:]]*export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null; then
-      # 原始未 patch 状态 — 执行 patch
-      if [ ! -f "$SCRIPT.orig" ]; then
-        ${pkgs.coreutils}/bin/cp "$SCRIPT" "$SCRIPT.orig"
-      fi
+      # 备份原始文件（仅首次）
+      [ -f "$SCRIPT.orig" ] || ${pkgs.coreutils}/bin/cp "$SCRIPT" "$SCRIPT.orig"
 
+      # 注释掉整个 Wayland→X11 回退 block（outer if → last fi）
       ${pkgs.gnused}/bin/sed -i \
-        '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then$/,/^fi$/{
-          /^  else$/!s/^/#/
-          /^  else$/{
-            s/^  else$/  else/
-            a\    :  # noop: Wayland native (patched by nixos-config)
-          }
-        }' "$SCRIPT"
-
-    elif grep -q '^  else$' "$SCRIPT" 2>/dev/null && \
-         ! grep -q '^    :' "$SCRIPT" 2>/dev/null; then
-      # 半 patch 状态（else 为空，语法错误）— 恢复原始并重新 patch
-      ORIG="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh.orig"
-      BACKUP="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh.bak"
-
-      if [ -f "$ORIG" ]; then
-        ${pkgs.coreutils}/bin/cp "$ORIG" "$SCRIPT"
-      else
-        # 没有备份：从 flatpak 仓库提取原始文件
-        ${pkgs.coreutils}/bin/cp "$SCRIPT" "$BACKUP" 2>/dev/null || true
-        # 回退 sed 注释（把 # 开头的行恢复）
-        ${pkgs.gnused}/bin/sed -i 's/^#//' "$SCRIPT"
-        # 删除我们添加的 noop 行
-        ${pkgs.gnused}/bin/sed -i '/# noop: Wayland native/d' "$SCRIPT"
-        # 删除之前可能添加的 patch 注释
-        ${pkgs.gnused}/bin/sed -i '/# disabled by nixos-config/d' "$SCRIPT"
-        ${pkgs.gnused}/bin/sed -i '/# patched by nixos-config/d' "$SCRIPT"
-        # 恢复 QT_QPA_PLATFORM 等行
-        ${pkgs.gnused}/bin/sed -i 's/#    export QT_QPA_PLATFORM=xcb/    export QT_QPA_PLATFORM=xcb/' "$SCRIPT"
-        ${pkgs.gnused}/bin/sed -i 's/#    export XDG_SESSION_TYPE=x11/    export XDG_SESSION_TYPE=x11/' "$SCRIPT"
-        ${pkgs.gnused}/bin/sed -i 's/#    unset WAYLAND_DISPLAY/    unset WAYLAND_DISPLAY/' "$SCRIPT"
-        ${pkgs.gnused}/bin/sed -i 's/#    export WEMEET_XWAYLAND=1/    export WEMEET_XWAYLAND=1/' "$SCRIPT"
-        if [ ! -f "$ORIG" ]; then
-          ${pkgs.coreutils}/bin/cp "$SCRIPT" "$ORIG"
-        fi
-      fi
-
-      # 现在重新执行正确的 patch
-      ${pkgs.gnused}/bin/sed -i \
-        '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then$/,/^fi$/{
-          /^  else$/!s/^/#/
-          /^  else$/{
-            s/^  else$/  else/
-            a\    :  # noop: Wayland native (patched by nixos-config)
-          }
-        }' "$SCRIPT"
+        '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then/,/^fi$/s/^/#/' \
+        "$SCRIPT"
     fi
   '';
 in
 {
   services.pipewire = {
-    # 现代音频栈（替代 pulseaudio）
     enable = true;
     alsa.enable = true;
     pulse.enable = true;
     wireplumber.enable = true;
   };
 
-  # bluetooth
   hardware.bluetooth = {
     enable = true;
     powerOnBoot = true;
   };
   services.blueman.enable = true;
 
-  # 电池状态（Noctalia 依赖 UPower 提供电池信息）
   services.upower.enable = true;
-
-  # 电源管理（Noctalia 依赖 power-profiles-daemon）
   services.power-profiles-daemon.enable = true;
 
   programs.appimage = {
-    # 允许直接运行 AppImage
     enable = true;
     binfmt = true;
   };
 
-  # Flatpak 服务（桌面应用分发）
   services.flatpak.enable = flatpakCfg.enable;
 
-  # Flatpak：默认配置 Flathub 远程仓库，并安装基础应用
   systemd.services.flatpak-setup = lib.mkIf flatpakCfg.enable {
     description = "Flatpak baseline setup (Flathub + default apps)";
     unitConfig.ConditionPathExists = "!${flatpakSetupStamp}";
@@ -185,7 +132,6 @@ in
     };
   };
 
-  # Flatpak 自动更新（系统级）
   systemd.services.flatpak-update = lib.mkIf (flatpakCfg.enable && flatpakCfg.autoUpdate.enable) {
     description = "Flatpak system update";
     after = [ "network-online.target" ];
@@ -210,7 +156,6 @@ in
     };
   };
 
-  # 腾讯会议 Flatpak 修复服务
   systemd.services.flatpak-fix-wemeet =
     lib.mkIf (flatpakCfg.enable && builtins.elem "com.tencent.wemeet" flatpakCfg.apps)
       {
@@ -227,12 +172,9 @@ in
         };
       };
 
-  # OBS 虚拟摄像头（v4l2loopback）
   boot.kernelModules = lib.mkAfter [ "v4l2loopback" ];
   boot.extraModulePackages = lib.mkAfter [ config.boot.kernelPackages.v4l2loopback ];
   boot.extraModprobeConfig = lib.mkAfter ''
     options v4l2loopback devices=1 video_nr=10 card_label="OBS Virtual Camera" exclusive_caps=1
   '';
-
-  # GPU 相关配置已迁移到 modules/hardware/gpu.nix
 }
