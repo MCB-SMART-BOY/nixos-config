@@ -10,18 +10,28 @@
 let
   flatpakCfg = config.mcb.flatpak;
 
-  # 腾讯会议 libImSDK.so 在多线程中直接调用 X11 但不调用 XInitThreads()，
-  # 导致 XSetInputFocus Display hook 指针损坏 → SIGSEGV。
-  # 用 LD_PRELOAD 在构造函数中提前调用 XInitThreads() 来修复。
+  # 腾讯会议 libImSDK.so 在多线程中直接调用 X11 但不调用 XInitThreads()
+  # → XSetInputFocus Display hook 指针并发损坏 → SIGSEGV。
+  # 修复: LD_PRELOAD interpose XOpenDisplay，首次调用前自动调 XInitThreads()
   wemeetX11ThreadFix = pkgs.stdenv.mkDerivation {
     name = "wemeet-x11-thread-fix";
     dontUnpack = true;
-    buildInputs = [ pkgs.xorg.libX11 ];
     buildPhase = ''
-      $CC -shared -fPIC -o libx11threadfix.so -xc - <<'SRC'
-        extern int XInitThreads(void);
-        __attribute__((constructor))
-        static void init_xlib_threads(void) { XInitThreads(); }
+      $CC -shared -fPIC -o libx11threadfix.so -xc -ldl - <<'SRC'
+        #define _GNU_SOURCE
+        #include <dlfcn.h>
+        typedef void* (*XOD_type)(const char*);
+        typedef int   (*XIT_type)(void);
+        static int done = 0;
+        void* XOpenDisplay(const char *name) {
+          if (!done) {
+            XIT_type f = dlsym(RTLD_NEXT, "XInitThreads");
+            if (f) f();
+            done = 1;
+          }
+          XOD_type real = dlsym(RTLD_NEXT, "XOpenDisplay");
+          return real(name);
+        }
       SRC
     '';
     installPhase = ''
@@ -87,13 +97,11 @@ let
     set -euo pipefail
     SCRIPT="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
     FLATPAK="${pkgs.flatpak}/bin/flatpak"
-    FIX_SO="${wemeetX11ThreadFix}/lib/libx11threadfix.so"
+    FIX_DST="/home/mcbnixos/xinitthreads_fix.so"
 
     if [ -f "$SCRIPT" ]; then
-      # 修复 shebang
       ${pkgs.gnused}/bin/sed -i '1s/^!/#!/' "$SCRIPT"
 
-      # 恢复并重新 patch（检测坏状态）
       if grep -q 'export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null || \
          grep -q '^#fi$' "$SCRIPT" 2>/dev/null; then
         ORIG="$SCRIPT.orig"
@@ -123,11 +131,9 @@ let
       $FLATPAK override --system --unset-env=QT_QPA_PLATFORM com.tencent.wemeet || true
     fi
 
-    # 安装 X11 线程安全 LD_PRELOAD（libImSDK 多线程 X11 修复）
-    $FLATPAK override --system --env="LD_PRELOAD=$FIX_SO" com.tencent.wemeet || true
-
-    # 复制 .so 到 home 目录（flatpak sandbox 内可访问）
-    ${pkgs.coreutils}/bin/cp "$FIX_SO" /home/mcbnixos/xinitthreads_fix.so
+    # 复制 X11 线程修复 .so 到 home（flatpak sandbox 内 /nix/store 不可访问）
+    ${pkgs.coreutils}/bin/cp "${wemeetX11ThreadFix}/lib/libx11threadfix.so" "$FIX_DST"
+    $FLATPAK override --system --env="LD_PRELOAD=$FIX_DST" com.tencent.wemeet || true
   '';
 in
 {
