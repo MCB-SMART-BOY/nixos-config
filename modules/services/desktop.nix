@@ -125,10 +125,24 @@ in
     description = "Flatpak system update";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      ExecStart = "${pkgs.flatpak}/bin/flatpak update --system -y --noninteractive";
-    };
+    serviceConfig = lib.mkMerge [
+      {
+        Type = "oneshot";
+        ExecStart = "${pkgs.flatpak}/bin/flatpak update --system -y --noninteractive";
+      }
+      (lib.mkIf (builtins.elem "com.tencent.wemeet" flatpakCfg.apps) {
+        # 腾讯会议更新后重新 patch（如果更新覆盖了脚本）
+        ExecStartPost = pkgs.writeShellScript "flatpak-update-wemeet-fix" ''
+          set -euo pipefail
+          wemeet_script="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
+          if [ -f "$wemeet_script" ] && grep -q '^[[:space:]]*unset WAYLAND_DISPLAY' "$wemeet_script" 2>/dev/null; then
+            ${pkgs.gnused}/bin/sed -i \
+              's/^[[:space:]]*unset WAYLAND_DISPLAY.*$/    # unset WAYLAND_DISPLAY  # disabled by nixos-config: causes Qt SIGABRT on Wayland/' \
+              "$wemeet_script"
+          fi
+        '';
+      })
+    ];
   };
 
   systemd.timers.flatpak-update = lib.mkIf (flatpakCfg.enable && flatpakCfg.autoUpdate.enable) {
@@ -139,6 +153,39 @@ in
       RandomizedDelaySec = flatpakCfg.autoUpdate.randomizedDelaySec;
     };
   };
+
+  # 腾讯会议 Flatpak 修复：wemeetapp.sh 在 Wayland 下 unset WAYLAND_DISPLAY 导致 Qt SIGABRT
+  # 参见：https://github.com/flathub/com.tencent.wemeet/issues
+  # 注意：Flatpak 每次更新会覆盖脚本，因此不使用 stamp file，每次启动都检查
+  systemd.services.flatpak-fix-wemeet =
+    lib.mkIf (flatpakCfg.enable && builtins.elem "com.tencent.wemeet" flatpakCfg.apps)
+      {
+        description = "Fix Tencent Wemeet Flatpak (unset WAYLAND_DISPLAY causes Qt SIGABRT)";
+        after = [
+          "flatpak-setup.service"
+          "flatpak-update.service"
+          "local-fs.target"
+        ];
+        wantedBy = [ "multi-user.target" ];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecStart = pkgs.writeShellScript "flatpak-fix-wemeet" ''
+            set -euo pipefail
+            wemeet_script="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
+
+            if [ ! -f "$wemeet_script" ]; then
+              exit 0
+            fi
+
+            # 幂等操作：只注释掉生效中的 (未注释的) unset WAYLAND_DISPLAY 行
+            if grep -q '^[[:space:]]*unset WAYLAND_DISPLAY' "$wemeet_script" 2>/dev/null; then
+              ${pkgs.gnused}/bin/sed -i \
+                's/^[[:space:]]*unset WAYLAND_DISPLAY.*$/    # unset WAYLAND_DISPLAY  # disabled by nixos-config: causes Qt SIGABRT on Wayland/' \
+                "$wemeet_script"
+            fi
+          '';
+        };
+      };
 
   # OBS 虚拟摄像头（v4l2loopback）
   boot.kernelModules = lib.mkAfter [ "v4l2loopback" ];
