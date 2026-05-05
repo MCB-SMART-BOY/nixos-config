@@ -1,4 +1,4 @@
-# 桌面服务：音频、图形驱动、AppImage、节能等。
+# 桌面服务：音频、图形驱动、AppImage、Flatpak 等。
 
 {
   config,
@@ -9,35 +9,6 @@
 
 let
   flatpakCfg = config.mcb.flatpak;
-
-  # 腾讯会议 libImSDK.so 多线程直接调 X11 不调 XInitThreads → SIGSEGV
-  # 修复: LD_PRELOAD interpose XOpenDisplay, pthread_once 保证线程安全
-  wemeetX11ThreadFix = pkgs.stdenv.mkDerivation {
-    name = "wemeet-x11-thread-fix";
-    dontUnpack = true;
-    buildPhase = ''
-      $CC -shared -fPIC -o libx11threadfix.so -xc -ldl -lpthread - <<'SRC'
-        #define _GNU_SOURCE
-        #include <dlfcn.h>
-        #include <pthread.h>
-        static pthread_once_t once = PTHREAD_ONCE_INIT;
-        static void init(void) {
-          int (*f)(void) = dlsym(RTLD_NEXT, "XInitThreads");
-          if (f) f();
-        }
-        void* XOpenDisplay(const char *n) {
-          pthread_once(&once, init);
-          void* (*real)(const char*) = dlsym(RTLD_NEXT, "XOpenDisplay");
-          return real(n);
-        }
-      SRC
-    '';
-    installPhase = ''
-      mkdir -p $out/lib
-      cp libx11threadfix.so $out/lib/
-    '';
-  };
-
   flatpakSetupHash = builtins.substring 0 16 (
     builtins.hashString "sha256" (
       builtins.toJSON {
@@ -89,47 +60,6 @@ let
   flatpakOverrideScript = lib.optionalString (flatpakOverrideArgs != "") ''
     ${pkgs.flatpak}/bin/flatpak override --system ${flatpakOverrideArgs}
   '';
-
-  wemeetFixScript = pkgs.writeShellScript "wemeet-fix" ''
-    set -euo pipefail
-    SCRIPT="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
-    FLATPAK="${pkgs.flatpak}/bin/flatpak"
-    FIX_DST="/home/mcbnixos/xinitthreads_fix.so"
-
-    if [ -f "$SCRIPT" ]; then
-      ${pkgs.gnused}/bin/sed -i '1s/^!/#!/' "$SCRIPT"
-
-      if grep -q 'export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null || \
-         grep -q '^#fi$' "$SCRIPT" 2>/dev/null; then
-        ORIG="$SCRIPT.orig"
-        if [ -f "$ORIG" ]; then
-          ${pkgs.coreutils}/bin/cp "$ORIG" "$SCRIPT"
-        else
-          DEPLOY_DIR="$(${pkgs.coreutils}/bin/dirname "$(${pkgs.coreutils}/bin/dirname "$(${pkgs.coreutils}/bin/dirname "$SCRIPT")")")"
-          if [ -f "$DEPLOY_DIR/files/extra/opt/wemeet/wemeetapp.sh" ]; then
-            ${pkgs.coreutils}/bin/cp "$DEPLOY_DIR/files/extra/opt/wemeet/wemeetapp.sh" "$SCRIPT"
-          fi
-        fi
-      fi
-
-      if grep -q '^[[:space:]]*export WEMEET_XWAYLAND=1' "$SCRIPT" 2>/dev/null; then
-        [ -f "$SCRIPT.orig" ] || ${pkgs.coreutils}/bin/cp "$SCRIPT" "$SCRIPT.orig"
-        ${pkgs.gnused}/bin/sed -i \
-          '/^if \[ "\$XDG_SESSION_TYPE" = "wayland" \];then/,/^fi$/{
-             /^if /b
-             /^fi$/b
-             s/^/#/
-           }' "$SCRIPT"
-      fi
-    fi
-
-    if $FLATPAK override --show com.tencent.wemeet 2>/dev/null | grep -q 'QT_QPA_PLATFORM=xcb'; then
-      $FLATPAK override --system --unset-env=QT_QPA_PLATFORM com.tencent.wemeet || true
-    fi
-
-    ${pkgs.coreutils}/bin/cp "${wemeetX11ThreadFix}/lib/libx11threadfix.so" "$FIX_DST"
-    $FLATPAK override --system --env="LD_PRELOAD=$FIX_DST" com.tencent.wemeet || true
-  '';
 in
 {
   services.pipewire.enable = true;
@@ -178,15 +108,10 @@ in
     description = "Flatpak system update";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    serviceConfig = lib.mkMerge [
-      {
-        Type = "oneshot";
-        ExecStart = "${pkgs.flatpak}/bin/flatpak update --system -y --noninteractive";
-      }
-      (lib.mkIf (builtins.elem "com.tencent.wemeet" flatpakCfg.apps) {
-        ExecStartPost = "${wemeetFixScript}";
-      })
-    ];
+    serviceConfig = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.flatpak}/bin/flatpak update --system -y --noninteractive";
+    };
   };
 
   systemd.timers.flatpak-update = lib.mkIf (flatpakCfg.enable && flatpakCfg.autoUpdate.enable) {
@@ -198,21 +123,8 @@ in
     };
   };
 
-  systemd.services.flatpak-fix-wemeet =
-    lib.mkIf (flatpakCfg.enable && builtins.elem "com.tencent.wemeet" flatpakCfg.apps)
-      {
-        description = "Fix Tencent Wemeet Flatpak";
-        after = [
-          "flatpak-setup.service"
-          "flatpak-update.service"
-          "local-fs.target"
-        ];
-        wantedBy = [ "multi-user.target" ];
-        serviceConfig = {
-          Type = "oneshot";
-          ExecStart = wemeetFixScript;
-        };
-      };
+  # 腾讯会议：nixpkgs 原生版本（非 flatpak），自带 Wayland 屏幕共享补丁和 X11 线程修复
+  environment.systemPackages = [ pkgs.wemeet ];
 
   boot.kernelModules = lib.mkAfter [ "v4l2loopback" ];
   boot.extraModulePackages = lib.mkAfter [ config.boot.kernelPackages.v4l2loopback ];

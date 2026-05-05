@@ -36,11 +36,9 @@
     enable = true;
     apps = [
       "com.tencent.WeChat"
-      "com.tencent.wemeet"
     ];
     overrides = {
-      # 腾讯系应用需要 X11 回退（Wayland 兼容性差）
-      # GPU 渲染（--device=dri）+ IPC + 输入法
+      # WeChat 需要 X11 回退（Wayland 兼容性差）
       filesystem = [
         "xdg-desktop"
         "xdg-documents"
