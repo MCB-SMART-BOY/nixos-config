@@ -1,5 +1,5 @@
 # 桌面服务：音频、图形驱动、AppImage、节能等。
-# 主要影响桌面环境的“基础能力”。
+# 主要影响桌面环境的"基础能力"。
 
 {
   config,
@@ -135,10 +135,42 @@ in
         ExecStartPost = pkgs.writeShellScript "flatpak-update-wemeet-fix" ''
           set -euo pipefail
           wemeet_script="/var/lib/flatpak/app/com.tencent.wemeet/current/active/files/extra/opt/wemeet/wemeetapp.sh"
-          if [ -f "$wemeet_script" ] && grep -q '^[[:space:]]*unset WAYLAND_DISPLAY' "$wemeet_script" 2>/dev/null; then
+
+          if [ ! -f "$wemeet_script" ]; then
+            exit 0
+          fi
+
+          # 1) unset WAYLAND_DISPLAY → Qt SIGABRT
+          if grep -q '^[[:space:]]*unset WAYLAND_DISPLAY' "$wemeet_script" 2>/dev/null; then
             ${pkgs.gnused}/bin/sed -i \
-              's/^[[:space:]]*unset WAYLAND_DISPLAY.*$/    # unset WAYLAND_DISPLAY  # disabled by nixos-config: causes Qt SIGABRT on Wayland/' \
+              's/^[[:space:]]*unset WAYLAND_DISPLAY.*$/    # unset WAYLAND_DISPLAY  # patched by nixos-config/' \
               "$wemeet_script"
+          fi
+
+          # 2) export QT_QPA_PLATFORM=xcb → X11 多线程不安全
+          if grep -q '^[[:space:]]*export QT_QPA_PLATFORM=xcb' "$wemeet_script" 2>/dev/null; then
+            ${pkgs.gnused}/bin/sed -i \
+              's/^[[:space:]]*export QT_QPA_PLATFORM=xcb.*$/    # export QT_QPA_PLATFORM=xcb  # patched by nixos-config/' \
+              "$wemeet_script"
+          fi
+
+          # 3) export XDG_SESSION_TYPE=x11
+          if grep -q '^[[:space:]]*export XDG_SESSION_TYPE=x11' "$wemeet_script" 2>/dev/null; then
+            ${pkgs.gnused}/bin/sed -i \
+              's/^[[:space:]]*export XDG_SESSION_TYPE=x11.*$/    # export XDG_SESSION_TYPE=x11  # patched by nixos-config/' \
+              "$wemeet_script"
+          fi
+
+          # 4) export WEMEET_XWAYLAND=1
+          if grep -q '^[[:space:]]*export WEMEET_XWAYLAND=1' "$wemeet_script" 2>/dev/null; then
+            ${pkgs.gnused}/bin/sed -i \
+              's/^[[:space:]]*export WEMEET_XWAYLAND=1.*$/    # export WEMEET_XWAYLAND=1  # patched by nixos-config/' \
+              "$wemeet_script"
+          fi
+
+          # 5) 清除全局 flatpak override 强制设置的 QT_QPA_PLATFORM=xcb
+          if ${pkgs.flatpak}/bin/flatpak override --show com.tencent.wemeet 2>/dev/null | grep -q 'QT_QPA_PLATFORM=xcb'; then
+            ${pkgs.flatpak}/bin/flatpak override --system --unset-env=QT_QPA_PLATFORM com.tencent.wemeet || true
           fi
         '';
       })
@@ -154,13 +186,17 @@ in
     };
   };
 
-  # 腾讯会议 Flatpak 修复：wemeetapp.sh 在 Wayland 下 unset WAYLAND_DISPLAY 导致 Qt SIGABRT
-  # 参见：https://github.com/flathub/com.tencent.wemeet/issues
+  # 腾讯会议 Flatpak 修复：
+  # 1. wemeetapp.sh 在 Wayland 下 unset WAYLAND_DISPLAY → Qt SIGABRT
+  # 2. 强制 QT_QPA_PLATFORM=xcb + WEMEET_XWAYLAND=1 → X11 多线程不安全 → SIGSEGV
+  #    (libImSDK 线程调用 XSetInputFocus 导致 Display hook 指针损坏)
+  # 修复：注释掉 Wayland→X11 强制回退逻辑，让 wemeet 走 Wayland 原生路径
+  # 参见：https://github.com/flathub/com.tencent.wemeet/issues (wayland PR已合并)
   # 注意：Flatpak 每次更新会覆盖脚本，因此不使用 stamp file，每次启动都检查
   systemd.services.flatpak-fix-wemeet =
     lib.mkIf (flatpakCfg.enable && builtins.elem "com.tencent.wemeet" flatpakCfg.apps)
       {
-        description = "Fix Tencent Wemeet Flatpak (unset WAYLAND_DISPLAY causes Qt SIGABRT)";
+        description = "Fix Tencent Wemeet Flatpak (Wayland→X11 fallback causes crash)";
         after = [
           "flatpak-setup.service"
           "flatpak-update.service"
@@ -177,11 +213,43 @@ in
               exit 0
             fi
 
-            # 幂等操作：只注释掉生效中的 (未注释的) unset WAYLAND_DISPLAY 行
+            changed=false
+
+            # 1) 注释掉 unset WAYLAND_DISPLAY（导致 Qt SIGABRT）
             if grep -q '^[[:space:]]*unset WAYLAND_DISPLAY' "$wemeet_script" 2>/dev/null; then
               ${pkgs.gnused}/bin/sed -i \
-                's/^[[:space:]]*unset WAYLAND_DISPLAY.*$/    # unset WAYLAND_DISPLAY  # disabled by nixos-config: causes Qt SIGABRT on Wayland/' \
+                's/^[[:space:]]*unset WAYLAND_DISPLAY.*$/    # unset WAYLAND_DISPLAY  # disabled by nixos-config/' \
                 "$wemeet_script"
+              changed=true
+            fi
+
+            # 2) 注释掉 export QT_QPA_PLATFORM=xcb（X11 多线程不安全，改用 Wayland 原生）
+            if grep -q '^[[:space:]]*export QT_QPA_PLATFORM=xcb' "$wemeet_script" 2>/dev/null; then
+              ${pkgs.gnused}/bin/sed -i \
+                's/^[[:space:]]*export QT_QPA_PLATFORM=xcb.*$/    # export QT_QPA_PLATFORM=xcb  # disabled by nixos-config: use Wayland native/' \
+                "$wemeet_script"
+              changed=true
+            fi
+
+            # 3) 注释掉 export XDG_SESSION_TYPE=x11（保留原始 Wayland 会话类型）
+            if grep -q '^[[:space:]]*export XDG_SESSION_TYPE=x11' "$wemeet_script" 2>/dev/null; then
+              ${pkgs.gnused}/bin/sed -i \
+                's/^[[:space:]]*export XDG_SESSION_TYPE=x11.*$/    # export XDG_SESSION_TYPE=x11  # disabled by nixos-config/' \
+                "$wemeet_script"
+              changed=true
+            fi
+
+            # 4) 注释掉 export WEMEET_XWAYLAND=1（不强制 XWayland）
+            if grep -q '^[[:space:]]*export WEMEET_XWAYLAND=1' "$wemeet_script" 2>/dev/null; then
+              ${pkgs.gnused}/bin/sed -i \
+                's/^[[:space:]]*export WEMEET_XWAYLAND=1.*$/    # export WEMEET_XWAYLAND=1  # disabled by nixos-config/' \
+                "$wemeet_script"
+              changed=true
+            fi
+
+            # 5) 清除全局 flatpak override 强制设置的 QT_QPA_PLATFORM=xcb
+            if ${pkgs.flatpak}/bin/flatpak override --show com.tencent.wemeet 2>/dev/null | grep -q 'QT_QPA_PLATFORM=xcb'; then
+              ${pkgs.flatpak}/bin/flatpak override --system --unset-env=QT_QPA_PLATFORM com.tencent.wemeet || true
             fi
           '';
         };
