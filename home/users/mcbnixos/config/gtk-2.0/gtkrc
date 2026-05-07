@@ -2,7 +2,7 @@
 # GTK2 应用主题与输入法设置
 gtk-icon-theme-name="Papirus-Dark"
 gtk-theme-name="Catppuccin-Mocha-Standard-Blue-Dark"
-gtk-font-name="Manrope 11"
+gtk-font-name="Manrope 14"
 gtk-cursor-theme-name="Bibata-Modern-Ice"
 gtk-cursor-theme-size=24
 gtk-im-module="fcitx"
