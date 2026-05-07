@@ -49,17 +49,12 @@ in
     ELECTRON_OZONE_PLATFORM_HINT = if config.mcb.hardware.gpu.mode == "dgpu" then "x11" else "auto";
     # 供用户脚本和 desktop wrapper 读取当前 GPU 拓扑（igpu/hybrid/dgpu）。
     MCB_GPU_MODE = config.mcb.hardware.gpu.mode;
-    # 输入法
     GTK_IM_MODULE = "fcitx";
     QT_IM_MODULE = "fcitx";
     SDL_IM_MODULE = "fcitx";
     GLFW_IM_MODULE = "fcitx";
     XMODIFIERS = "@im=fcitx";
     XIM_SERVERS = "fcitx";
-    # HiDPI 缩放：niri output scale=2，但不响应 compositor scale 的应用需手动指定
-    GDK_DPI_SCALE = "2";
-    QT_SCALE_FACTOR = "2";
-    QT_AUTO_SCREEN_SCALE_FACTOR = "0";
     # 不强制覆盖，避免吞掉其他模块追加的桌面数据目录
     XDG_DATA_DIRS = lib.mkDefault (
       lib.concatStringsSep ":" [
