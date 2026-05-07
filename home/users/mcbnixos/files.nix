@@ -1,5 +1,5 @@
 # 把仓库内的配置文件映射到 ~/.config 与用户目录。
-# 这里控制“哪些配置会生效”。
+# 这里控制"哪些配置会生效"。
 
 {
   lib,
@@ -17,6 +17,7 @@ in
   xdg.configFile."niri/config.kdl".source = ./config/niri/config.kdl;
   # 输入法与 GTK 外观
   xdg.configFile."fcitx5/profile".source = ./config/fcitx5/profile;
+  xdg.configFile."fcitx5/conf/classicui.conf".source = ./config/fcitx5/conf/classicui.conf;
   xdg.configFile."gtk-2.0/gtkrc".source = ./config/gtk-2.0/gtkrc;
   xdg.configFile."gtk-3.0/settings.ini".source = ./config/gtk-3.0/settings.ini;
   xdg.configFile."gtk-4.0/settings.ini".source = ./config/gtk-4.0/settings.ini;
