@@ -3,13 +3,84 @@
 
 { scriptBin }:
 
+let
+  # 系统监控：左边展开，右边精简
+  monitorButtons = [
+    {
+      id = "CustomButton";
+      icon = "cpu";
+      textCommand = "${scriptBin}/noctalia-cpu";
+      leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
+      rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'sensors || true; echo; exec bash'";
+      parseJson = true;
+      textIntervalMs = 3000;
+      maxTextLength = {
+        horizontal = 6;
+        vertical = 6;
+      };
+    }
+    {
+      id = "CustomButton";
+      icon = "memory-stick";
+      textCommand = "${scriptBin}/noctalia-memory";
+      leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
+      rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'free -h; echo; vmstat -s 2>/dev/null | head -n 20 || true; echo; exec bash'";
+      parseJson = true;
+      textIntervalMs = 5000;
+      maxTextLength = {
+        horizontal = 6;
+        vertical = 6;
+      };
+    }
+    {
+      id = "CustomButton";
+      icon = "thermometer";
+      textCommand = "${scriptBin}/noctalia-temperature";
+      leftClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'watch -n 1 sensors'";
+      rightClickExec = "${scriptBin}/niri-run alacritty -e btop";
+      parseJson = true;
+      textIntervalMs = 5000;
+      maxTextLength = {
+        horizontal = 7;
+        vertical = 7;
+      };
+    }
+    {
+      id = "CustomButton";
+      icon = "activity";
+      textCommand = "${scriptBin}/noctalia-net-speed";
+      leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
+      rightClickExec = "${scriptBin}/niri-run alacritty -e nmtui";
+      parseJson = true;
+      textIntervalMs = 3000;
+      maxTextLength = {
+        horizontal = 20;
+        vertical = 20;
+      };
+    }
+    {
+      id = "CustomButton";
+      icon = "hard-drive";
+      textCommand = "${scriptBin}/noctalia-disk";
+      leftClickExec = "${scriptBin}/niri-run baobab";
+      rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'df -h; echo; lsblk; echo; exec bash'";
+      parseJson = true;
+      textIntervalMs = 60000;
+      maxTextLength = {
+        horizontal = 7;
+        vertical = 7;
+      };
+    }
+  ];
+in
 {
   bar = {
     widgets = {
       left = [
         { id = "Launcher"; }
         { id = "Workspace"; }
-      ];
+      ]
+      ++ monitorButtons;
       center = [
         { id = "Clock"; }
       ];
@@ -35,23 +106,10 @@
           leftClickExec = "${scriptBin}/niri-run alacritty -e nmtui";
           rightClickExec = "${scriptBin}/niri-run clash-nyanpasu";
           parseJson = true;
-          textIntervalMs = 5000;
+          textIntervalMs = 10000;
           maxTextLength = {
             horizontal = 8;
             vertical = 8;
-          };
-        }
-        {
-          id = "CustomButton";
-          icon = "activity";
-          textCommand = "${scriptBin}/noctalia-net-speed";
-          leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e nmtui";
-          parseJson = true;
-          textIntervalMs = 2000;
-          maxTextLength = {
-            horizontal = 20;
-            vertical = 20;
           };
         }
         {
@@ -61,62 +119,10 @@
           leftClickExec = "${scriptBin}/niri-run blueman-manager";
           rightClickExec = "${scriptBin}/niri-run blueman-adapters";
           parseJson = true;
-          textIntervalMs = 5000;
+          textIntervalMs = 10000;
           maxTextLength = {
             horizontal = 4;
             vertical = 4;
-          };
-        }
-        {
-          id = "CustomButton";
-          icon = "cpu";
-          textCommand = "${scriptBin}/noctalia-cpu";
-          leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'sensors || true; echo; exec bash'";
-          parseJson = true;
-          textIntervalMs = 2000;
-          maxTextLength = {
-            horizontal = 6;
-            vertical = 6;
-          };
-        }
-        {
-          id = "CustomButton";
-          icon = "memory-stick";
-          textCommand = "${scriptBin}/noctalia-memory";
-          leftClickExec = "${scriptBin}/niri-run alacritty -e btop";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'free -h; echo; vmstat -s 2>/dev/null | head -n 20 || true; echo; exec bash'";
-          parseJson = true;
-          textIntervalMs = 3000;
-          maxTextLength = {
-            horizontal = 6;
-            vertical = 6;
-          };
-        }
-        {
-          id = "CustomButton";
-          icon = "thermometer";
-          textCommand = "${scriptBin}/noctalia-temperature";
-          leftClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'watch -n 1 sensors'";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e btop";
-          parseJson = true;
-          textIntervalMs = 5000;
-          maxTextLength = {
-            horizontal = 7;
-            vertical = 7;
-          };
-        }
-        {
-          id = "CustomButton";
-          icon = "hard-drive";
-          textCommand = "${scriptBin}/noctalia-disk";
-          leftClickExec = "${scriptBin}/niri-run baobab";
-          rightClickExec = "${scriptBin}/niri-run alacritty -e bash -lc 'df -h; echo; lsblk; echo; exec bash'";
-          parseJson = true;
-          textIntervalMs = 30000;
-          maxTextLength = {
-            horizontal = 7;
-            vertical = 7;
           };
         }
         { id = "Volume"; }
@@ -143,7 +149,7 @@
           leftClickExec = "${scriptBin}/niri-run clash-verge";
           rightClickExec = "${scriptBin}/niri-run metacubexd";
           parseJson = true;
-          textIntervalMs = 5000;
+          textIntervalMs = 10000;
           maxTextLength = {
             horizontal = 6;
             vertical = 6;
