@@ -77,12 +77,12 @@ clean_etc_dir_keep_hardware() {
     as_root cp -a "${ETC_DIR}/hardware-configuration.nix" "${preserve_dir}/"
   fi
 
-  if [[ -d "${ETC_DIR}/hosts" ]]; then
+  if [[ -d "${ETC_DIR}" ]]; then
     while IFS= read -r -d '' file; do
       local rel="${file#"${ETC_DIR}"/}"
       as_root mkdir -p "${preserve_dir}/$(dirname "${rel}")"
       as_root cp -a "${file}" "${preserve_dir}/${rel}"
-    done < <(find "${ETC_DIR}/hosts" -maxdepth 2 -name hardware-configuration.nix -print0 2>/dev/null)
+    done < <(find "${ETC_DIR}" -maxdepth 1 -name hardware-configuration.nix -print0 2>/dev/null)
   fi
 
   as_root find "${ETC_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
@@ -91,9 +91,9 @@ clean_etc_dir_keep_hardware() {
     as_root cp -a "${preserve_dir}/hardware-configuration.nix" "${ETC_DIR}/"
   fi
 
-  if [[ -d "${preserve_dir}/hosts" ]]; then
-    as_root mkdir -p "${ETC_DIR}/hosts"
-    as_root cp -a "${preserve_dir}/hosts/." "${ETC_DIR}/hosts/"
+  if [[ -d "${preserve_dir}" ]]; then
+    as_root mkdir -p "${ETC_DIR}"
+    as_root cp -a "${preserve_dir}/." "${ETC_DIR}/"
   fi
 
   rm -rf "${preserve_dir}"
@@ -178,7 +178,7 @@ detect_local_repo_dir() {
   )
   local dir
   for dir in "${candidates[@]}"; do
-    if [[ -f "${dir}/flake.nix" && -d "${dir}/hosts" && -d "${dir}/modules" && -d "${dir}/home" ]]; then
+    if [[ -f "${dir}/flake.nix" && -d "${dir}" && -d "${dir}/modules" && -d "${dir}/home" ]]; then
       printf '%s' "${dir}"
       return 0
     fi
@@ -345,13 +345,13 @@ sync_repo_to_etc() {
       "${delete_flags[@]}" \
       --exclude '.git/' \
       --exclude 'hardware-configuration.nix' \
-      --exclude 'hosts/*/hardware-configuration.nix' \
+      --exclude 'host/hardware-configuration.nix'
       "${repo_dir}/" "${ETC_DIR}/"
   else
     if [[ ${#delete_flags[@]} -gt 0 ]]; then
       clean_etc_dir_keep_hardware
     fi
-    (cd "${repo_dir}" && tar --exclude=.git --exclude=hardware-configuration.nix --exclude=hosts/*/hardware-configuration.nix -cf - .) | as_root tar -C "${ETC_DIR}" -xf -
+    (cd "${repo_dir}" && tar --exclude=.git --exclude=hardware-configuration.nix --exclude=host/hardware-configuration.nix -cf - .) | as_root tar -C "${ETC_DIR}" -xf -
   fi
 
   success "配置同步完成"

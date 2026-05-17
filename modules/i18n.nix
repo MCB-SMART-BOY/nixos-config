@@ -6,47 +6,68 @@
 let
   # nixpkgs 新版本将 fcitx5-* 顶层包改为 qt6Packages.*，旧名会 throw。
   # 使用 tryEval + getAttrFromPath 避免访问到 throw 别名导致构建失败。
-  resolvePkg = path:
+  resolvePkg =
+    path:
     let
       eval =
         if lib.hasAttrByPath path pkgs then
           builtins.tryEval (lib.getAttrFromPath path pkgs)
         else
-          { success = false; value = null; };
+          {
+            success = false;
+            value = null;
+          };
     in
     if eval.success then eval.value else null;
 
   pickFirst = list: lib.findFirst (x: x != null) null list;
 
   fcitx5ChineseAddons = pickFirst [
-    (resolvePkg [ "qt6Packages" "fcitx5-chinese-addons" ])
+    (resolvePkg [
+      "qt6Packages"
+      "fcitx5-chinese-addons"
+    ])
     (resolvePkg [ "fcitx5-chinese-addons" ])
   ];
 
   fcitx5Configtool = pickFirst [
-    (resolvePkg [ "qt6Packages" "fcitx5-configtool" ])
+    (resolvePkg [
+      "qt6Packages"
+      "fcitx5-configtool"
+    ])
     (resolvePkg [ "fcitx5-configtool" ])
   ];
 
   fcitx5Rime = pickFirst [
-    (resolvePkg [ "qt6Packages" "fcitx5-rime" ])
+    (resolvePkg [
+      "qt6Packages"
+      "fcitx5-rime"
+    ])
     (resolvePkg [ "fcitx5-rime" ])
   ];
 
   fcitx5Gtk = pickFirst [
-    (resolvePkg [ "qt6Packages" "fcitx5-gtk" ])
+    (resolvePkg [
+      "qt6Packages"
+      "fcitx5-gtk"
+    ])
     (resolvePkg [ "fcitx5-gtk" ])
   ];
 
   fcitx5Qt = pickFirst [
-    (resolvePkg [ "qt6Packages" "fcitx5-qt" ])
-    (resolvePkg [ "libsForQt5" "fcitx5-qt" ])
+    (resolvePkg [
+      "qt6Packages"
+      "fcitx5-qt"
+    ])
+    (resolvePkg [
+      "libsForQt5"
+      "fcitx5-qt"
+    ])
     (resolvePkg [ "fcitx5-qt" ])
   ];
 in
 {
-  # 时区（影响系统时间显示）
-  time.timeZone = "Asia/Shanghai";
+  # 时区请在 local.nix 中设置（不同地区不同）
 
   i18n = {
     # 默认语言（GUI/CLI 都会使用）

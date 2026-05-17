@@ -6,11 +6,11 @@ has_any_hardware_config() {
   if [[ -f "${etc_dir}/hardware-configuration.nix" ]]; then
     return 0
   fi
-  if [[ -n "${TARGET_NAME}" && -f "${etc_dir}/hosts/${TARGET_NAME}/hardware-configuration.nix" ]]; then
+  if [[ -n "${TARGET_NAME}" && -f "${etc_dir}/hardware-configuration.nix" ]]; then
     return 0
   fi
-  if [[ -d "${etc_dir}/hosts" ]]; then
-    if find "${etc_dir}/hosts" -maxdepth 2 -name hardware-configuration.nix -print -quit 2>/dev/null | grep -q .; then
+  if [[ -d "${etc_dir}" ]]; then
+    if find "${etc_dir}" -maxdepth 1 -name hardware-configuration.nix -print -quit 2>/dev/null | grep -q .; then
       return 0
     fi
   fi
@@ -33,10 +33,10 @@ ensure_host_hardware_config() {
   if [[ -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
     return 0
   fi
-  if [[ -n "${TARGET_NAME}" && -f "${ETC_DIR}/hosts/${TARGET_NAME}/hardware-configuration.nix" ]]; then
+  if [[ -n "${TARGET_NAME}" && -f "${ETC_DIR}/hardware-configuration.nix" ]]; then
     return 0
   fi
-  error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hosts/${TARGET_NAME}/hardware-configuration.nix；请先运行 nixos-generate-config。"
+  error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hardware-configuration.nix；请先运行 nixos-generate-config。"
 }
 
 # 检查环境依赖与权限。
@@ -109,7 +109,7 @@ check_env() {
   # 仅在可切换系统场景强制要求硬件配置；rootless+build 可依赖 host fallback 做评估/构建
   if should_require_hardware_config; then
     if ! has_any_hardware_config "${ETC_DIR}"; then
-      error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hosts/<hostname>/hardware-configuration.nix；请先运行 nixos-generate-config。"
+      error "缺少硬件配置：${ETC_DIR}/hardware-configuration.nix 或 ${ETC_DIR}/hardware-configuration.nix；请先运行 nixos-generate-config。"
     fi
   else
     note "rootless + build 模式：跳过硬件配置强制检查（仅构建/评估）。"
@@ -130,12 +130,12 @@ script_shebang_shell() {
 self_check_scripts() {
   # 遍历仓库脚本，确保语法与 shebang 合法
   local repo_dir="$1"
-  local user_scripts_dir="${repo_dir}/home/users"
+  local user_scripts_dir="${repo_dir}/users"
   local pkg_scripts_dir="${repo_dir}/pkgs"
   local run_scripts_dir="${repo_dir}/scripts/run"
   local scripts=()
 
-  # 收集 home/users/*/scripts 下的脚本（可执行脚本）
+  # 收集 users/*/scripts 下的脚本（可执行脚本）
   if [[ -d "${user_scripts_dir}" ]]; then
     mapfile -d '' -t scripts < <(
       find "${user_scripts_dir}" -type f -path "*/scripts/*" -print0 2>/dev/null
@@ -177,7 +177,7 @@ self_check_scripts() {
   fi
 
   if [[ ${#scripts[@]} -eq 0 ]]; then
-    warn "未找到可自检脚本（home/users/*/scripts、pkgs/*/scripts/*.sh、scripts/run/*.sh 或 run.sh）"
+    warn "未找到可自检脚本（users/*/scripts、pkgs/*/scripts/*.sh、scripts/run/*.sh 或 run.sh）"
     return 0
   fi
 

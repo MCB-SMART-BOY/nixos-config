@@ -1,6 +1,13 @@
 # run.sh deploy 命令链路
 
 deploy_flow() {
+  if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+    cat <<'EOF'
+用法: run.sh deploy
+启动交互式部署向导，逐步引导你完成主机/用户/TUN/GPU 配置。
+EOF
+    return 0
+  fi
   banner
   prompt_deploy_mode
   validate_mode_conflicts

@@ -1,6 +1,6 @@
 # 项目细节与联动关系
 
-如果说 `docs/STRUCTURE.md` 解决的是“去哪里改”，那这页解决的就是“为什么这样拆、改了以后会连到哪里”。
+如果说 `docs/STRUCTURE.md` 解决的是"去哪里改"，那这页解决的就是"为什么这样拆、改了以后会连到哪里"。
 
 它更像一张维护地图。
 你不用一口气全部记住，但当你准备动下面这些地方时，这页会很有用：
@@ -9,59 +9,59 @@
 - 用户包与系统包的边界
 - GPU 配置与 specialisation
 - Noctalia 按钮和用户脚本
-- `run.sh` / `scripts-rs` 两套路线
+- `run.sh` 部署流程
 
 ---
 
 ## 快速定位
 
-- 改默认用户、多用户、管理员：`hosts/<hostname>/default.nix` 与 `modules/users.nix`
-- 改系统共享包组：`hosts/profiles/*.nix` 与 `modules/packages.nix`
-- 改某个用户的软件：`home/users/<user>/packages.nix`
-- 改用户界面配置：`home/users/<user>/config/`
-- 改 Noctalia 行为：`home/users/<user>/noctalia.nix`、`home/users/<user>/scripts/`
+- 改默认用户、多用户、管理员：`modules/default.nix` 与 `modules/users.nix`
+- 改系统共享包组：`modules/default.nix` 与 `modules/packages.nix`
+- 改某个用户的软件：`users/<user>/packages.nix`
+- 改用户界面配置：`users/<user>/config/`
+- 改 Noctalia 行为：`users/<user>/noctalia.nix`、`users/<user>/scripts/`
 - 改部署流程：`run.sh` 与 `scripts/run/`
-- 改 Rust 脚本：`scripts-rs/`
+- 改 nixpkgs 包覆盖：`overlays/default.nix`
 
 ---
 
-## 1. Home Manager 这一层，负责“人”
+## 1. Home Manager 这一层，负责"人"
 
 你可以把 `home/` 理解成一个问题：
 
-“某个用户登录之后，他看到的终端、编辑器、桌面栏、应用清单，应该是什么样？”
+"某个用户登录之后，他看到的终端、编辑器、桌面栏、应用清单，应该是什么样？"
 
 关键入口：
 
-- `home/users/<user>/default.nix`
-- `home/profiles/full.nix`
-- `home/profiles/minimal.nix`
-- `home/modules/*.nix`
+- `users/<user>/default.nix`
+- `users/admin/full.nix`
+- `users/admin/minimal.nix`
+- `users/admin/*.nix`
 
 比较常见的公共模块有：
 
-- `home/modules/base.nix`
+- `users/admin/base.nix`
   - 环境变量、PATH、基础行为
-- `home/modules/shell.nix`
+- `users/admin/shell.nix`
   - zsh、direnv、zoxide、starship、tmux
-- `home/modules/programs.nix`
+- `users/admin/programs.nix`
   - 终端和编辑器等常见程序
-- `home/modules/desktop.nix`
+- `users/admin/desktop.nix`
   - 桌面集成、Noctalia、桌面入口、图形运行时补丁
-- `home/modules/git.nix`
-  - git 的公共基础设置
+- `users/admin/git.nix`
+  - git 的公共基础设置（身份通过 `mcb.git.*` 选项参数化）
 
 这层最关键的设计点是：
 
 - 每个用户都有自己的入口目录
 - 每个用户都可以独立声明 `home.packages`
-- 用户之间不通过“共享一个大文件”来分配软件
+- 用户之间不通过"共享一个大文件"来分配软件
 
 这意味着你以后新增管理员用户、服务器用户、笔记本用户时，都可以让他们拥有自己的软件声明空间，而不是一改全改。
 
 ---
 
-## 2. 用户软件为什么要放 `home/users/<user>/packages.nix`
+## 2. 用户软件为什么要放 `users/<user>/packages.nix`
 
 这不是风格问题，是边界问题。
 
@@ -97,23 +97,23 @@
 - 某个用户自己的开发工具
 
 这样做时，Nix store 仍然会共享构建产物。
-区别只在于“这个包是否出现在该用户的 profile 里”，而不是“机器上到底有没有重复装一份”。
+区别只在于"这个包是否出现在该用户的 profile 里"，而不是"机器上到底有没有重复装一份"。
 
 ---
 
-## 3. 系统层，负责“机器”
+## 3. 系统层，负责"机器"
 
 系统层最核心的入口有三个：
 
-- `hosts/<hostname>/default.nix`
-- `hosts/profiles/*.nix`
+- `modules/default.nix`
+- `modules/default.nix`
 - `modules/*.nix`
 
 这三层各自的职责不一样：
 
-### `hosts/<hostname>/default.nix`
+### `modules/default.nix`
 
-这里放“这台机器自己的决定”。
+这里放"这台机器自己的决定"。
 
 例如：
 
@@ -124,9 +124,9 @@
 - 管理员用户
 - 主机私有覆盖
 
-### `hosts/profiles/*.nix`
+### `modules/default.nix`
 
-这里放“某一类机器默认应该长什么样”。
+这里放"某一类机器默认应该长什么样"。
 
 例如：
 
@@ -136,7 +136,7 @@
 
 ### `modules/*.nix`
 
-这里放“跨主机复用的能力模块”。
+这里放"跨主机复用的能力模块"。
 
 例如：
 
@@ -145,7 +145,7 @@
 - `modules/networking.nix`
 - `modules/nix.nix`
 - `modules/services*.nix`
-- `modules/hardware/gpu.nix`
+- `hardware-configuration.nix（nixos-generate-config 生成）`
 
 ---
 
@@ -170,7 +170,7 @@
 
 - `modules/users.nix`
 
-这也是为什么“加用户”不能只在 `home/users/` 里新建目录。
+这也是为什么"加用户"不能只在 `users/` 里新建目录。
 用户目录决定的是这个用户怎么用系统，不决定系统里有没有这个用户。
 
 ---
@@ -179,7 +179,7 @@
 
 GPU 配置集中在：
 
-- `modules/hardware/gpu.nix`
+- `hardware-configuration.nix（nixos-generate-config 生成）`
 
 关键字段是：
 
@@ -215,28 +215,25 @@ GPU 配置集中在：
 
 ## 6. Noctalia 与用户脚本，是怎么接起来的
 
-这一块容易误解成“只是几个桌面小脚本”，但实际上它有明确层次。
+这一块容易误解成"只是几个桌面小脚本"，但实际上它有明确层次。
 
 原始脚本放在：
 
-- `home/users/<user>/scripts/`
+- `users/<user>/scripts/`
 
 用户脚本打包逻辑在：
 
-- `home/users/<user>/scripts.nix`
+- `users/<user>/scripts.nix`
 
-对于 `mcbnixos`，Noctalia 的用户级入口还在：
+对于 `admin`，Noctalia 的用户级入口还在：
 
-- `home/users/mcbnixos/noctalia.nix`
+- `users/admin/noctalia.nix`
 
 目前的实际状态是：
 
-- Home Manager 默认仍然打包 Shell 版用户脚本
-- `scripts-rs/` 中已经提供对应 Rust 实现，适合独立运行、测试和后续迁移
-
-这两条路线现在是并存关系，不是“Rust 已经完全接管 Home Manager 用户脚本打包链”。
-
-这点在写文档和维护时必须说清楚，否则很容易以为所有用户脚本都已经换成 Rust 入口了。
+- Home Manager 打包 Shell 版用户脚本
+- 脚本通过 `users/<user>/scripts.nix` 安装到 `~/.local/bin`
+- Noctalia 顶栏按钮引用这些脚本路径
 
 ---
 
@@ -246,10 +243,14 @@ GPU 配置集中在：
 
 - `scripts/run/cmd/`
   - 命令入口，例如部署和 release
+- `scripts/run/lib/vars.sh`
+  - 共享状态变量集中声明
 - `scripts/run/lib/ui.sh`
   - 日志、菜单、确认、进度条
 - `scripts/run/lib/env.sh`
   - 环境检查、脚本自检
+- `scripts/run/lib/state.sh`
+  - 状态重置与 PCI busId 工具
 - `scripts/run/lib/targets/`
   - 主机、用户、覆盖项收集
 - `scripts/run/lib/pipeline.sh`
@@ -264,33 +265,14 @@ GPU 配置集中在：
 
 ---
 
-## 8. `scripts-rs` 不是摆设，它现在能做到什么
-
-`scripts-rs/` 里是这套脚本体系的 Rust 实现。
-
-比较关键的事实：
-
-- `run-rs` 已具备完整部署 / release 流程实现
-- `noctalia-gpu-mode-rs` 已具备完整 GPU 模式状态、菜单与应用逻辑
-- 其他 `*-rs` 也覆盖了现有大部分用户脚本
-
-但目前仓库默认入口仍然是：
-
-- `./run.sh`
-
-也就是说，Rust 路线已经能用，但仓库主流程还没有强制切过去。
-这是一种比较稳的过渡方式：先把能力补齐，再决定什么时候把默认入口切换。
-
----
-
-## 9. Zed 和 YesPlayMusic 为什么单独打包
+## 8. Zed 和 YesPlayMusic 为什么单独打包
 
 它们现在都走自定义包目录：
 
 - `pkgs/zed/`
 - `pkgs/yesplaymusic/`
 
-目的不是为了“炫技”，而是为了控制两个东西：
+目的不是为了"炫技"，而是为了控制两个东西：
 
 - 上游版本
 - 固定 hash
@@ -303,6 +285,10 @@ GPU 配置集中在：
 - `pkgs/yesplaymusic/scripts/update-source.sh`
 - `pkgs/scripts/update-upstream-apps.sh`
 
+共享辅助函数：
+
+- `pkgs/lib/update-helpers.sh`
+
 如果你平时想统一追新，这个入口最省事：
 
 ```bash
@@ -311,7 +297,7 @@ GPU 配置集中在：
 
 ---
 
-## 10. 图形运行时补丁，为什么存在
+## 9. 图形运行时补丁，为什么存在
 
 桌面环境里总会碰到一类程序：
 
@@ -333,17 +319,17 @@ GPU 配置集中在：
 
 ---
 
-## 11. 维护时最值得坚持的习惯
+## 10. 维护时最值得坚持的习惯
 
 如果你想让这套仓库长期还能舒服维护，最值钱的不是多会写 Nix，而是下面这几个习惯：
 
 - 改系统层之前，先确认这是不是用户层问题
 - 改主机层之前，先确认这是不是 profile 应该处理的默认值
-- 加软件之前，先问自己这是“共享能力”还是“个人需要”
+- 加软件之前，先问自己这是"共享能力"还是"个人需要"
 - 动大结构之前，先跑 `nix flake check`
 - 遇到奇怪行为时，先确认当前改动跨了几层
 
-很多“项目越来越重”的根本原因，不是功能太多，而是边界开始模糊。
+很多"项目越来越重"的根本原因，不是功能太多，而是边界开始模糊。
 
 这套仓库现在最重要的价值，不只是功能齐，而是边界还算清楚。
 维护的时候，尽量把这点保住。

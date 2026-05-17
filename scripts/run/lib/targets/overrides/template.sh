@@ -3,29 +3,40 @@
 # 为缺失用户自动生成 Home Manager 入口模板，并补齐默认用户配置。
 ensure_user_home_entries() {
   local repo_dir="$1"
-  local profile_import="../../profiles/full.nix"
+  # 从 admin 复制的共享模块（不含 git.nix，每个用户有自包含的 git.nix）
+  local shared_module_files=(
+    "./base.nix"
+    "./programs.nix"
+    "./desktop.nix"
+    "./shell.nix"
+
+  )
   local extra_imports=(
     "./git.nix"
     "./packages.nix"
   )
   local include_user_files=true
   if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
-    profile_import="../../profiles/minimal.nix"
+    shared_module_files=(
+      "./base.nix"
+      "./shell.nix"
+
+    )
     include_user_files=false
   fi
   local default_user=""
   local template_user=""
   local template_dir=""
   default_user="$(resolve_default_user)"
-  if [[ -n "${default_user}" && -d "${repo_dir}/home/users/${default_user}" ]]; then
+  if [[ -n "${default_user}" && -d "${repo_dir}/users/${default_user}" ]]; then
     template_user="${default_user}"
-    template_dir="${repo_dir}/home/users/${default_user}"
-  elif [[ -d "${repo_dir}/home/users/mcbnixos" ]]; then
-    template_user="mcbnixos"
-    template_dir="${repo_dir}/home/users/mcbnixos"
+    template_dir="${repo_dir}/users/${default_user}"
+  elif [[ -d "${repo_dir}/users/admin" ]]; then
+    template_user="admin"
+    template_dir="${repo_dir}/users/admin"
   fi
   if [[ -n "${template_dir}" ]]; then
-    note "新用户模板来源：home/users/${template_user}"
+    note "新用户模板来源：users/${template_user}"
   fi
   local copy_template_content="false"
   if [[ "${RUN_SH_COPY_USER_TEMPLATE:-false}" == "true" ]]; then
@@ -37,7 +48,7 @@ ensure_user_home_entries() {
 
   local user=""
   for user in "${TARGET_USERS[@]}"; do
-    local user_dir="${repo_dir}/home/users/${user}"
+    local user_dir="${repo_dir}/users/${user}"
     local user_file="${user_dir}/default.nix"
     local create_default=false
     if [[ ! -f "${user_file}" ]]; then
@@ -46,6 +57,14 @@ ensure_user_home_entries() {
 
     mkdir -p "${user_dir}"
     if [[ "${create_default}" == "true" && -n "${template_dir}" && "${user_dir}" != "${template_dir}" ]]; then
+      # 始终复制共享模块文件（base.nix 等）从模板用户到新用户
+      local _smf=""
+      for _smf in "${shared_module_files[@]}"; do
+        if [[ -f "${template_dir}/${_smf}" && ! -f "${user_dir}/${_smf}" ]]; then
+          cp -a "${template_dir}/${_smf}" "${user_dir}/${_smf}"
+        fi
+      done
+
       if [[ "${include_user_files}" == "true" && "${copy_template_content}" == "true" ]]; then
         local item=""
         for item in config assets scripts; do
@@ -63,14 +82,49 @@ ensure_user_home_entries() {
     fi
     if [[ ! -f "${user_dir}/git.nix" ]]; then
       cat > "${user_dir}/git.nix" <<'EOF_GIT'
-# 默认 Git 身份（请按需修改）
-{ config, ... }:
+# 当前用户的 Git 配置（自包含：选项定义 + 程序配置 + 身份覆盖）。
+# 默认值在 home/git.nix 中定义；此处按需覆盖。
+
+{ config, lib, ... }:
 
 {
-  programs.git.settings.user = {
-    name = config.home.username;
-    # email = "you@example.com";
+  options.mcb.git = {
+    userName = lib.mkOption {
+      type = lib.types.str;
+      default = "your-name";
+      description = "Git user.name for commits.";
+    };
+    userEmail = lib.mkOption {
+      type = lib.types.str;
+      default = "you@example.com";
+      description = "Git user.email for commits.";
+    };
   };
+
+  config = {
+    mcb.git.userName = lib.mkDefault "your-name";
+    mcb.git.userEmail = lib.mkDefault "you@example.com";
+
+    programs.git = {
+      enable = true;
+      lfs.enable = true;
+      settings = {
+        user = {
+          name = cfg.userName;
+          email = cfg.userEmail;
+        };
+        core = {
+          editor = "hx";
+          pager = "delta";
+        };
+        interactive.diffFilter = "delta --color-only";
+        delta = {
+          navigate = true;
+          "side-by-side" = true;
+        };
+      };
+    };
+
 }
 EOF_GIT
     fi
@@ -128,13 +182,29 @@ EOF_LOCAL
       continue
     fi
 
-    local import_lines="    ${profile_import}"
+    local import_lines=""
+    local smf
+    for smf in "${shared_module_files[@]}"; do
+      if [[ -z "${import_lines}" ]]; then
+        import_lines="    ${smf}"
+      else
+        import_lines+=$'\n'"    ${smf}"
+      fi
+    done
     local extra_import=""
     for extra_import in "${extra_imports[@]}"; do
       if [[ -f "${user_dir}/${extra_import}" ]]; then
         import_lines+=$'\n'"    ${extra_import}"
       fi
     done
+      # 始终复制共享模块文件（base.nix 等）从模板用户到新用户
+      local _smf=""
+      for _smf in "${shared_module_files[@]}"; do
+        if [[ -f "${template_dir}/${_smf}" && ! -f "${user_dir}/${_smf}" ]]; then
+          cp -a "${template_dir}/${_smf}" "${user_dir}/${_smf}"
+        fi
+      done
+
     if [[ "${include_user_files}" == "true" ]]; then
       if [[ -f "${user_dir}/files.nix" ]]; then
         import_lines+=$'\n'"    ./files.nix"
@@ -163,7 +233,7 @@ ${import_lines}
 }
 EOF_USER
     CREATED_HOME_USERS+=("${user}")
-    warn "已为新用户自动生成 Home Manager 入口：home/users/${user}/default.nix"
+    warn "已为新用户自动生成 Home Manager 入口：users/${user}/default.nix"
   done
 }
 
@@ -176,33 +246,119 @@ preserve_existing_local_override() {
   if [[ -z "${TARGET_NAME}" ]]; then
     return 0
   fi
-  local src="${ETC_DIR}/hosts/${TARGET_NAME}/local.nix"
-  local dst="${repo_dir}/hosts/${TARGET_NAME}/local.nix"
+  local src="${ETC_DIR}/local.nix"
+  local dst="${repo_dir}/local.nix"
   if [[ -f "${src}" ]]; then
     mkdir -p "$(dirname "${dst}")"
     if cp -a "${src}" "${dst}"; then
-      note "仅更新模式：已保留现有 hosts/${TARGET_NAME}/local.nix"
+      note "仅更新模式：已保留现有 host/local.nix"
     else
       warn "仅更新模式：复制现有 local.nix 失败，将继续使用仓库版本。"
     fi
   else
-    note "仅更新模式：未发现现有 hosts/${TARGET_NAME}/local.nix，将按仓库默认配置更新。"
+    note "仅更新模式：未发现现有 host/local.nix，将按仓库默认配置更新。"
   fi
 }
 
-# 写入 hosts/<host>/local.nix 覆盖项。
+# 增量追加用户到 local.nix（用于 add-user 命令，不动已有配置）。
+# 参数: repo_dir host_name username is_admin
+append_user_to_local_override() {
+  local repo_dir="$1"
+  local host_name="$2"
+  local username="$3"
+  local is_admin="${4:-false}"
+  local repo_root="${repo_dir}"
+  local file="${repo_root}/local.nix"
+
+  if [[ ! -d "${repo_root}" ]]; then
+    error "主机目录不存在：${repo_root}"
+  fi
+
+  # 如果 local.nix 不存在，生成全新文件
+  if [[ ! -f "${file}" ]]; then
+    log "local.nix 不存在，生成新文件"
+    TARGET_NAME="${host_name}"
+    TARGET_USERS=("${username}")
+    if [[ "${is_admin}" == "true" ]]; then
+      TARGET_ADMIN_USERS=("${username}")
+    fi
+    write_local_override "${repo_dir}"
+    return 0
+  fi
+
+  # local.nix 存在：读取现有用户列表，追加新用户
+  log "在现有 local.nix 中追加用户：${username}"
+
+  local tmp_file
+  tmp_file="$(mktemp)"
+
+  local in_users=false
+  local in_admin=false
+  local user_found=false
+  local admin_found=false
+
+  while IFS= read -r line; do
+    # 检测 mcb.users 行
+    if [[ "${line}" =~ mcb\.users.*=.*\[ ]]; then
+      in_users=true
+      # 检查是否已包含该用户
+      if [[ "${line}" == *"\"${username}\""* ]]; then
+        user_found=true
+      fi
+    fi
+
+    # 在 mcb.users 列表闭括号前追加
+    if [[ "${in_users}" == "true" && "${line}" == *"];"* ]]; then
+      if [[ "${user_found}" != "true" ]]; then
+        # 在 ] 前插入新用户名
+        printf '%s\n' "${line/];/  \"${username}\"\n  ];}" >> "${tmp_file}"
+      else
+        printf '%s\n' "${line}" >> "${tmp_file}"
+        note "用户 ${username} 已在 mcb.users 中，跳过追加。"
+      fi
+      in_users=false
+      continue
+    fi
+
+    # 检测 mcb.adminUsers 行
+    if [[ "${line}" =~ mcb\.adminUsers.*=.*\[ ]]; then
+      in_admin=true
+      if [[ "${line}" == *"\"${username}\""* ]]; then
+        admin_found=true
+      fi
+    fi
+
+    # 在 mcb.adminUsers 闭括号前追加（仅当 --admin）
+    if [[ "${in_admin}" == "true" && "${line}" == *"];"* ]]; then
+      if [[ "${is_admin}" == "true" && "${admin_found}" != "true" ]]; then
+        printf '%s\n' "${line/];/  \"${username}\"\n  ];}" >> "${tmp_file}"
+      else
+        printf '%s\n' "${line}" >> "${tmp_file}"
+      fi
+      in_admin=false
+      continue
+    fi
+
+    printf '%s\n' "${line}" >> "${tmp_file}"
+  done < "${file}"
+
+  mv "${tmp_file}" "${file}"
+  success "已将 ${username} 追加到 host/local.nix"
+}
+
+# 写入 host/local.nix 覆盖项（全文重写模式，用于初次部署）。
 write_local_override() {
   local repo_dir="$1"
-  local host_dir="${repo_dir}/hosts/${TARGET_NAME}"
-  local file="${host_dir}/local.nix"
+  local repo_root="${repo_dir}"
+  local file="${repo_root}/local.nix"
 
   if [[ ${#TARGET_USERS[@]} -eq 0 ]]; then
     return 0
   fi
 
   # 只在需要时生成 local.nix（不会覆盖已有文件）
-  if [[ ! -d "${host_dir}" ]]; then
-    error "主机目录不存在：${host_dir}"
+  if [[ ! -d "${repo_root}" ]]; then
+    error "主机目录不存在：${repo_root}"
   fi
 
   local primary="${TARGET_USERS[0]}"
@@ -230,18 +386,6 @@ write_local_override() {
     echo "  mcb.users = lib.mkForce [${list} ];"
     echo "  mcb.adminUsers = lib.mkForce [${admin_list} ];"
 
-    if [[ "${PER_USER_TUN_ENABLED}" == "true" && ${#USER_TUN[@]} -gt 0 ]]; then
-      echo "  mcb.perUserTun.interfaces = lib.mkForce {"
-      for user in "${TARGET_USERS[@]}"; do
-        echo "    ${user} = \"${USER_TUN[${user}]}\";"
-      done
-      echo "  };"
-      echo "  mcb.perUserTun.dnsPorts = lib.mkForce {"
-      for user in "${TARGET_USERS[@]}"; do
-        echo "    ${user} = ${USER_DNS[${user}]};"
-      done
-      echo "  };"
-    fi
 
     if [[ "${GPU_OVERRIDE}" == "true" ]]; then
       echo "  mcb.hardware.gpu.mode = lib.mkForce \"${GPU_MODE}\";"

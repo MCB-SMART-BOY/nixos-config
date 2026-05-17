@@ -1,5 +1,6 @@
-# 入口文件（Flake）：定义依赖、主机列表与 Home Manager 组合方式。
-# 新增/删除主机时，先看这里如何扫描 hosts/。
+# 入口文件（Flake）：系统模块 + Home Manager 用户组合。
+# 系统配置在 modules/，用户配置在 users/。
+# hardware-configuration.nix 与 local.nix 在项目根目录（gitignored）。
 
 {
   description = "NixOS + Home Manager configuration (unstable)";
@@ -24,7 +25,6 @@
       ...
     }@inputs:
     let
-      # 当前系统架构（优先使用 currentSystem；不支持时回退到 NIX_SYSTEM 或 x86_64-linux）
       defaultSystem =
         if builtins ? currentSystem then
           builtins.currentSystem
@@ -33,99 +33,51 @@
             envSystem = builtins.getEnv "NIX_SYSTEM";
           in
           if envSystem != "" then envSystem else "x86_64-linux";
-      # 内置默认架构仅用于已知主机；新增主机请显式提供 hosts/<name>/system.nix。
-      hostSystemDefaults = {
-        laptop = "x86_64-linux";
-        nixos = "x86_64-linux";
-        server = "x86_64-linux";
-      };
-      # 每个 host 应显式指定 system（hosts/<name>/system.nix），避免跨架构误评估/误构建。
-      hostSystem =
-        name:
-        let
-          systemFile = ./hosts + "/${name}/system.nix";
-        in
-        if builtins.pathExists systemFile then
-          import systemFile
-        else if builtins.hasAttr name hostSystemDefaults then
-          hostSystemDefaults.${name}
-        else
-          throw "Missing hosts/${name}/system.nix. Please define an explicit target system (e.g. \"x86_64-linux\").";
-      # 自动读取 hosts/ 下的主机目录（排除 profiles / _support / templates）
-      hostEntries = builtins.readDir ./hosts;
-      hostNames = builtins.filter (
-        name:
-        hostEntries.${name} == "directory"
-        && !(builtins.elem name [
-          "_support"
-          "profiles"
-          "templates"
-        ])
-      ) (builtins.attrNames hostEntries);
+
       pkgsForDefault = nixpkgs.legacyPackages.${defaultSystem};
-      overlay = final: prev: {
-        valkey = prev.valkey.overrideAttrs (old: {
-          doCheck = false;
-        });
-        openldap = prev.openldap.overrideAttrs (old: {
-          doCheck = false;
-        });
-        wireshark = prev.wireshark.overrideAttrs (old: {
-          src = final.fetchzip {
-            url = "https://www.wireshark.org/download/src/wireshark-${old.version}.tar.xz";
-            hash = "sha256-CMybqzDHi+HiC7zCcVTz0aGMY93K4BbtMLg2sDHypc8=";
-          };
-        });
+      overlay = import ./overlays/default.nix;
+
+      mkNixosConfig = nixpkgs.lib.nixosSystem {
+        system = defaultSystem;
+        specialArgs = { inherit inputs; };
+        modules = [
+          ./modules
+          home-manager.nixosModules.home-manager
+          (
+            { config, ... }:
+            let
+              userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
+              mkUser =
+                name:
+                let
+                  userModule = ./users + "/${name}/default.nix";
+                in
+                if builtins.pathExists userModule then
+                  {
+                    inherit name;
+                    value = import userModule;
+                  }
+                else
+                  throw "Missing Home Manager entry for user '${name}': expected ${toString userModule}";
+            in
+            {
+              nixpkgs.overlays = [ overlay ];
+              home-manager.useGlobalPkgs = true;
+              home-manager.useUserPackages = true;
+              home-manager.backupFileExtension = "bak";
+              home-manager.extraSpecialArgs = { inherit inputs; };
+              home-manager.users = builtins.listToAttrs (map mkUser userList);
+            }
+          )
+        ]
+        # 项目根目录的硬件配置与本地覆盖（可选）
+        ++ lib.optional (builtins.pathExists ./hardware-configuration.nix) ./hardware-configuration.nix
+        ++ lib.optional (builtins.pathExists ./local.nix) ./local.nix;
       };
-      # 为每个主机构造 nixosSystem，并注入 Home Manager
-      mkHost =
-        name:
-        nixpkgs.lib.nixosSystem {
-          system = hostSystem name;
-          specialArgs = { inherit inputs; };
-          modules = [
-            (./hosts + "/${name}")
-            home-manager.nixosModules.home-manager
-            (
-              { config, pkgs, ... }:
-              let
-                # 从 mcb.users 收集所有用户，否则使用单一 mcb.user
-                userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
-                # 将每个用户映射到 home/users/<name>
-                mkUser =
-                  name:
-                  let
-                    userModule = ./home/users + "/${name}/default.nix";
-                  in
-                  if builtins.pathExists userModule then
-                    {
-                      inherit name;
-                      value = import userModule;
-                    }
-                  else
-                    throw "Missing Home Manager entry for user '${name}': expected ${toString userModule}";
-              in
-              {
-                nixpkgs.overlays = [ overlay ];
-                # Home Manager 与系统共享同一套 pkgs
-                home-manager.useGlobalPkgs = true;
-                home-manager.useUserPackages = true;
-                home-manager.backupFileExtension = "bak";
-                home-manager.extraSpecialArgs = { inherit inputs; };
-                # 批量启用 Home Manager 用户
-                home-manager.users = builtins.listToAttrs (map mkUser userList);
-              }
-            )
-          ];
-        };
+      lib = nixpkgs.lib;
     in
     {
-      nixosConfigurations = builtins.listToAttrs (
-        map (name: {
-          inherit name;
-          value = mkHost name;
-        }) hostNames
-      );
+      nixosConfigurations.host = mkNixosConfig;
 
       checks.${defaultSystem}.shell-syntax =
         pkgsForDefault.runCommand "shell-syntax-check"
@@ -136,8 +88,6 @@
               findutils
               gnugrep
               gnused
-              cargo
-              rustc
               shellcheck
             ];
           }
@@ -189,7 +139,7 @@
             while IFS= read -r -d "" file; do
               check_file "$file"
               shellcheck_file "$file"
-            done < <(find home/users -type f -path "*/scripts/*" -print0)
+            done < <(find users -type f -path "*/scripts/*" -print0)
 
             if [ -d pkgs ]; then
               while IFS= read -r -d "" file; do
@@ -207,10 +157,6 @@
                 bash -n "$file"
                 shellcheck_file "$file"
               done < <(find scripts/run -type f -name "*.sh" -print0)
-            fi
-
-            if [ -f scripts-rs/Cargo.toml ]; then
-              (cd scripts-rs && cargo check --quiet)
             fi
 
             touch "$out"

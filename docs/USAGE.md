@@ -1,6 +1,6 @@
 # 使用说明
 
-这份文档不是“把所有命令抄一遍”的清单，而是按真实使用场景写的维护手册。
+这份文档不是"把所有命令抄一遍"的清单，而是按真实使用场景写的维护手册。
 
 如果你现在处于下面这些情况，这页最适合你：
 
@@ -42,7 +42,7 @@ cd nixos-config
 
 ---
 
-## 2. 如果你是从一台“空机器”开始
+## 2. 如果你是从一台"空机器"开始
 
 ### 2.1 先生成硬件配置
 
@@ -56,9 +56,9 @@ sudo nixos-generate-config
 
 这套仓库也接受把它放在：
 
-- `/etc/nixos/hosts/<hostname>/hardware-configuration.nix`
+- `/etc/nixos/modules/<hostname>/hardware-configuration.nix`
 
-你不用一开始就纠结“哪种更优雅”。只要当前主机能被正确评估和重建，先跑起来最重要。
+你不用一开始就纠结"哪种更优雅"。只要当前主机能被正确评估和重建，先跑起来最重要。
 
 ### 2.2 应用配置
 
@@ -68,7 +68,7 @@ sudo nixos-generate-config
 sudo nixos-rebuild switch --flake .#<hostname>
 ```
 
-第一次切完以后，建议重启一次。尤其是你动了图形栈、驱动、代理或 specialisation 时，这一步能省掉很多“看起来怪怪的”问题。
+第一次切完以后，建议重启一次。尤其是你动了图形栈、驱动、代理或 specialisation 时，这一步能省掉很多"看起来怪怪的"问题。
 
 ---
 
@@ -109,7 +109,6 @@ nix flake check
 
 - `run.sh` 和分层 shell 脚本
 - ShellCheck
-- `scripts-rs` 的 `cargo check`
 
 ---
 
@@ -117,16 +116,16 @@ nix flake check
 
 答案很明确：去写这个用户自己的文件。
 
-- `home/users/<user>/packages.nix`
+- `users/<user>/packages.nix`
 
-现在这套仓库的思路不是“把所有桌面软件都扔进系统层”，而是：
+现在这套仓库的思路不是"把所有桌面软件都扔进系统层"，而是：
 
 - 系统共享的东西放系统层
 - 只属于某个用户的东西放用户层
 
-例如你要给 `mcbnixos` 加 Zed、YesPlayMusic、浏览器、聊天软件，就写在：
+例如你要给 `admin` 加 Zed、YesPlayMusic、浏览器、聊天软件，就写在：
 
-- `home/users/mcbnixos/packages.nix`
+- `users/admin/packages.nix`
 
 这样做的结果是：
 
@@ -140,9 +139,9 @@ nix flake check
 
 如果你通过 `./run.sh` 新增了一个仓库里还不存在的用户，脚本会帮你生成最小模板：
 
-- `home/users/<user>/default.nix`
-- `home/users/<user>/packages.nix`
-- `home/users/<user>/local.nix.example`
+- `users/<user>/default.nix`
+- `users/<user>/packages.nix`
+- `users/<user>/local.nix.example`
 
 默认行为是保守的：
 
@@ -155,7 +154,7 @@ nix flake check
 RUN_SH_COPY_USER_TEMPLATE=true ./run.sh
 ```
 
-这更适合“批量生成一组风格接近的新用户”的场景。
+这更适合"批量生成一组风格接近的新用户"的场景。
 
 ---
 
@@ -163,13 +162,13 @@ RUN_SH_COPY_USER_TEMPLATE=true ./run.sh
 
 你可以这样记：
 
-### 主机层回答的是“这台机器应该是什么样”
+### 主机层回答的是"这台机器应该是什么样"
 
 看这里：
 
-- `hosts/<hostname>/default.nix`
-- `hosts/profiles/desktop.nix`
-- `hosts/profiles/server.nix`
+- `modules/default.nix`
+- `modules/profiles/desktop.nix`
+- `modules/profiles/server.nix`
 
 主机层负责的是：
 
@@ -179,13 +178,13 @@ RUN_SH_COPY_USER_TEMPLATE=true ./run.sh
 - 系统共享包组
 - GPU、网络、缓存、虚拟化这些机器级能力
 
-### 用户层回答的是“这个人想怎么用这台机器”
+### 用户层回答的是"这个人想怎么用这台机器"
 
 看这里：
 
-- `home/users/<user>/default.nix`
-- `home/users/<user>/packages.nix`
-- `home/users/<user>/config/`
+- `users/<user>/default.nix`
+- `users/<user>/packages.nix`
+- `users/<user>/config/`
 
 用户层负责的是：
 
@@ -232,9 +231,8 @@ sudo nixos-rebuild switch --specialisation gpu-dgpu
 mcb.proxyMode = "tun";   # 或 "http" / "off"
 ```
 
-如果你要做“不同用户走不同节点 / 不同 TUN 接口”，看的是：
+如果你要做"不同用户走不同节点 / 不同 TUN 接口"，看的是：
 
-- `mcb.perUserTun.*`
 
 这部分的经验结论只有一句：
 
@@ -263,7 +261,7 @@ Zed 和 YesPlayMusic 在这套仓库里不是简单依赖 nixpkgs，而是做了
 ./pkgs/scripts/update-upstream-apps.sh
 ```
 
-如果你只是想知道“上游有没有更新”，但不想立刻改文件：
+如果你只是想知道"上游有没有更新"，但不想立刻改文件：
 
 ```bash
 ./pkgs/scripts/update-upstream-apps.sh --check
@@ -291,7 +289,6 @@ sudo nixos-rebuild switch --rollback
 如果你准备做较大的结构调整，建议额外做两件事：
 
 ```bash
-git status
 git tag before-big-change
 ```
 
@@ -309,6 +306,6 @@ git tag before-big-change
 4. 没问题再 `switch`
 5. 大改后重启一次
 
-如果你发现自己越来越依赖“试一下看会不会炸”，那通常不是你手速不够快，而是这次改动边界没收干净。
+如果你发现自己越来越依赖"试一下看会不会炸"，那通常不是你手速不够快，而是这次改动边界没收干净。
 
 先回到目录分工，把问题缩回一层，再继续做，会轻松很多。

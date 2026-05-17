@@ -1,5 +1,135 @@
 # run.sh 向导摘要与流程
 
+# 交互式选择部署模式。
+prompt_deploy_mode() {
+  if [[ "${DEPLOY_MODE_SET}" == "true" || ! -t 0 || ! -t 1 ]]; then
+    return 0
+  fi
+  local pick
+  pick="$(menu_prompt "选择部署模式" 1 "新增/调整用户并部署（可修改用户/权限）" "仅更新当前配置（网络仓库最新，不改用户/权限）")"
+  case "${pick}" in
+    1)
+      set_deploy_mode "manage-users"
+      ;;
+    2)
+      set_deploy_mode "update-existing"
+      ;;
+  esac
+}
+
+# 交互式选择覆盖策略。
+prompt_overwrite_mode() {
+  if [[ "${OVERWRITE_MODE_SET}" == "true" ]]; then
+    return 0
+  fi
+  if ! is_tty; then
+    OVERWRITE_MODE="backup"
+    OVERWRITE_MODE_SET=true
+    return 0
+  fi
+  local pick
+  pick="$(menu_prompt "选择覆盖策略（/etc/nixos 已存在时）" 1 "先备份再覆盖（推荐）" "直接覆盖（不备份）" "执行时再询问")"
+  case "${pick}" in
+    1) OVERWRITE_MODE="backup" ;;
+    2) OVERWRITE_MODE="overwrite" ;;
+    3) OVERWRITE_MODE="ask" ;;
+  esac
+  OVERWRITE_MODE_SET=true
+}
+
+# 交互式选择是否在重建时升级上游依赖。
+prompt_rebuild_upgrade() {
+  if ! is_tty; then
+    REBUILD_UPGRADE=false
+    return 0
+  fi
+  REBUILD_UPGRADE="$(ask_bool "重建时升级上游依赖？" "false")"
+}
+
+# 交互式选择源代码来源与版本策略。
+prompt_source_strategy() {
+  if [[ "${SOURCE_CHOICE_SET}" == "true" ]]; then
+    return 0
+  fi
+
+  local local_repo=""
+  local_repo="$(detect_local_repo_dir || true)"
+
+  if ! is_tty; then
+    if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+      FORCE_REMOTE_SOURCE=true
+      ALLOW_REMOTE_HEAD=true
+      SOURCE_REF=""
+    else
+      if [[ -n "${local_repo}" ]]; then
+        FORCE_REMOTE_SOURCE=false
+        ALLOW_REMOTE_HEAD=false
+        SOURCE_REF=""
+      else
+        FORCE_REMOTE_SOURCE=true
+        ALLOW_REMOTE_HEAD=false
+      fi
+    fi
+    SOURCE_CHOICE_SET=true
+    return 0
+  fi
+
+  local options=()
+  local default_index=1
+  if [[ -n "${local_repo}" ]]; then
+    options+=("使用本地仓库（推荐）: ${local_repo}")
+  fi
+  options+=("使用网络仓库固定版本（输入 commit/tag）")
+  options+=("使用网络仓库最新版本（HEAD）")
+
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    default_index=${#options[@]}
+  fi
+
+  local pick
+  pick="$(menu_prompt "选择配置来源" "${default_index}" "${options[@]}")"
+
+  if [[ -n "${local_repo}" && "${pick}" == "1" ]]; then
+    FORCE_REMOTE_SOURCE=false
+    ALLOW_REMOTE_HEAD=false
+    SOURCE_REF=""
+  else
+    local remote_pick="${pick}"
+    if [[ -n "${local_repo}" ]]; then
+      remote_pick=$((pick - 1))
+    fi
+    case "${remote_pick}" in
+      1)
+        FORCE_REMOTE_SOURCE=true
+        ALLOW_REMOTE_HEAD=false
+        while true; do
+          read -r -p "请输入远端固定版本（commit/tag）： " SOURCE_REF
+          if [[ -n "${SOURCE_REF}" ]]; then
+            break
+          fi
+          echo "版本不能为空，请重试。"
+        done
+        ;;
+      2)
+        FORCE_REMOTE_SOURCE=true
+        ALLOW_REMOTE_HEAD=true
+        SOURCE_REF=""
+        ;;
+    esac
+  fi
+
+  SOURCE_CHOICE_SET=true
+}
+
+# 校验部署模式与运行时状态是否冲突。
+validate_mode_conflicts() {
+  if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
+    if [[ ${#TARGET_USERS[@]} -gt 0 ]]; then
+      error "仅更新模式不允许修改用户列表；该模式会保留现有用户与权限。"
+    fi
+  fi
+}
+
 # 打印部署摘要与提示。
 print_summary() {
   section "部署概要"
@@ -33,18 +163,14 @@ print_summary() {
     return 0
   fi
 
-  if [[ "${PER_USER_TUN_ENABLED}" == "true" ]]; then
     if [[ ${#USER_TUN[@]} -gt 0 ]]; then
-      printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用" "${COLOR_RESET}"
       local user
       for user in "${TARGET_USERS[@]}"; do
         printf '  - %s -> %s (DNS %s)\n' "${user}" "${USER_TUN[${user}]}" "${USER_DNS[${user}]}"
       done
     else
-      printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "已启用（沿用主机配置）" "${COLOR_RESET}"
     fi
   else
-    printf '%sPer-user TUN：%s%s\n' "${COLOR_BOLD}" "未启用" "${COLOR_RESET}"
   fi
 
   if [[ "${GPU_OVERRIDE}" == "true" ]]; then
@@ -143,7 +269,6 @@ wizard_flow() {
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
           TARGET_USERS=()
           reset_admin_users
-          reset_tun_maps
           reset_gpu_override
           reset_server_overrides
           TARGET_NAME=""
@@ -153,7 +278,6 @@ wizard_flow() {
         dedupe_users
         validate_users
         reset_admin_users
-        reset_tun_maps
         reset_gpu_override
         reset_server_overrides
         step=3
@@ -172,22 +296,14 @@ wizard_flow() {
         step=4
         ;;
       4)
-        # 检测并配置 per-user TUN
-        if detect_per_user_tun "${TMP_DIR}"; then
-          PER_USER_TUN_ENABLED=true
         else
-          PER_USER_TUN_ENABLED=false
         fi
         WIZARD_ACTION=""
-        if [[ "${PER_USER_TUN_ENABLED}" == "true" ]]; then
-          configure_per_user_tun
           if [[ "${WIZARD_ACTION}" == "back" ]]; then
-            reset_tun_maps
             step=3
             continue
           fi
         else
-          reset_tun_maps
         fi
         step=5
         ;;

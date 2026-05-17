@@ -1,0 +1,294 @@
+// Niri 配置文件（Wayland 平铺窗口管理器）
+// ~/.config/niri/config.kdl
+// 由 Home Manager 管理：users/admin/files.nix
+
+// ══════════════════════════════════════════════════════════════════
+// 🖥️ 输出配置
+// ══════════════════════════════════════════════════════════════════
+
+output "eDP-1" {
+    mode "3200x2000@165.002"
+    scale 2
+    position x=0 y=0
+}
+
+output "DP-5" {
+    mode "3840x2160@160.000"
+    scale 2
+    position x=-1920 y=-80
+}
+
+output "DP-1" {
+    mode "3840x2160@160.000"
+    scale 2
+    position x=-1920 y=-80
+}
+// ══════════════════════════════════════════════════════════════════
+// ⌨️ 输入配置
+// ══════════════════════════════════════════════════════════════════
+
+input {
+    keyboard {
+        xkb {
+            layout "us"
+            options "ctrl:swapcaps"
+        }
+        repeat-delay 300
+        repeat-rate 50
+    }
+
+    touchpad {
+        tap
+        dwt
+        natural-scroll
+        accel-speed 0.2
+        accel-profile "adaptive"
+    }
+
+    mouse {
+        accel-speed 0.0
+        accel-profile "flat"
+    }
+
+    focus-follows-mouse max-scroll-amount="0%"
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 🎨 布局配置
+// ══════════════════════════════════════════════════════════════════
+
+layout {
+    background-color "transparent"
+    gaps 6
+    center-focused-column "always"
+
+    preset-column-widths {
+        proportion 0.30
+        proportion 0.5
+        proportion 0.70
+    }
+
+    default-column-width { proportion 1.0; }
+
+    focus-ring {
+        width 2
+        active-color "#5eead4"
+        inactive-color "#2a3648"
+    }
+
+    border {
+        off
+    }
+
+    shadow {
+        on
+        softness 36
+        spread 4
+        offset x=0 y=6
+        color "#0b111b99"
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 🧠 兼容性 / Noctalia
+// ══════════════════════════════════════════════════════════════════
+
+debug {
+    honor-xdg-activation-with-invalid-serial
+}
+
+layer-rule {
+    match namespace="^noctalia-wallpaper*"
+    place-within-backdrop true
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 🖼️ 窗口装饰
+// ══════════════════════════════════════════════════════════════════
+
+prefer-no-csd
+
+// ══════════════════════════════════════════════════════════════════
+// ✨ 动画
+// ══════════════════════════════════════════════════════════════════
+
+animations {
+    slowdown 1.05
+
+    workspace-switch {
+        spring damping-ratio=0.9 stiffness=800 epsilon=0.0001
+    }
+
+    window-open {
+        duration-ms 220
+        curve "ease-out-expo"
+    }
+
+    window-close {
+        duration-ms 160
+        curve "ease-out-quad"
+    }
+
+    horizontal-view-movement {
+        spring damping-ratio=0.9 stiffness=750 epsilon=0.0001
+    }
+
+    window-movement {
+        spring damping-ratio=0.9 stiffness=750 epsilon=0.0001
+    }
+
+    window-resize {
+        spring damping-ratio=0.9 stiffness=750 epsilon=0.0001
+    }
+
+    config-notification-open-close {
+        spring damping-ratio=0.6 stiffness=1000 epsilon=0.001
+    }
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 📸 截图
+// ══════════════════════════════════════════════════════════════════
+
+screenshot-path "~/Pictures/Screenshots/Screenshot_%Y-%m-%d_%H-%M-%S.png"
+
+// ══════════════════════════════════════════════════════════════════
+// 🚀 自启动
+// ══════════════════════════════════════════════════════════════════
+
+spawn-at-startup "niri-run" "noctalia-shell"
+spawn-at-startup "niri-run" "fcitx5" "-d" "-r" // -r 替换现有实例
+spawn-at-startup "niri-run" "swayidle" "-w" "timeout" "300" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || true" "timeout" "600" "niri" "msg" "action" "power-off-monitors" "before-sleep" "sh" "-c" "[ -x \"$HOME/.local/bin/lock-screen\" ] && \"$HOME/.local/bin/lock-screen\" || true"
+
+// ══════════════════════════════════════════════════════════════════
+// 🪟 窗口规则
+// ══════════════════════════════════════════════════════════════════
+
+window-rule {
+    geometry-corner-radius 18
+    clip-to-geometry true
+}
+
+window-rule {
+    match app-id=r#"^(pavucontrol|org.keepassxc.KeePassXC)$"#
+    open-floating true
+}
+
+window-rule {
+    match app-id="firefox" title="Picture-in-Picture"
+    open-floating true
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ⌨️ 快捷键
+// ══════════════════════════════════════════════════════════════════
+
+binds {
+    // ─── 应用启动 ───
+    Mod+Return { spawn "niri-run" "sh" "-c" "${TERMINAL:-foot}"; }
+    Mod+Space { spawn "niri-run" "noctalia-shell" "ipc" "call" "launcher" "toggle"; }
+    Mod+E { spawn "niri-run" "nautilus"; }
+    Mod+B { spawn "niri-run" "firefox"; }
+
+    // ─── 系统控制 ───
+    Mod+Q { close-window; }
+    Mod+Shift+Q { quit; }
+    Mod+Shift+Slash { show-hotkey-overlay; }
+    Mod+Escape { spawn "niri-run" "lock-screen"; }
+    Mod+Shift+P { power-off-monitors; }
+    Mod+Shift+C { spawn "niri-run" "noctalia-shell" "ipc" "call" "wallpaper" "random"; }
+    Mod+Shift+W { spawn "niri-run" "noctalia-shell" "ipc" "call" "wallpaper" "toggle"; }
+
+    // ─── 焦点移动 ───
+    Mod+h { focus-column-left; }
+    Mod+Alt+j { focus-window-down; }
+    Mod+Alt+k { focus-window-up; }
+    Mod+l { focus-column-right; }
+    Mod+Left { focus-column-left; }
+    Mod+Down { focus-window-down; }
+    Mod+Up { focus-window-up; }
+    Mod+Right { focus-column-right; }
+
+    // ─── 窗口移动 ───
+    Mod+Shift+h { move-column-left; }
+    Mod+Shift+j { move-window-down; }
+    Mod+Shift+k { move-window-up; }
+    Mod+Shift+l { move-column-right; }
+    Mod+Shift+Left { move-column-left; }
+    Mod+Shift+Down { move-window-down; }
+    Mod+Shift+Up { move-window-up; }
+    Mod+Shift+Right { move-column-right; }
+
+    // ─── 快速跳转 ───
+    Mod+Home { focus-column-first; }
+    Mod+End { focus-column-last; }
+    Mod+Shift+Home { move-column-to-first; }
+    Mod+Shift+End { move-column-to-last; }
+
+    // ─── 布局操作 ───
+    Mod+BracketLeft { consume-or-expel-window-left; }
+    Mod+BracketRight { consume-or-expel-window-right; }
+    Mod+R { switch-preset-column-width; }
+    Mod+Shift+R { reset-window-height; }
+    Mod+Ctrl+F { maximize-column; }
+    Mod+F { fullscreen-window; }
+    Mod+M { maximize-window-to-edges; }
+    Mod+C { center-column; }
+    Mod+W { toggle-column-tabbed-display; }
+
+    Mod+Comma  { focus-monitor-previous; }
+    Mod+Period { focus-monitor-next; }
+    Mod+Shift+Period { move-window-to-monitor-next; }
+    Mod+Shift+Comma { move-window-to-monitor-previous; }
+
+    Mod+Minus { set-column-width "-10%"; }
+    Mod+Equal { set-column-width "+10%"; }
+    Mod+Shift+Minus { set-window-height "-10%"; }
+    Mod+Shift+Equal { set-window-height "+10%"; }
+
+    // ─── 工作区 ───
+    Mod+1 { focus-workspace 1; }
+    Mod+2 { focus-workspace 2; }
+    Mod+3 { focus-workspace 3; }
+    Mod+4 { focus-workspace 4; }
+    Mod+5 { focus-workspace 5; }
+    Mod+6 { focus-workspace 6; }
+    Mod+7 { focus-workspace 7; }
+    Mod+8 { focus-workspace 8; }
+    Mod+9 { focus-workspace 9; }
+
+    Mod+Shift+1 { move-column-to-workspace 1; }
+    Mod+Shift+2 { move-column-to-workspace 2; }
+    Mod+Shift+3 { move-column-to-workspace 3; }
+    Mod+Shift+4 { move-column-to-workspace 4; }
+    Mod+Shift+5 { move-column-to-workspace 5; }
+    Mod+Shift+6 { move-column-to-workspace 6; }
+    Mod+Shift+7 { move-column-to-workspace 7; }
+    Mod+Shift+8 { move-column-to-workspace 8; }
+    Mod+Shift+9 { move-column-to-workspace 9; }
+
+    Mod+j { focus-workspace-down; }
+    Mod+k { focus-workspace-up; }
+    Mod+Grave { focus-workspace-previous; }
+    Mod+Tab { toggle-overview; }
+    Mod+Shift+Tab { focus-workspace-up; }
+    Mod+WheelScrollDown cooldown-ms=150 { focus-workspace-down; }
+    Mod+WheelScrollUp cooldown-ms=150 { focus-workspace-up; }
+
+    // ─── 浮动窗口 ───
+    Mod+Shift+F { toggle-window-floating; }
+    Mod+Shift+V { switch-focus-between-floating-and-tiling; }
+
+    // ─── 截图 ───
+    Print { spawn "niri-run" "sh" "-c" "grim - | swappy -f -"; }
+    Shift+Print { spawn "niri-run" "sh" "-c" "grim -g \"$(slurp)\" - | swappy -f -"; }
+    Alt+Print { screenshot; }
+
+    // ─── 媒体与亮度 ───
+    XF86AudioRaiseVolume allow-when-locked=true { spawn "niri-run" "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%+"; }
+    XF86AudioLowerVolume allow-when-locked=true { spawn "niri-run" "wpctl" "set-volume" "@DEFAULT_AUDIO_SINK@" "5%-"; }
+    XF86AudioMute allow-when-locked=true { spawn "niri-run" "wpctl" "set-mute" "@DEFAULT_AUDIO_SINK@" "toggle"; }
+    XF86AudioMicMute allow-when-locked=true { spawn "niri-run" "wpctl" "set-mute" "@DEFAULT_AUDIO_SOURCE@" "toggle"; }
+    XF86MonBrightnessUp allow-when-locked=true { spawn "niri-run" "brightnessctl" "set" "5%+"; }
+    XF86MonBrightnessDown allow-when-locked=true { spawn "niri-run" "brightnessctl" "set" "5%-"; }
+}

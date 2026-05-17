@@ -1,6 +1,6 @@
 # 包组与开关：集中定义 systemPackages，按功能开关组合。
 # 通过 mcb.packages.* 控制不同机器的包集合。
-# 新手提示：hosts/profiles/*.nix 里会统一开启/关闭这些组。
+# 新手提示：host/default.nix 里会统一开启/关闭这些组。
 
 {
   config,
@@ -14,18 +14,6 @@ let
   cfg = config.mcb.packages;
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
-  legacyUserScopedToggles = [
-    "enableBrowsersAndMedia"
-    "enableDev"
-    "enableChat"
-    "enableEmulation"
-    "enableOffice"
-    "enableLife"
-    "enableAnime"
-    "enableEntertainment"
-  ];
-  enabledLegacyUserScopedToggles = lib.filter (name: lib.attrByPath [ name ] false cfg) legacyUserScopedToggles;
-
   musicfoxWrapper = pkgs.writeShellScript "musicfox-wrapper" ''
         set -euo pipefail
 
@@ -326,16 +314,14 @@ let
     hexyl
   ];
 
-  music =
-    with pkgs;
-    [
-      # 音乐播放
-      goMusicfoxCompat
-      ncspot
-      mpd
-      ncmpcpp
-      playerctl
-    ];
+  music = with pkgs; [
+    # 音乐播放
+    goMusicfoxCompat
+    ncspot
+    mpd
+    ncmpcpp
+    playerctl
+  ];
 
   # 按开关拼装最终包组
   groups = lib.concatLists [
@@ -381,31 +367,6 @@ in
       default = false;
       description = "Install Wayland-related tooling.";
     };
-    enableBrowsersAndMedia = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
-    };
-    enableDev = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
-    };
-    enableChat = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
-    };
-    enableEmulation = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
-    };
-    enableEntertainment = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Reserved toggle for future entertainment package group.";
-    };
     enableGaming = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -436,21 +397,6 @@ in
       default = false;
       description = "Install common geek/debug/network tooling.";
     };
-    enableOffice = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
-    };
-    enableLife = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
-    };
-    enableAnime = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Compatibility switch kept for host profiles; user apps should be declared explicitly in home/users/<user>/packages.nix.";
-    };
     enableMusic = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -459,10 +405,6 @@ in
   };
 
   config = {
-    warnings = lib.optionals (enabledLegacyUserScopedToggles != [ ]) [
-      "mcb.packages.${lib.concatStringsSep ", mcb.packages." enabledLegacyUserScopedToggles} are compatibility toggles and do not install packages anymore. Declare user apps explicitly in home/users/<user>/packages.nix."
-    ];
-
     environment.systemPackages = groups;
   };
 }

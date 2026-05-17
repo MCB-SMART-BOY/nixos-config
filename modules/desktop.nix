@@ -40,15 +40,10 @@ in
   };
 
   environment.sessionVariables = {
-    # Wayland 优化与输入法环境变量
-    # dGPU + NVIDIA + Wayland 路径下部分 Electron/Chromium 应用渲染不稳定；
-    # 在 dGPU 模式回退到 X11（仅影响 Ozone 应用），igpu/hybrid 继续走 Wayland。
-    NIXOS_OZONE_WL = if config.mcb.hardware.gpu.mode == "dgpu" then "0" else "1";
-    # 同步收敛到稳定路径：Firefox/Electron 在 dGPU 模式禁用 Wayland 后端。
-    MOZ_ENABLE_WAYLAND = if config.mcb.hardware.gpu.mode == "dgpu" then "0" else "1";
-    ELECTRON_OZONE_PLATFORM_HINT = if config.mcb.hardware.gpu.mode == "dgpu" then "x11" else "auto";
-    # 供用户脚本和 desktop wrapper 读取当前 GPU 拓扑（igpu/hybrid/dgpu）。
-    MCB_GPU_MODE = config.mcb.hardware.gpu.mode;
+    # Wayland 默认（现代 NVIDIA 驱动已稳定支持 Wayland）
+    NIXOS_OZONE_WL = "1";
+    MOZ_ENABLE_WAYLAND = "1";
+    ELECTRON_OZONE_PLATFORM_HINT = "auto";
     GTK_IM_MODULE = "fcitx";
     QT_IM_MODULE = "fcitx";
     SDL_IM_MODULE = "fcitx";

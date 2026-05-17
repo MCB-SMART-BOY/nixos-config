@@ -1,5 +1,5 @@
 # Legacy 入口（非 Flake）：用于不使用 flakes 的部署方式。
-# 逻辑与 flake.nix 保持一致，继续复用 hosts/ 与 home/ 结构。
+# 逻辑与 flake.nix 保持一致，使用 modules/ 与 users/ 结构。
 
 { config, ... }:
 
@@ -28,7 +28,7 @@ let
 in
 {
   imports = [
-    ./hosts/nixos
+    ./modules
     (import "${homeManagerSrc}/nixos")
   ];
 
@@ -38,14 +38,10 @@ in
   home-manager.extraSpecialArgs = { inherit inputs; };
   home-manager.users =
     let
-      userList =
-        if config.mcb.users != [ ] then
-          config.mcb.users
-        else
-          [ config.mcb.user ];
+      userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
       mkUser = name: {
         inherit name;
-        value = import (./home/users + "/${name}");
+        value = import (./users + "/${name}");
       };
     in
     builtins.listToAttrs (map mkUser userList);

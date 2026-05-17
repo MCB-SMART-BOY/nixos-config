@@ -1,58 +1,6 @@
 # run.sh 用户/管理员选择函数
 
 # 交互式配置每用户 TUN。
-configure_per_user_tun() {
-  if [[ "${PER_USER_TUN_ENABLED}" != "true" ]]; then
-    return 0
-  fi
-
-  if is_tty; then
-    # 让用户选择配置方式
-    local pick
-    pick="$(menu_prompt "TUN 配置方式" 1 "沿用主机配置" "使用默认接口/端口 (tun0/tun1 + 1053..)" "使用常见接口名 (Meta/Mihomo/clash0)" "返回")"
-    case "${pick}" in
-      4)
-        WIZARD_ACTION="back"
-        return 0
-        ;;
-      1)
-        reset_tun_maps
-        return 0
-        ;;
-      2)
-        # 自动分配 tun0/tun1 + 1053/1054 ...
-        reset_tun_maps
-        local idx=0
-        local user=""
-        for user in "${TARGET_USERS[@]}"; do
-          USER_TUN["${user}"]="tun${idx}"
-          USER_DNS["${user}"]=$((1053 + idx))
-          idx=$((idx + 1))
-        done
-        return 0
-        ;;
-      3)
-        reset_tun_maps
-        local idx=0
-        local user=""
-        local common_ifaces=("Meta" "Mihomo" "clash0" "tun0" "tun1" "tun2")
-        for user in "${TARGET_USERS[@]}"; do
-          local iface="tun${idx}"
-          if (( idx < ${#common_ifaces[@]} )); then
-            iface="${common_ifaces[$idx]}"
-          fi
-          USER_TUN["${user}"]="${iface}"
-          USER_DNS["${user}"]=$((1053 + idx))
-          idx=$((idx + 1))
-        done
-        return 0
-        ;;
-    esac
-  else
-    reset_tun_maps
-    return 0
-  fi
-}
 
 user_in_list() {
   local needle="$1"

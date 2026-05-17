@@ -121,12 +121,12 @@ resolve_bus_id_default() {
 
   local files=()
   if [[ -n "${ETC_DIR}" && -n "${TARGET_NAME}" ]]; then
-    files+=("${ETC_DIR}/hosts/${TARGET_NAME}/local.nix")
-    files+=("${ETC_DIR}/hosts/${TARGET_NAME}/default.nix")
+    files+=("${ETC_DIR}/local.nix")
+    files+=("${ETC_DIR}/modules/default.nix")
   fi
   if [[ -n "${TMP_DIR}" && -n "${TARGET_NAME}" ]]; then
-    files+=("${TMP_DIR}/hosts/${TARGET_NAME}/local.nix")
-    files+=("${TMP_DIR}/hosts/${TARGET_NAME}/default.nix")
+    files+=("${TMP_DIR}/local.nix")
+    files+=("${TMP_DIR}/modules/default.nix")
   fi
 
   local file=""
