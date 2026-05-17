@@ -1,335 +1,131 @@
 # 项目细节与联动关系
 
-如果说 `docs/STRUCTURE.md` 解决的是"去哪里改"，那这页解决的就是"为什么这样拆、改了以后会连到哪里"。
-
-它更像一张维护地图。
-你不用一口气全部记住，但当你准备动下面这些地方时，这页会很有用：
-
-- 多用户
-- 用户包与系统包的边界
-- GPU 配置与 specialisation
-- Noctalia 按钮和用户脚本
-- `run.sh` 部署流程
+维护地图：解释"为什么这样拆、改了以后会连到哪里"。
 
 ---
 
 ## 快速定位
 
-- 改默认用户、多用户、管理员：`modules/default.nix` 与 `modules/users.nix`
-- 改系统共享包组：`modules/default.nix` 与 `modules/packages.nix`
+- 改默认用户、多用户、管理员：`local.nix` → `modules/default.nix` → `modules/users.nix`
+- 改系统共享包组：`modules/options.nix`（开关定义）→ `modules/packages.nix`（包组内容）
 - 改某个用户的软件：`users/<user>/packages.nix`
 - 改用户界面配置：`users/<user>/config/`
 - 改 Noctalia 行为：`users/<user>/noctalia.nix`、`users/<user>/scripts/`
-- 改部署流程：`run.sh` 与 `scripts/run/`
+- 改部署流程：`run.sh` + `scripts/run/`
 - 改 nixpkgs 包覆盖：`overlays/default.nix`
 
 ---
 
-## 1. Home Manager 这一层，负责"人"
+## 1. 两层架构的边界
 
-你可以把 `home/` 理解成一个问题：
+### 系统层（`modules/`）
 
-"某个用户登录之后，他看到的终端、编辑器、桌面栏、应用清单，应该是什么样？"
+负责"这台机器该怎么工作"：
+- 系统服务（SSH、Flatpak、Docker …）
+- 系统包组（CLI 工具、Wayland 运行时、调试工具 …）
+- 网络、内核、缓存
 
-关键入口：
+所有开关定义集中在 `modules/options.nix`。各模块只读取 `config.mcb.*`，不声明自己的选项。
 
-- `users/<user>/default.nix`
-- `users/admin/full.nix`
-- `users/admin/minimal.nix`
-- `users/admin/*.nix`
+机器特定值通过 `local.nix`（gitignored）以 `lib.mkForce` 覆盖 `modules/default.nix` 中的 `lib.mkDefault` 默认值。
 
-比较常见的公共模块有：
+### 用户层（`users/<user>/`）
 
-- `users/admin/base.nix`
-  - 环境变量、PATH、基础行为
-- `users/admin/shell.nix`
-  - zsh、direnv、zoxide、starship、tmux
-- `users/admin/programs.nix`
-  - 终端和编辑器等常见程序
-- `users/admin/desktop.nix`
-  - 桌面集成、Noctalia、桌面入口、图形运行时补丁
-- `users/admin/git.nix`
-  - git 的公共基础设置（身份通过 `mcb.git.*` 选项参数化）
-
-这层最关键的设计点是：
-
-- 每个用户都有自己的入口目录
-- 每个用户都可以独立声明 `home.packages`
-- 用户之间不通过"共享一个大文件"来分配软件
-
-这意味着你以后新增管理员用户、服务器用户、笔记本用户时，都可以让他们拥有自己的软件声明空间，而不是一改全改。
+负责"这个人想怎么用机器"：
+- 个人软件清单（`packages.nix`）
+- dotfiles（`config/`）
+- 用户脚本（`scripts/` + `scripts.nix`）
+- Git 身份（`git.nix`，自包含：options + config + 身份）
 
 ---
 
-## 2. 用户软件为什么要放 `users/<user>/packages.nix`
+## 2. 用户软件为什么放用户层
 
-这不是风格问题，是边界问题。
+系统层保留共享能力（网络工具、Wayland 运行时、系统服务依赖）。
+用户层负责个人软件清单（浏览器、编辑器、聊天软件、办公科研工具）。
 
-以前最容易走歪的路线，是把 GUI 应用、聊天软件、办公软件、个人开发工具都塞进系统层。
-短期看很方便，长期会出几个问题：
-
-- 多用户主机上，所有人都被同一份桌面软件清单绑住
-- 很难看出哪些软件是机器共享的，哪些只是某个用户自己要的
-- 以后删软件时，不敢动，因为不知道会不会影响别人
-
-现在这套仓库更推荐的分工是：
-
-### 系统层保留共享能力
-
-例如：
-
-- shell 基础工具
-- 网络工具
-- Wayland 基础运行时
-- 调试工具
-- 代理服务
-- 系统服务依赖
-
-### 用户层负责个人软件清单
-
-例如：
-
-- Zed
-- YesPlayMusic
-- 浏览器
-- 聊天软件
-- 办公与科研软件
-- 某个用户自己的开发工具
-
-这样做时，Nix store 仍然会共享构建产物。
-区别只在于"这个包是否出现在该用户的 profile 里"，而不是"机器上到底有没有重复装一份"。
+Nix store 仍然共享构建产物，区别只在于"这个包是否出现在该用户的 profile 里"。
 
 ---
 
-## 3. 系统层，负责"机器"
+## 3. 选项声明集中管理
 
-系统层最核心的入口有三个：
+所有 `mcb.*` 选项在 `modules/options.nix` 中声明。这包括：
 
-- `modules/default.nix`
-- `modules/default.nix`
-- `modules/*.nix`
+- 用户与权限：`mcb.user`、`mcb.users`、`mcb.adminUsers`、`mcb.hostRole`
+- 硬件：`mcb.cpuVendor`
+- Nix 构建：`mcb.nix.*`
+- 代理：`mcb.proxyMode`、`mcb.proxyUrl`
+- Flatpak：`mcb.flatpak.*`
+- 功能开关：`mcb.gaming.enable`、`mcb.packages.*`、`mcb.virtualisation.*`
+- 桌面图形：`mcb.desktop.graphicsRuntime.*`
 
-这三层各自的职责不一样：
-
-### `modules/default.nix`
-
-这里放"这台机器自己的决定"。
-
-例如：
-
-- 主机名
-- 主机角色
-- 默认用户
-- 用户列表
-- 管理员用户
-- 主机私有覆盖
-
-### `modules/default.nix`
-
-这里放"某一类机器默认应该长什么样"。
-
-例如：
-
-- 桌面主机默认启用哪些包组
-- 服务器默认关闭哪些图形能力
-- 哪些系统模块默认导入
-
-### `modules/*.nix`
-
-这里放"跨主机复用的能力模块"。
-
-例如：
-
-- `modules/users.nix`
-- `modules/packages.nix`
-- `modules/networking.nix`
-- `modules/nix.nix`
-- `modules/services*.nix`
-- `hardware-configuration.nix（nixos-generate-config 生成）`
+模块文件（`gaming.nix`、`packages.nix`、`virtualization.nix` 等）只做 `config = ...`，不声明 `options`。
 
 ---
 
-## 4. 多用户模型，真正起作用的是哪几处
+## 4. 多用户模型
 
-关键字段主要在主机配置里：
+关键字段：
 
-- `mcb.user`
-- `mcb.users`
-- `mcb.adminUsers`
+- `mcb.user` — 主用户
+- `mcb.users` — 参与 Home Manager 管理的所有用户
+- `mcb.adminUsers` — 具有管理员权限（wheel）的用户
 
-大体规则可以这样理解：
-
-- `mcb.user`
-  - 主用户，很多兼容路径和默认行为会以它为中心
-- `mcb.users`
-  - 参与 Home Manager 管理的用户列表
-- `mcb.adminUsers`
-  - 具有管理员权限的用户列表
-
-真正负责把这些用户落成系统用户、用户组和授权的，是：
-
-- `modules/users.nix`
-
-这也是为什么"加用户"不能只在 `users/` 里新建目录。
-用户目录决定的是这个用户怎么用系统，不决定系统里有没有这个用户。
+这些字段在 `local.nix` 中以 `mkForce` 设置。`modules/users.nix` 负责创建系统用户和组。
 
 ---
 
-## 5. GPU 这块，仓库的假设是什么
+## 5. GPU 配置
 
-GPU 配置集中在：
+GPU 驱动和 busId 属于硬件信息，通过 `nixos-generate-config` 写入 `hardware-configuration.nix`（gitignored）。
 
-- `hardware-configuration.nix（nixos-generate-config 生成）`
+本项目不提供 GPU 抽象层（曾有的 `mcb.hardware.gpu.*` 已删除）。NVIDIA Prime、Intel + NVIDIA 混合等配置使用 NixOS 原生选项。
 
-关键字段是：
-
-- `mcb.hardware.gpu.mode`
-- `mcb.hardware.gpu.igpuVendor`
-- `mcb.hardware.gpu.prime.mode`
-- `mcb.hardware.gpu.prime.intelBusId`
-- `mcb.hardware.gpu.prime.amdgpuBusId`
-- `mcb.hardware.gpu.prime.nvidiaBusId`
-- `mcb.hardware.gpu.nvidia.open`
-- `mcb.hardware.gpu.specialisations.*`
-
-仓库当前的设计不是单纯切一个布尔开关，而是明确支持：
-
-- `igpu`
-- `hybrid`
-- `dgpu`
-
-其中最容易踩坑的是 `hybrid`：
-
-- 需要正确的 busId
-- 需要 BIOS / MUX 支持
-- 需要理解当前机器是不是本来就被锁成 dGPU-only
-
-`run.sh` 的向导在配置 `hybrid` 时会做两件对实际使用很重要的事：
-
-- 优先尝试从 `lspci` 自动探测 busId
-- 探测不到时回退到主机现有配置
-
-这意味着它不是瞎问一圈，而是在尽量复用你机器已经有的信息。
+GPU wrapper 脚本（`noctalia-gpu-current`、`zed-auto-gpu`、`electron-auto-gpu`）在 `users/admin/scripts/` 中，通过 `desktop.nix` 的 `writeShellApplication` + `builtins.readFile` 打包。它们通过检测 `/run/current-system` 路径和 `/proc/cmdline` 来判断当前 GPU 模式，为应用设置正确的环境变量。
 
 ---
 
-## 6. Noctalia 与用户脚本，是怎么接起来的
+## 6. Noctalia 与用户脚本
 
-这一块容易误解成"只是几个桌面小脚本"，但实际上它有明确层次。
-
-原始脚本放在：
-
-- `users/<user>/scripts/`
-
-用户脚本打包逻辑在：
-
-- `users/<user>/scripts.nix`
-
-对于 `admin`，Noctalia 的用户级入口还在：
-
-- `users/admin/noctalia.nix`
-
-目前的实际状态是：
-
-- Home Manager 打包 Shell 版用户脚本
-- 脚本通过 `users/<user>/scripts.nix` 安装到 `~/.local/bin`
-- Noctalia 顶栏按钮引用这些脚本路径
+- 原始脚本：`users/<user>/scripts/`
+- 打包逻辑：`users/<user>/scripts.nix`（Noctalia 按钮脚本）
+- GPU wrapper：`users/admin/desktop.nix`（桌面入口脚本）
+- Noctalia 顶栏入口：`users/admin/noctalia.nix`
 
 ---
 
-## 7. `run.sh` 现在不是一坨脚本了
+## 7. 部署脚本分层
 
-部署脚本已经拆层，主要分成：
-
-- `scripts/run/cmd/`
-  - 命令入口，例如部署和 release
-- `scripts/run/lib/vars.sh`
-  - 共享状态变量集中声明
-- `scripts/run/lib/ui.sh`
-  - 日志、菜单、确认、进度条
-- `scripts/run/lib/env.sh`
-  - 环境检查、脚本自检
-- `scripts/run/lib/state.sh`
-  - 状态重置与 PCI busId 工具
-- `scripts/run/lib/targets/`
-  - 主机、用户、覆盖项收集
-- `scripts/run/lib/pipeline.sh`
-  - 源码准备、同步、重建、DNS 重试
-- `scripts/run/lib/wizard.sh`
-  - 交互式向导主流程与摘要
-
-这次拆分很重要，因为它改变了维护方式：
-
-- 以前你改部署流程，容易在一个长脚本里到处跳
-- 现在你至少能按职责改对应分层文件
+- `scripts/run/cmd/` — 命令入口（deploy、add-user、switch …）
+- `scripts/run/lib/vars.sh` — 共享状态变量
+- `scripts/run/lib/ui.sh` — 日志、菜单、进度条
+- `scripts/run/lib/env.sh` — 环境检查
+- `scripts/run/lib/state.sh` — 状态重置与 PCI busId 工具
+- `scripts/run/lib/targets/` — 主机、用户、覆盖项收集
+- `scripts/run/lib/pipeline.sh` — 源码准备、同步、重建
+- `scripts/run/lib/wizard.sh` — 交互式向导
 
 ---
 
-## 8. Zed 和 YesPlayMusic 为什么单独打包
+## 8. 自维护包
 
-它们现在都走自定义包目录：
+- `pkgs/zed/` — Zed 编辑器（固定上游版本 + hash）
+- `pkgs/yesplaymusic/` — YesPlayMusic（固定上游版本 + hash）
 
-- `pkgs/zed/`
-- `pkgs/yesplaymusic/`
-
-目的不是为了"炫技"，而是为了控制两个东西：
-
-- 上游版本
-- 固定 hash
-
-这样你可以更主动地追官网稳定版，而不是完全被 nixpkgs 的节奏牵着走。
-
-相关更新脚本：
-
-- `pkgs/zed/scripts/update-source.sh`
-- `pkgs/yesplaymusic/scripts/update-source.sh`
-- `pkgs/scripts/update-upstream-apps.sh`
-
-共享辅助函数：
-
-- `pkgs/lib/update-helpers.sh`
-
-如果你平时想统一追新，这个入口最省事：
-
-```bash
-./pkgs/scripts/update-upstream-apps.sh
-```
+更新入口：`./pkgs/scripts/update-upstream-apps.sh`
 
 ---
 
-## 9. 图形运行时补丁，为什么存在
+## 9. 图形运行时补丁
 
-桌面环境里总会碰到一类程序：
-
-- 不是从 nixpkgs 来的二进制
-- 或者是上游自己打包的应用
-- 或者是 rustup / cargo / AppImage 这类运行时比较野的东西
-
-它们常见的问题是：
-
-- Vulkan ICD 找不到
-- `LD_LIBRARY_PATH` 不完整
-- 图形栈依赖继承得不稳定
-
-这套仓库把这块集中放在：
-
-- `mcb.desktop.graphicsRuntime.*`
-
-这样做的好处是，你不用每次为某个上游二进制单独想一套临时补丁，而是可以在主机级统一收口。
+`mcb.desktop.graphicsRuntime.*` 为从 nixpkgs 外部来的二进制（AppImage、cargo build …）提供统一的 LD_LIBRARY_PATH 和 Vulkan ICD 发现路径。
 
 ---
 
-## 10. 维护时最值得坚持的习惯
+## 10. 维护习惯
 
-如果你想让这套仓库长期还能舒服维护，最值钱的不是多会写 Nix，而是下面这几个习惯：
-
-- 改系统层之前，先确认这是不是用户层问题
-- 改主机层之前，先确认这是不是 profile 应该处理的默认值
-- 加软件之前，先问自己这是"共享能力"还是"个人需要"
+- 改系统层之前，确认这不是用户层问题
+- 加软件之前，问自己这是"共享能力"还是"个人需要"
 - 动大结构之前，先跑 `nix flake check`
-- 遇到奇怪行为时，先确认当前改动跨了几层
-
-很多"项目越来越重"的根本原因，不是功能太多，而是边界开始模糊。
-
-这套仓库现在最重要的价值，不只是功能齐，而是边界还算清楚。
-维护的时候，尽量把这点保住。
+- 选项变更只在一处（`modules/options.nix`）

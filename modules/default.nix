@@ -45,7 +45,7 @@
       enableSystemTools = lib.mkDefault true;
       enableTheming = lib.mkDefault true;
       enableXorgCompat = lib.mkDefault true;
-      enableGaming = lib.mkDefault false;
+
       enableGeekTools = lib.mkDefault false;
       enableMusic = lib.mkDefault false;
     };

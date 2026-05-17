@@ -1,4 +1,7 @@
 # 游戏支持：Steam、gamemode、mangohud。
+# 使用 NixOS 原生选项；在 local.nix 中以 mkForce 覆盖即可关闭。
+#   programs.steam.enable = lib.mkForce false;
+#   programs.gamemode.enable = lib.mkForce false;
 
 {
   config,
@@ -8,15 +11,9 @@
 }:
 
 {
-  options.mcb.system.enableGaming = lib.mkOption {
-    type = lib.types.bool;
-    default = true;
-    description = "Enable system-level gaming features (Steam, gamemode).";
-  };
-
-  config = lib.mkIf config.mcb.system.enableGaming {
+  config = {
     programs.steam = {
-      enable = true;
+      enable = lib.mkDefault true;
       remotePlay.openFirewall = true;
       gamescopeSession.enable = false;
       extraCompatPackages = with pkgs; [
@@ -25,6 +22,6 @@
       ];
     };
 
-    programs.gamemode.enable = true;
+    programs.gamemode.enable = lib.mkDefault true;
   };
 }

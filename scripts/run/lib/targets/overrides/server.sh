@@ -41,10 +41,10 @@ configure_server_overrides() {
       SERVER_ENABLE_WAYLAND_TOOLS="$(ask_bool "启用 Wayland 工具组（mcb.packages.enableWaylandTools）？" "false")"
       SERVER_ENABLE_SYSTEM_TOOLS="$(ask_bool "启用系统工具组（mcb.packages.enableSystemTools）？" "true")"
       SERVER_ENABLE_GEEK_TOOLS="$(ask_bool "启用调试/诊断工具（mcb.packages.enableGeekTools）？" "false")"
-      SERVER_ENABLE_GAMING="$(ask_bool "启用游戏工具组（mcb.packages.enableGaming）？" "false")"
+      SERVER_ENABLE_GAMING="$(ask_bool "启用游戏工具组（programs.steam.enable）？" "false")"
       SERVER_ENABLE_INSECURE_TOOLS="$(ask_bool "启用不安全软件组（mcb.packages.enableInsecureTools）？" "false")"
-      SERVER_ENABLE_DOCKER="$(ask_bool "启用 Docker（mcb.virtualisation.docker.enable）？" "false")"
-      SERVER_ENABLE_LIBVIRTD="$(ask_bool "启用 Libvirt/KVM（mcb.virtualisation.libvirtd.enable）？" "false")"
+      SERVER_ENABLE_DOCKER="$(ask_bool "启用 Docker（virtualisation.docker.enable）？" "false")"
+      SERVER_ENABLE_LIBVIRTD="$(ask_bool "启用 Libvirt/KVM（virtualisation.libvirtd.enable）？" "false")"
       return 0
       ;;
     4)

@@ -1,6 +1,5 @@
 # run.sh 用户/管理员选择函数
 
-# 交互式配置每用户 TUN。
 
 user_in_list() {
   local needle="$1"

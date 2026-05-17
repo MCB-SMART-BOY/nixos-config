@@ -73,7 +73,6 @@ ask_bool() {
   esac
 }
 
-# 检测每用户 TUN 配置是否完整。
 
 extract_user_from_file() {
   local file="$1"

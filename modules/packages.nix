@@ -1,6 +1,5 @@
 # 包组与开关：集中定义 systemPackages，按功能开关组合。
-# 通过 mcb.packages.* 控制不同机器的包集合。
-# 新手提示：host/default.nix 里会统一开启/关闭这些组。
+# 选项声明统一在 modules/options.nix（mcb.packages.*）；游戏包跟随 programs.steam.enable）。
 
 {
   config,
@@ -10,21 +9,21 @@
 }:
 
 let
-  # 读取 mcb.packages.* 开关
   cfg = config.mcb.packages;
   networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
   networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
+
+  # ── musicfox 兼容包装 ─────────────────────────────────────────
   musicfoxWrapper = pkgs.writeShellScript "musicfox-wrapper" ''
-        set -euo pipefail
+    set -euo pipefail
 
-        musicfox_root="''${MUSICFOX_ROOT:-''${XDG_CONFIG_HOME:-$HOME/.config}/go-musicfox}"
-        cfg_file="$musicfox_root/go-musicfox.ini"
+    musicfox_root="''${MUSICFOX_ROOT:-''${XDG_CONFIG_HOME:-$HOME/.config}/go-musicfox}"
+    cfg_file="$musicfox_root/go-musicfox.ini"
 
-        mkdir -p "$musicfox_root"
+    mkdir -p "$musicfox_root"
 
-        # Bootstrap config with sane Linux defaults when no config exists yet.
-        if [ ! -f "$cfg_file" ]; then
-          cat > "$cfg_file" <<CFG
+    if [ ! -f "$cfg_file" ]; then
+      cat > "$cfg_file" <<CFG
     [player]
     engine=mpv
     mpvBin=${pkgs.mpv}/bin/mpv
@@ -35,94 +34,60 @@ let
     searchLimit=3
     skipInvalidTracks=true
     CFG
-        fi
+    fi
 
-        ensure_ini_key() {
-          local file="$1"
-          local section="$2"
-          local key="$3"
-          local value="$4"
+    ensure_ini_key() {
+      local file="$1" section="$2" key="$3" value="$4"
+      local tmp
+      tmp="$(${pkgs.coreutils}/bin/mktemp)"
 
-          local tmp
-          tmp="$(${pkgs.coreutils}/bin/mktemp)"
-
-          ${pkgs.gawk}/bin/awk \
-            -v section="$section" \
-            -v key="$key" \
-            -v value="$value" \
-            '
-            function print_missing_if_needed() {
-              if (in_section && !found_key) {
-                print key "=" value
-              }
-            }
-
-            BEGIN {
-              in_section = 0
-              section_seen = 0
-              found_key = 0
-            }
-
-            /^[[:space:]]*\[/ {
-              print_missing_if_needed()
-              in_section = 0
-            }
-
-            {
-              line = $0
-
-              if (match(line, /^[[:space:]]*\[([^]]+)\][[:space:]]*$/, m)) {
-                if (m[1] == section) {
-                  in_section = 1
-                  section_seen = 1
-                  found_key = 0
-                } else {
-                  in_section = 0
-                }
-
-                print line
-                next
-              }
-
-              if (in_section && match(line, "^[[:space:]]*" key "[[:space:]]*=")) {
-                if (!found_key) {
-                  print key "=" value
-                  found_key = 1
-                }
-                next
-              }
-
-              print line
-            }
-
-            END {
-              print_missing_if_needed()
-
-              if (!section_seen) {
-                if (NR > 0) {
-                  print ""
-                }
-                print "[" section "]"
-                print key "=" value
-              }
-            }
-            ' "$file" > "$tmp"
-
-          ${pkgs.coreutils}/bin/mv "$tmp" "$file"
+      ${pkgs.gawk}/bin/awk \
+        -v section="$section" \
+        -v key="$key" \
+        -v value="$value" \
+        '
+        function print_missing_if_needed() {
+          if (in_section && !found_key) { print key "=" value }
         }
+        BEGIN { in_section = 0; section_seen = 0; found_key = 0 }
+        /^[[:space:]]*\[/ { print_missing_if_needed(); in_section = 0 }
+        {
+          line = $0
+          if (match(line, /^[[:space:]]*\[([^]]+)\][[:space:]]*$/, m)) {
+            if (m[1] == section) { in_section = 1; section_seen = 1; found_key = 0 }
+            else { in_section = 0 }
+            print line; next
+          }
+          if (in_section && match(line, "^[[:space:]]*" key "[[:space:]]*=")) {
+            if (!found_key) { print key "=" value; found_key = 1 }
+            next
+          }
+          print line
+        }
+        END {
+          print_missing_if_needed()
+          if (!section_seen) {
+            if (NR > 0) print ""
+            print "[" section "]"
+            print key "=" value
+          }
+        }
+        ' "$file" > "$tmp"
 
-        ensure_ini_key "$cfg_file" "player" "engine" "mpv"
-        ensure_ini_key "$cfg_file" "player" "mpvBin" "${pkgs.mpv}/bin/mpv"
-        ensure_ini_key "$cfg_file" "unm" "switch" "true"
-        ensure_ini_key "$cfg_file" "unm" "sources" "kuwo,kugou,migu,qq"
-        ensure_ini_key "$cfg_file" "unm" "searchLimit" "3"
-        ensure_ini_key "$cfg_file" "unm" "skipInvalidTracks" "true"
+      ${pkgs.coreutils}/bin/mv "$tmp" "$file"
+    }
 
-        export MUSICFOX_ROOT="$musicfox_root"
-        exec ${pkgs.go-musicfox}/bin/musicfox "$@"
+    ensure_ini_key "$cfg_file" "player" "engine" "mpv"
+    ensure_ini_key "$cfg_file" "player" "mpvBin" "${pkgs.mpv}/bin/mpv"
+    ensure_ini_key "$cfg_file" "unm" "switch" "true"
+    ensure_ini_key "$cfg_file" "unm" "sources" "kuwo,kugou,migu,qq"
+    ensure_ini_key "$cfg_file" "unm" "searchLimit" "3"
+    ensure_ini_key "$cfg_file" "unm" "skipInvalidTracks" "true"
+
+    export MUSICFOX_ROOT="$musicfox_root"
+    exec ${pkgs.go-musicfox}/bin/musicfox "$@"
   '';
 
-  # Wrap musicfox startup and harden playback-related defaults.
   goMusicfoxCompat = pkgs.runCommand "go-musicfox-compat" { } ''
     mkdir -p "$out/bin"
     install -Dm755 ${musicfoxWrapper} "$out/bin/.musicfox-wrapper"
@@ -130,8 +95,8 @@ let
     ln -s .musicfox-wrapper "$out/bin/go-musicfox"
   '';
 
+  # ── 包组定义 ──────────────────────────────────────────────────
   baseRuntime = with pkgs; [
-    # 基础运行时工具
     bash
     coreutils
     findutils
@@ -141,28 +106,23 @@ let
     procps
     util-linux
     systemd
-    # Vulkan 用户态 loader（提供 libvulkan.so.1）
     vulkan-loader
   ];
 
   networkCli = with pkgs; [
-    # 代理核心
     clash-verge-rev
     mihomo
   ];
 
   networkGui = with pkgs; [
-    # 代理 GUI / 面板
     clash-nyanpasu
     metacubexd
-    # bluetooth（Noctalia 状态栏 + Blueman 管理界面）
     bluez
     bluez-tools
     blueman
   ];
 
   shellTools = with pkgs; [
-    # 核心命令行工具
     git
     lazygit
     wget
@@ -173,7 +133,6 @@ let
     ripgrep
     bat
     delta
-    # 命令行工作流
     zoxide
     starship
     direnv
@@ -182,7 +141,6 @@ let
     zsh-syntax-highlighting
     zsh-completions
     fish
-    # 监控与磁盘
     btop
     bottom
     fastfetch
@@ -190,65 +148,50 @@ let
     gdu
     dust
     procs
-    # 数据与加密工具
     jq
     yq
     age
     sops
-    # 硬件信息
     lm_sensors
     usbutils
-    # 终端文件管理
     yazi
   ];
 
   waylandTools = with pkgs; [
-    # 剪贴板与截图
     wl-clipboard
     grim
     slurp
     swappy
-    # 通知与壁纸（Noctalia 负责 UI/通知/壁纸）
     libnotify
-    # Launcher（Noctalia/GPU 模式菜单会用到）
     fuzzel
-    # 会话辅助
     swayidle
     niri
     pipewire
-    # 亮度控制
     brightnessctl
   ];
 
   gaming =
     with pkgs;
     [
-      # 游戏客户端与工具
       mangohud
       protonup-qt
       lutris
     ]
-    ++ lib.optionals (!config.programs.steam.enable) [
-      steam
-    ];
+    ++ lib.optionals (!config.programs.steam.enable) [ steam ];
 
   systemTools = with pkgs; [
-    # 存储与下载
     qbittorrent
     aria2
     yt-dlp
-    # 系统工具
     gparted
     pavucontrol
   ];
 
   insecureTools = with pkgs; [
-    # 明确标记为不安全/过时的软件，默认不安装。
     ventoy
   ];
 
   theming = with pkgs; [
-    # 图标、光标与主题
     adwaita-icon-theme
     gnome-themes-extra
     papirus-icon-theme
@@ -258,28 +201,23 @@ let
   ];
 
   xorgCompat = with pkgs; [
-    # Xwayland 兼容
     xwayland
     xwayland-satellite
     xhost
   ];
 
   geekTools = with pkgs; [
-    # 调试与跟踪
     strace
     ltrace
     gdb
     lldb
-    # 二进制工具
     patchelf
     file
-    # 性能与监控
     htop
     iotop
     iftop
     sysstat
     lsof
-    # 网络诊断
     mtr
     nmap
     tcpdump
@@ -287,35 +225,26 @@ let
     socat
     iperf3
     ethtool
-    # 基准测试与分析
     hyperfine
     tokei
-    # 压缩与传输
     tree
     unzip
     zip
     p7zip
     rsync
     rclone
-    # 构建辅助
     just
     entr
     ncdu
-    # 逆向/分析辅助
     binwalk
     radare2
-    # 网络抓包
     wireshark
-    # Vulkan 诊断
     vulkan-tools
-    # 开发协作
     gh
-    # 二进制查看
     hexyl
   ];
 
   music = with pkgs; [
-    # 音乐播放
     goMusicfoxCompat
     ncspot
     mpd
@@ -323,14 +252,13 @@ let
     playerctl
   ];
 
-  # 按开关拼装最终包组
   groups = lib.concatLists [
     baseRuntime
     (lib.optionals networkCliEnabled networkCli)
     (lib.optionals networkGuiEnabled networkGui)
     (lib.optionals cfg.enableShellTools shellTools)
     (lib.optionals cfg.enableWaylandTools waylandTools)
-    (lib.optionals cfg.enableGaming gaming)
+    (lib.optionals config.programs.steam.enable gaming)
     (lib.optionals cfg.enableSystemTools systemTools)
     (lib.optionals cfg.enableInsecureTools insecureTools)
     (lib.optionals cfg.enableTheming theming)
@@ -340,70 +268,6 @@ let
   ];
 in
 {
-  options.mcb.packages = {
-    # 每个开关控制一个包组，便于不同主机复用
-    enableNetwork = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Legacy switch: enable both network CLI and GUI packages.";
-    };
-    enableNetworkCli = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install network/proxy CLI and service packages.";
-    };
-    enableNetworkGui = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install network GUI tooling (applets, panels, bluetooth UI).";
-    };
-    enableShellTools = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install CLI and shell utilities.";
-    };
-    enableWaylandTools = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install Wayland-related tooling.";
-    };
-    enableGaming = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install gaming tools.";
-    };
-    enableSystemTools = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install system utilities.";
-    };
-    enableInsecureTools = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install insecure/legacy packages (disabled by default).";
-    };
-    enableTheming = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install theming packages.";
-    };
-    enableXorgCompat = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install Xorg compatibility tools.";
-    };
-    enableGeekTools = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install common geek/debug/network tooling.";
-    };
-    enableMusic = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Install music players.";
-    };
-  };
-
   config = {
     environment.systemPackages = groups;
   };

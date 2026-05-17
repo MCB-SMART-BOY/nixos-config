@@ -146,5 +146,4 @@ in
   home.file.".local/bin/noctalia-disk" = mkBinLink "noctalia-disk";
   home.file.".local/bin/noctalia-power" = mkBinLink "noctalia-power";
   home.file.".local/bin/noctalia-proxy-status" = mkBinLink "noctalia-proxy-status";
-  home.file.".local/bin/steam-gamescope" = mkBinLink "steam-gamescope";
 }

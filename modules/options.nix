@@ -1,6 +1,5 @@
 # 自定义选项定义：集中声明 mcb.* 选项供其他模块读取。
-# mcb 选项集中声明。
-
+# 所有 mcb.* 选项集中在此声明，模块文件只读取 config.mcb.*。
 
 { lib, config, ... }:
 
@@ -9,6 +8,7 @@ let
 in
 {
   options.mcb = {
+    # ── 用户与权限 ──────────────────────────────────────────────
     # 主用户（仅一个用户时用它；多用户时配合 users 列表）
     user = mkOption {
       type = types.str;
@@ -47,6 +47,7 @@ in
       description = "Enable user lingering for managed users.";
     };
 
+    # ── 硬件 ────────────────────────────────────────────────────
     # CPU 厂商，用于选择正确的 KVM 模块（见 modules/boot.nix）
     cpuVendor = mkOption {
       type = types.enum [
@@ -57,6 +58,7 @@ in
       description = "CPU vendor for kernel module selection.";
     };
 
+    # ── Nix 构建与缓存 ──────────────────────────────────────────
     nix = {
       cacheProfile = mkOption {
         type = types.enum [
@@ -82,9 +84,8 @@ in
       };
     };
 
-
-
-    # 代理模式：tun/http/off（影响 networking.nix 与 services/core.nix）
+    # ── 代理 ────────────────────────────────────────────────────
+    # 代理模式：tun/http/off（影响 networking.nix）
     proxyMode = mkOption {
       type = types.enum [
         "tun"
@@ -102,10 +103,7 @@ in
       description = "HTTP proxy URL (only used when proxyMode = \"http\").";
     };
 
-
-
-
-
+    # ── Flatpak ─────────────────────────────────────────────────
     flatpak = {
       enable = mkOption {
         type = types.bool;
@@ -174,6 +172,68 @@ in
       };
     };
 
+
+    # 系统包组开关：控制 environment.systemPackages 中安装哪些包组
+    packages = {
+      enableNetwork = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Legacy switch: enable both network CLI and GUI packages.";
+      };
+      enableNetworkCli = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install network/proxy CLI and service packages.";
+      };
+      enableNetworkGui = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install network GUI tooling (applets, panels, bluetooth UI).";
+      };
+      enableShellTools = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install CLI and shell utilities.";
+      };
+      enableWaylandTools = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install Wayland-related tooling.";
+      };
+      enableSystemTools = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install system utilities.";
+      };
+      enableInsecureTools = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install insecure/legacy packages (disabled by default).";
+      };
+      enableTheming = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install theming packages.";
+      };
+      enableXorgCompat = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install Xorg compatibility tools.";
+      };
+      enableGeekTools = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install common geek/debug/network tooling.";
+      };
+      enableMusic = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Install music players.";
+      };
+    };
+
+
+    # ── 桌面与图形 ──────────────────────────────────────────────
     desktop = {
       graphicsRuntime = {
         enable = mkOption {
@@ -200,4 +260,5 @@ in
         };
       };
     };
-
+  };
+}

@@ -1,37 +1,21 @@
 # 虚拟化与容器相关设置。
+# 使用 NixOS 原生选项；在 local.nix 中以 mkForce 覆盖即可关闭。
+#   virtualisation.docker.enable = lib.mkForce false;
+#   virtualisation.libvirtd.enable = lib.mkForce false;
 
 { config, lib, ... }:
 
-let
-  cfg = config.mcb.virtualisation;
-in
 {
-  options.mcb.virtualisation = {
-    docker.enable = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Enable Docker daemon and related tooling.";
-    };
-
-    libvirtd.enable = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Enable libvirt/KVM stack.";
-    };
-  };
-
   config = {
     virtualisation = {
-      docker = lib.mkIf cfg.docker.enable {
-        # Docker 基础设置：overlay2 + 自动清理
-        enable = true;
+      docker = {
+        enable = lib.mkDefault false;
         storageDriver = "overlay2";
         autoPrune.enable = true;
       };
-      libvirtd.enable = cfg.libvirtd.enable;
+      libvirtd.enable = lib.mkDefault false;
     };
 
-    # 仅在 libvirt 启用时提供图形化管理器
-    programs.virt-manager.enable = cfg.libvirtd.enable;
+    programs.virt-manager.enable = config.virtualisation.libvirtd.enable;
   };
 }

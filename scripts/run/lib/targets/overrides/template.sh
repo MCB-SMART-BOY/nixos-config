@@ -388,40 +388,8 @@ write_local_override() {
 
 
     if [[ "${GPU_OVERRIDE}" == "true" ]]; then
-      echo "  mcb.hardware.gpu.mode = lib.mkForce \"${GPU_MODE}\";"
-      if [[ -n "${GPU_IGPU_VENDOR}" ]]; then
-        echo "  mcb.hardware.gpu.igpuVendor = lib.mkForce \"${GPU_IGPU_VENDOR}\";"
-      fi
-      if [[ -n "${GPU_NVIDIA_OPEN}" ]]; then
-        echo "  mcb.hardware.gpu.nvidia.open = lib.mkForce ${GPU_NVIDIA_OPEN};"
-      fi
-      if [[ -n "${GPU_PRIME_MODE}" || -n "${GPU_INTEL_BUS}" || -n "${GPU_AMD_BUS}" || -n "${GPU_NVIDIA_BUS}" ]]; then
-        echo "  mcb.hardware.gpu.prime = lib.mkForce {"
-        if [[ -n "${GPU_PRIME_MODE}" ]]; then
-          echo "    mode = \"${GPU_PRIME_MODE}\";"
-        fi
-        if [[ -n "${GPU_INTEL_BUS}" ]]; then
-          echo "    intelBusId = \"${GPU_INTEL_BUS}\";"
-        fi
-        if [[ -n "${GPU_AMD_BUS}" ]]; then
-          echo "    amdgpuBusId = \"${GPU_AMD_BUS}\";"
-        fi
-        if [[ -n "${GPU_NVIDIA_BUS}" ]]; then
-          echo "    nvidiaBusId = \"${GPU_NVIDIA_BUS}\";"
-        fi
-        echo "  };"
-      fi
-      if [[ "${GPU_SPECIALISATIONS_SET}" == "true" ]]; then
-        echo "  mcb.hardware.gpu.specialisations.enable = lib.mkForce ${GPU_SPECIALISATIONS_ENABLED};"
-        if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" && ${#GPU_SPECIALISATION_MODES[@]} -gt 0 ]]; then
-          local mode_list=""
-          local mode
-          for mode in "${GPU_SPECIALISATION_MODES[@]}"; do
-            mode_list+=" \"${mode}\""
-          done
-          echo "  mcb.hardware.gpu.specialisations.modes = lib.mkForce [${mode_list} ];"
-        fi
-      fi
+      echo "  # GPU 配置请通过 nixos-generate-config 写入 hardware-configuration.nix"
+      echo "  # 显卡 busId、驱动类型等硬件信息属于机器身份，不适合在此覆盖"
     fi
 
     if [[ "${SERVER_OVERRIDES_ENABLED}" == "true" ]]; then
@@ -431,10 +399,10 @@ write_local_override() {
       echo "  mcb.packages.enableWaylandTools = lib.mkForce ${SERVER_ENABLE_WAYLAND_TOOLS};"
       echo "  mcb.packages.enableSystemTools = lib.mkForce ${SERVER_ENABLE_SYSTEM_TOOLS};"
       echo "  mcb.packages.enableGeekTools = lib.mkForce ${SERVER_ENABLE_GEEK_TOOLS};"
-      echo "  mcb.packages.enableGaming = lib.mkForce ${SERVER_ENABLE_GAMING};"
+      echo "  programs.steam.enable = lib.mkForce ${SERVER_ENABLE_GAMING};"
       echo "  mcb.packages.enableInsecureTools = lib.mkForce ${SERVER_ENABLE_INSECURE_TOOLS};"
-      echo "  mcb.virtualisation.docker.enable = lib.mkForce ${SERVER_ENABLE_DOCKER};"
-      echo "  mcb.virtualisation.libvirtd.enable = lib.mkForce ${SERVER_ENABLE_LIBVIRTD};"
+      echo "  virtualisation.docker.enable = lib.mkForce ${SERVER_ENABLE_DOCKER};"
+      echo "  virtualisation.libvirtd.enable = lib.mkForce ${SERVER_ENABLE_LIBVIRTD};"
     fi
 
     echo "}"

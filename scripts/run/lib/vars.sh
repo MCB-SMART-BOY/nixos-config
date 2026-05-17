@@ -26,9 +26,7 @@ OVERWRITE_MODE="ask"
 OVERWRITE_MODE_SET=false
 HOST_PROFILE_KIND="unknown"
 
-# 每用户 TUN 临时映射（用户 -> 接口 / DNS 端口）
-declare -A USER_TUN
-declare -A USER_DNS
+# 每用户 TUN 已移除（代理由 clash-verge-rev GUI 自行管理）。
 
 # 服务器软件/虚拟化临时覆盖
 SERVER_OVERRIDES_ENABLED=false

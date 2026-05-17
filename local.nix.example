@@ -1,0 +1,33 @@
+# 机器特定覆盖（不提交到仓库）。
+# 将此文件复制为 local.nix 并按你的机器修改。
+# 所有字段均用 lib.mkForce 覆盖 modules/default.nix 的默认值。
+
+{ lib, ... }:
+
+{
+  # ── 用户 ──────────────────────────────────────────────────────────
+  # 主用户名（同时也是默认管理员）
+  mcb.user = lib.mkForce "admin";
+
+  # 所有需要启用 Home Manager 的用户
+  mcb.users = lib.mkForce [ "admin" ];
+
+  # 拥有管理员权限（wheel）的用户
+  mcb.adminUsers = lib.mkForce [ "admin" ];
+
+  # ── 主机名 / 时区 ────────────────────────────────────────────────
+  networking.hostName = lib.mkForce "nixos";
+  time.timeZone = lib.mkForce "Asia/Shanghai";
+
+  # ── 可选：功能开关覆盖 ──────────────────────────────────────────
+  # programs.steam.enable = lib.mkForce false;
+  # mcb.flatpak.enable = lib.mkForce true;
+  # mcb.flatpak.apps = lib.mkForce [ "com.tencent.WeChat" ];
+  # mcb.proxyMode = lib.mkForce "tun";
+  # mcb.nix.cacheProfile = lib.mkForce "cn";
+  # virtualisation.docker.enable = lib.mkForce true;
+
+  # ── 注意 ─────────────────────────────────────────────────────────
+  # GPU / 磁盘等硬件配置请不要写在这里。
+  # 使用 nixos-generate-config 生成 hardware-configuration.nix（同样 gitignored）。
+}

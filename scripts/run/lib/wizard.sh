@@ -163,41 +163,10 @@ print_summary() {
     return 0
   fi
 
-    if [[ ${#USER_TUN[@]} -gt 0 ]]; then
-      local user
-      for user in "${TARGET_USERS[@]}"; do
-        printf '  - %s -> %s (DNS %s)\n' "${user}" "${USER_TUN[${user}]}" "${USER_DNS[${user}]}"
-      done
-    else
-    fi
-  else
-  fi
-
   if [[ "${GPU_OVERRIDE}" == "true" ]]; then
-    printf '%sGPU：%s%s\n' "${COLOR_BOLD}" "${GPU_MODE}" "${COLOR_RESET}"
-    if [[ -n "${GPU_IGPU_VENDOR}" ]]; then
-      printf '  - iGPU 厂商：%s\n' "${GPU_IGPU_VENDOR}"
-    fi
-    if [[ -n "${GPU_PRIME_MODE}" ]]; then
-      printf '  - PRIME：%s\n' "${GPU_PRIME_MODE}"
-    fi
-    if [[ -n "${GPU_INTEL_BUS}" ]]; then
-      printf '  - Intel busId：%s\n' "${GPU_INTEL_BUS}"
-    fi
-    if [[ -n "${GPU_AMD_BUS}" ]]; then
-      printf '  - AMD busId：%s\n' "${GPU_AMD_BUS}"
-    fi
-    if [[ -n "${GPU_NVIDIA_BUS}" ]]; then
-      printf '  - NVIDIA busId：%s\n' "${GPU_NVIDIA_BUS}"
-    fi
-    if [[ -n "${GPU_NVIDIA_OPEN}" ]]; then
-      printf '  - NVIDIA open：%s\n' "${GPU_NVIDIA_OPEN}"
-    fi
-    if [[ "${GPU_SPECIALISATIONS_ENABLED}" == "true" ]]; then
-      printf '  - specialisation：启用 (%s)\n' "${GPU_SPECIALISATION_MODES[*]}"
-    fi
+    printf '%sGPU：%s%s（硬件配置请写入 hardware-configuration.nix）\n' "${COLOR_BOLD}" "${GPU_MODE}" "${COLOR_RESET}"
   else
-    printf '%sGPU：%s%s\n' "${COLOR_BOLD}" "沿用主机配置" "${COLOR_RESET}"
+    printf '%sGPU：%s%s\n' "${COLOR_BOLD}" "使用 hardware-configuration.nix" "${COLOR_RESET}"
   fi
 
   if [[ "${SERVER_OVERRIDES_ENABLED}" == "true" ]]; then
@@ -256,14 +225,12 @@ wizard_flow() {
   while true; do
     case "${step}" in
       1)
-        # 选择主机
         select_host "${TMP_DIR}"
         validate_host "${TMP_DIR}"
         detect_host_profile_kind "${TMP_DIR}"
         step=2
         ;;
       2)
-        # 选择用户列表
         WIZARD_ACTION=""
         prompt_users
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
@@ -283,7 +250,6 @@ wizard_flow() {
         step=3
         ;;
       3)
-        # 选择管理员用户（wheel）
         WIZARD_ACTION=""
         prompt_admin_users
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
@@ -296,60 +262,45 @@ wizard_flow() {
         step=4
         ;;
       4)
-        else
-        fi
-        WIZARD_ACTION=""
-          if [[ "${WIZARD_ACTION}" == "back" ]]; then
-            step=3
-            continue
-          fi
-        else
-        fi
-        step=5
-        ;;
-      5)
-        # 配置 GPU 覆盖（可选，server 主机默认跳过）
         if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
           reset_gpu_override
-          step=6
+          step=5
           continue
         fi
         WIZARD_ACTION=""
         configure_gpu
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
           reset_gpu_override
-          step=4
+          step=3
           continue
         fi
-        step=6
+        step=5
         ;;
-      6)
-        # 服务器软件/虚拟化配置（仅 server profile）
+      5)
         if [[ "${HOST_PROFILE_KIND}" != "server" ]]; then
           reset_server_overrides
-          step=7
+          step=6
           continue
         fi
         WIZARD_ACTION=""
         configure_server_overrides
         if [[ "${WIZARD_ACTION}" == "back" ]]; then
           reset_server_overrides
-          step=5
+          step=4
           continue
         fi
-        step=7
+        step=6
         ;;
-      7)
-        # 最终确认
+      6)
         print_summary
         if is_tty; then
           wizard_back_or_quit "确认以上配置"
           case "${WIZARD_ACTION}" in
             back)
               if [[ "${HOST_PROFILE_KIND}" == "server" ]]; then
-                step=6
-              else
                 step=5
+              else
+                step=4
               fi
               ;;
             continue)

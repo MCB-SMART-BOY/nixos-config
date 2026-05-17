@@ -15,6 +15,7 @@
 let
   hostPkgCfg = lib.attrByPath [ "mcb" "packages" ] { } osConfig;
   hostPkgEnabled = name: lib.attrByPath [ name ] false hostPkgCfg;
+  hostGamingEnabled = lib.attrByPath [ "programs" "steam" "enable" ] false osConfig;
   hostNetworkGuiEnabled = (hostPkgEnabled "enableNetwork") || (hostPkgEnabled "enableNetworkGui");
 
   # 本地自维护 YesPlayMusic（仅 x86_64-linux 可用）。
@@ -348,7 +349,7 @@ in
     lifeTools
     animeManga
     (lib.optionals (!(hostPkgEnabled "enableMusic")) musicApps)
-    (lib.optionals (!(hostPkgEnabled "enableGaming")) gaming)
+    (lib.optionals (!hostGamingEnabled) gaming)
     (lib.optionals (!(hostPkgEnabled "enableSystemTools")) downloadAndSystem)
     (lib.optionals (!(hostPkgEnabled "enableTheming")) theming)
     (lib.optionals (!(hostPkgEnabled "enableXorgCompat")) xorgCompat)

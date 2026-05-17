@@ -41,7 +41,7 @@ in
       userList = if config.mcb.users != [ ] then config.mcb.users else [ config.mcb.user ];
       mkUser = name: {
         inherit name;
-        value = import (./users + "/${name}");
+        value = import (./users + "/${name}/default.nix");
       };
     in
     builtins.listToAttrs (map mkUser userList);

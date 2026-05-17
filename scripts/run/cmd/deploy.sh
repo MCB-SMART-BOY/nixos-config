@@ -4,7 +4,7 @@ deploy_flow() {
   if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat <<'EOF'
 用法: run.sh deploy
-启动交互式部署向导，逐步引导你完成主机/用户/TUN/GPU 配置。
+启动交互式部署向导，逐步引导你完成主机/用户配置，GPU 请使用 nixos-generate-config。
 EOF
     return 0
   fi
@@ -68,7 +68,7 @@ EOF
   self_check_scripts "${TMP_DIR}"
   progress_step "脚本自检"
 
-  # 交互式向导：选择主机/用户/TUN
+  # 交互式向导：选择主机/用户
   wizard_flow
   if [[ "${DEPLOY_MODE}" == "update-existing" ]]; then
     preserve_existing_local_override "${TMP_DIR}"
