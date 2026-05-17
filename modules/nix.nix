@@ -86,10 +86,6 @@ in
   nixpkgs.config = {
     # 允许非自由软件（如 Chrome）
     allowUnfree = true;
-    # 仅在显式开启 mcb.packages.enableInsecureTools 时允许不安全包。
-    permittedInsecurePackages = lib.optionals config.mcb.packages.enableInsecureTools [
-      "ventoy-1.1.07"
-    ];
   };
 
   zramSwap = {

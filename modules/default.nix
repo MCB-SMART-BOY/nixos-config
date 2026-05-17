@@ -27,12 +27,10 @@
 
   mcb = {
     hostRole = lib.mkDefault "desktop";
-    userLinger = lib.mkDefault true;
     user = lib.mkDefault "admin";
     users = lib.mkDefault [ "admin" ];
     adminUsers = lib.mkDefault [ "admin" ];
 
-    cpuVendor = lib.mkDefault "intel";
     proxyMode = lib.mkDefault "tun";
     proxyUrl = lib.mkDefault "";
 

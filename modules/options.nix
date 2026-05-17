@@ -43,20 +43,11 @@ in
     # 是否为托管用户默认开启 linger（允许用户服务在注销后继续运行）
     userLinger = mkOption {
       type = types.bool;
-      default = false;
+      default = true;
       description = "Enable user lingering for managed users.";
     };
 
     # ── 硬件 ────────────────────────────────────────────────────
-    # CPU 厂商，用于选择正确的 KVM 模块（见 modules/boot.nix）
-    cpuVendor = mkOption {
-      type = types.enum [
-        "intel"
-        "amd"
-      ];
-      default = "intel";
-      description = "CPU vendor for kernel module selection.";
-    };
 
     # ── Nix 构建与缓存 ──────────────────────────────────────────
     nix = {
@@ -175,11 +166,6 @@ in
 
     # 系统包组开关：控制 environment.systemPackages 中安装哪些包组
     packages = {
-      enableNetwork = mkOption {
-        type = types.bool;
-        default = false;
-        description = "Legacy switch: enable both network CLI and GUI packages.";
-      };
       enableNetworkCli = mkOption {
         type = types.bool;
         default = false;
@@ -204,11 +190,6 @@ in
         type = types.bool;
         default = false;
         description = "Install system utilities.";
-      };
-      enableInsecureTools = mkOption {
-        type = types.bool;
-        default = false;
-        description = "Install insecure/legacy packages (disabled by default).";
       };
       enableTheming = mkOption {
         type = types.bool;

@@ -400,7 +400,6 @@ write_local_override() {
       echo "  mcb.packages.enableSystemTools = lib.mkForce ${SERVER_ENABLE_SYSTEM_TOOLS};"
       echo "  mcb.packages.enableGeekTools = lib.mkForce ${SERVER_ENABLE_GEEK_TOOLS};"
       echo "  programs.steam.enable = lib.mkForce ${SERVER_ENABLE_GAMING};"
-      echo "  mcb.packages.enableInsecureTools = lib.mkForce ${SERVER_ENABLE_INSECURE_TOOLS};"
       echo "  virtualisation.docker.enable = lib.mkForce ${SERVER_ENABLE_DOCKER};"
       echo "  virtualisation.libvirtd.enable = lib.mkForce ${SERVER_ENABLE_LIBVIRTD};"
     fi

@@ -10,8 +10,6 @@
 
 let
   cfg = config.mcb.packages;
-  networkCliEnabled = cfg.enableNetwork || cfg.enableNetworkCli;
-  networkGuiEnabled = cfg.enableNetwork || cfg.enableNetworkGui;
 
   # ── musicfox 兼容包装 ─────────────────────────────────────────
   musicfoxWrapper = pkgs.writeShellScript "musicfox-wrapper" ''
@@ -188,7 +186,7 @@ let
   ];
 
   insecureTools = with pkgs; [
-    ventoy
+    # ventoy  # 取消注释以安装（标记为不安全）
   ];
 
   theming = with pkgs; [
@@ -254,13 +252,12 @@ let
 
   groups = lib.concatLists [
     baseRuntime
-    (lib.optionals networkCliEnabled networkCli)
-    (lib.optionals networkGuiEnabled networkGui)
+    (lib.optionals cfg.enableNetworkCli networkCli)
+    (lib.optionals cfg.enableNetworkGui networkGui)
     (lib.optionals cfg.enableShellTools shellTools)
     (lib.optionals cfg.enableWaylandTools waylandTools)
     (lib.optionals config.programs.steam.enable gaming)
     (lib.optionals cfg.enableSystemTools systemTools)
-    (lib.optionals cfg.enableInsecureTools insecureTools)
     (lib.optionals cfg.enableTheming theming)
     (lib.optionals cfg.enableXorgCompat xorgCompat)
     (lib.optionals cfg.enableGeekTools geekTools)

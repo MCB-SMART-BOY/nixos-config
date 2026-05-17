@@ -53,7 +53,6 @@ Nix store 仍然共享构建产物，区别只在于"这个包是否出现在该
 所有 `mcb.*` 选项在 `modules/options.nix` 中声明。这包括：
 
 - 用户与权限：`mcb.user`、`mcb.users`、`mcb.adminUsers`、`mcb.hostRole`
-- 硬件：`mcb.cpuVendor`
 - Nix 构建：`mcb.nix.*`
 - 代理：`mcb.proxyMode`、`mcb.proxyUrl`
 - Flatpak：`mcb.flatpak.*`

@@ -16,7 +16,7 @@ let
   hostPkgCfg = lib.attrByPath [ "mcb" "packages" ] { } osConfig;
   hostPkgEnabled = name: lib.attrByPath [ name ] false hostPkgCfg;
   hostGamingEnabled = lib.attrByPath [ "programs" "steam" "enable" ] false osConfig;
-  hostNetworkGuiEnabled = (hostPkgEnabled "enableNetwork") || (hostPkgEnabled "enableNetworkGui");
+  hostNetworkGuiEnabled = (hostPkgEnabled "enableNetworkGui");
 
   # 本地自维护 YesPlayMusic（仅 x86_64-linux 可用）。
   yesplaymusicPkg =

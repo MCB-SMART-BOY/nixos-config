@@ -178,7 +178,6 @@ print_summary() {
     printf '  - enableSystemTools=%s\n' "${SERVER_ENABLE_SYSTEM_TOOLS}"
     printf '  - enableGeekTools=%s\n' "${SERVER_ENABLE_GEEK_TOOLS}"
     printf '  - enableGaming=%s\n' "${SERVER_ENABLE_GAMING}"
-    printf '  - enableInsecureTools=%s\n' "${SERVER_ENABLE_INSECURE_TOOLS}"
     printf '  - docker.enable=%s\n' "${SERVER_ENABLE_DOCKER}"
     printf '  - libvirtd.enable=%s\n' "${SERVER_ENABLE_LIBVIRTD}"
   fi
