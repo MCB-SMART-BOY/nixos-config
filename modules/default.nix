@@ -31,7 +31,6 @@
     users = lib.mkDefault [ "admin" ];
     adminUsers = lib.mkDefault [ "admin" ];
 
-    proxyMode = lib.mkDefault "tun";
     proxyUrl = lib.mkDefault "";
 
 

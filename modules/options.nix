@@ -83,7 +83,7 @@ in
         "http"
         "off"
       ];
-      default = "off";
+      default = "tun";
       description = "Proxy mode: tun/http/off.";
     };
 
