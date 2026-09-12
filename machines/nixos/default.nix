@@ -17,9 +17,5 @@
     extraGroups = [ "networkmanager" "wheel" "libvirtd" "incus-admin" ];
   };
 
-  programs.google-chrome = {
-    enable = true;
-  };
-
   system.stateVersion = "26.05"; # Did you read the comment?
 }
