@@ -5,6 +5,5 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   };
 
-  outputs = inputs@ { self, ... }:
-    import ./flake { inherit inputs self; };
+  outputs = inputs@{ self, ... }: import ./flake { inherit inputs self; };
 }

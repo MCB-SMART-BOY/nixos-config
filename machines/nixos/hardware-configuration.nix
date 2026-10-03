@@ -8,24 +8,44 @@
     [ (modulesPath + "/installer/scan/not-detected.nix")
     ];
 
-  boot.initrd.availableKernelModules = [ "xhci_pci" "thunderbolt" "nvme" "usbhid" "usb_storage" "sd_mod" "rtsx_pci_sdmmc" ];
+  boot.initrd.availableKernelModules = [ "xhci_pci" "thunderbolt" "nvme" "usbhid" "rtsx_pci_sdmmc" ];
   boot.initrd.kernelModules = [ ];
   boot.kernelModules = [ "kvm-intel" ];
   boot.extraModulePackages = [ ];
 
   fileSystems."/" =
-    { device = "/dev/disk/by-uuid/3c1adeed-25f8-4634-b435-5f4d68a56839";
-      fsType = "ext4";
+    { device = "/dev/disk/by-uuid/19be9502-b9b5-4a7f-80a6-305dc2ff64ef";
+      fsType = "xfs";
     };
 
   fileSystems."/boot" =
-    { device = "/dev/disk/by-uuid/81B6-A44A";
+    { device = "/dev/disk/by-uuid/C00E-80CB";
       fsType = "vfat";
       options = [ "fmask=0077" "dmask=0077" ];
     };
 
+  fileSystems."/var/lib/lxcfs" =
+    { device = "lxcfs";
+      fsType = "fuse.lxcfs";
+    };
+
+  fileSystems."/var/lib/incus/devices" =
+    { device = "tmpfs";
+      fsType = "tmpfs";
+    };
+
+  fileSystems."/var/lib/incus/shmounts" =
+    { device = "tmpfs";
+      fsType = "tmpfs";
+    };
+
+  fileSystems."/var/lib/incus/guestapi" =
+    { device = "tmpfs";
+      fsType = "tmpfs";
+    };
+
   swapDevices =
-    [ { device = "/dev/disk/by-uuid/5e90ba75-50f7-4e74-ba3c-488967a2e23e"; }
+    [ { device = "/dev/disk/by-uuid/c4485a3b-1ffb-4e6d-bf96-e10e9ba66e06"; }
     ];
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";

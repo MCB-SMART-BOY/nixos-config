@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ pkgs, ... }:
 
 {
   virtualisation = {
@@ -22,15 +22,25 @@
     oci-containers.backend = "podman";
   };
 
+  fileSystems = {
+    "/var/lib/lxcfs" = {
+      noCheck = true;
+      options = [ "noauto" ];
+    };
+    "/var/lib/incus/devices".options = [ "noauto" ];
+    "/var/lib/incus/guestapi".options = [ "noauto" ];
+    "/var/lib/incus/shmounts".options = [ "noauto" ];
+  };
+
   networking.nftables.enable = true;
 
   programs.virt-manager.enable = true;
 
-  boot.kernelParams = [ "intel_iommu=on" "iommu=pt" ];
-  #   [ "default_hugepagesz=1G" "hugepagesz=1G" ] ++
-  #   [ "vfio-pci.ids=${lib.concatStringsSep} "," vfioIds}"];
+  boot.kernelParams = [
+    "intel_iommu=on"
+    "iommu=pt"
+  ];
 
-  boot.extraModprobeConfig = ''options kvm_intel nested=1'';
+  boot.extraModprobeConfig = "options kvm_intel nested=1";
 
-  # booty.initrd.kernelModules = [ "vfio_pci" "vfio" "vfio_iommu_type1" ];
 }

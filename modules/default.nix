@@ -1,8 +1,7 @@
-{ lib, ... }:
+{ ... }:
 
 {
   imports = [
-    # ./options.nix
     ./boot.nix
     ./network.nix
     ./security.nix
@@ -15,7 +14,5 @@
     ./game.nix
     ./core.nix
     ./applications.nix
-    # ./impermanence.nix
-    # ./secrets.nix
   ];
 }

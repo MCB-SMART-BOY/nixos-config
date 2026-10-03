@@ -4,7 +4,10 @@
   time.timeZone = "Asia/Shanghai";
   i18n = {
     defaultLocale = "en_US.UTF-8";
-    supportedLocales = [ "en_US.UTF-8/UTF-8" "zh_CN.UTF-8/UTF-8" ];
+    supportedLocales = [
+      "en_US.UTF-8/UTF-8"
+      "zh_CN.UTF-8/UTF-8"
+    ];
     extraLocaleSettings = {
       LC_ADDRESS = "zh_CN.UTF-8";
       LC_IDENTIFICATION = "zh_CN.UTF-8";
@@ -25,8 +28,8 @@
           (with pkgs; [
             fcitx5-rime
             fcitx5-gtk
-          ]) ++
-          (with pkgs.qt6Packages; [
+          ])
+          ++ (with pkgs.qt6Packages; [
             fcitx5-chinese-addons
             fcitx5-configtool
             fcitx5-qt

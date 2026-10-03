@@ -1,24 +1,36 @@
 { pkgs, ... }:
 
 {
-  programs.niri.enable = true;
-  programs.noctalia.enable = true;
-  programs.hyprland.enable = true;
+  programs = {
+    niri.enable = true;
+    noctalia.enable = true;
+    hyprland.enable = true;
+    dconf.enable = true;
+    xwayland.enable = true;
+    geary.enable = false;
+  };
 
-  programs.dconf.enable = true;
-  programs.xwayland.enable = true;
-  services.xserver = {
-    enable = true;
-    xkb = {
-      layout = "us";
-      variant = "";
-      options = "ctrl:swapcaps";
+  services = {
+    xserver = {
+      enable = true;
+      xkb = {
+        layout = "us";
+        variant = "";
+        options = "ctrl:swapcaps";
+      };
+    };
+    desktopManager.gnome.enable = true;
+    displayManager.gdm.enable = true;
+    gnome = {
+      gnome-keyring.enable = true;
+      gnome-online-accounts.enable = false;
+      gnome-remote-desktop.enable = true;
+      rygel.enable = false;
+      tinysparql.enable = false;
     };
   };
-  console.useXkbConfig = true;
 
-  services.desktopManager.gnome.enable = true;
-  services.displayManager.gdm.enable = true;
+  console.useXkbConfig = true;
 
   boot.plymouth = {
     enable = true;
@@ -44,29 +56,35 @@
     ];
     config = {
       common = {
-        default = [ "gnome" "gtk" ];
+        default = [
+          "gnome"
+          "gtk"
+        ];
         "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
       };
       niri = {
-        default = [ "gnome" "gtk" ];
+        default = [
+          "gnome"
+          "gtk"
+        ];
         "org.freedesktop.impl.portal.ScreenCast" = [ "gnome" ];
       };
     };
   };
 
-  services.gnome = {
-    gnome-keyring.enable = true;
-    gnome-online-accounts.enable = false;
-    gnome-remote-desktop.enable = true;
-    rygel.enable = false;
-    tinysparql.enable = false;
-  };
-
   environment.gnome.excludePackages = with pkgs; [
-    gnome-tour gnome-music gnome-contacts gnome-maps
-    gnome-weather epiphany simple-scan totem cheese
-    hitori tali iagno
+    gnome-tour
+    gnome-music
+    gnome-contacts
+    gnome-maps
+    gnome-weather
+    epiphany
+    simple-scan
+    totem
+    cheese
+    hitori
+    tali
+    iagno
   ];
 
-  programs.geary.enable = false;
 }

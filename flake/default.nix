@@ -2,38 +2,40 @@
 
 let
   inherit (inputs.nixpkgs) lib;
-  macDirs = ../machines; # machine directories for short~
-  macEts = builtins.readDir macDirs; # machine entries for short~
 
-  macNms = builtins.attrNames ( # machine names for short~
-    lib.filterAttrs (name: type:
-      type == "directory" &&
-      builtins.pathExists "${macDirs}/${name}/default.nix"
-    ) macEts );
+  sourceChecks = import ./source-checks.nix { inherit lib self; };
+  inherit (sourceChecks) mkSourceChecks;
 
-  macSys = name:
-    let sysFile = "${macDirs}/${name}/system.nix";
-    in
-      if builtins.pathExists sysFile
-        then import sysFile
-        else builtins.currentSystem;
-
-  mkSys = name: lib.nixosSystem {
-    specialArgs = { inherit inputs self; }; # I mean ... it looks nothing special yeah?
-    modules = [ "${macDirs}/${name}/default.nix" ];
+  machines = import ./machines.nix {
+    inherit
+      inputs
+      lib
+      mkSourceChecks
+      self
+      ;
   };
+  inherit (machines)
+    mkMacChecks
+    nixosConfigurations
+    pkgsBySystem
+    systems
+    ;
 
-  mkMac = machineName:
-    let macPath = "${macDirs}/${machineName}";
-    in
-      lib.nameValuePair machineName (lib.nixosSystem {
-        system = macSys machineName;
-        specialArgs = { inherit inputs self machineName; };
-        modules = [ macPath ../modules ];
-      });
+  developmentBySystem = lib.genAttrs systems (
+    system: import ./development.nix { pkgs = pkgsBySystem.${system}; }
+  );
 
-  nixosConfigurations = builtins.listToAttrs (map mkMac macNms);
-
-in {
-  inherit nixosConfigurations;
+  checks = lib.genAttrs systems (system: mkSourceChecks pkgsBySystem.${system} // mkMacChecks system);
+  formatter = lib.mapAttrs (_system: development: development.formatter) developmentBySystem;
+  devShells = lib.mapAttrs (_system: development: {
+    default = development.devShell;
+  }) developmentBySystem;
+in
+{
+  inherit
+    checks
+    devShells
+    formatter
+    nixosConfigurations
+    ;
 }

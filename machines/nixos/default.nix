@@ -2,7 +2,7 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, ... }:
+{ ... }:
 
 {
   imports = [
@@ -11,10 +11,15 @@
   ];
 
   # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users."admin" = {
+  users.users."mcbnixos" = {
     isNormalUser = true;
-    description = "admin";
-    extraGroups = [ "networkmanager" "wheel" "libvirtd" "incus-admin" ];
+    description = "mcbnixos";
+    extraGroups = [
+      "networkmanager"
+      "wheel"
+      "libvirtd"
+      "incus-admin"
+    ];
   };
 
   system.stateVersion = "26.05"; # Did you read the comment?

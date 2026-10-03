@@ -1,4 +1,4 @@
-{ ... }:
+{ config, ... }:
 
 {
   services.xserver.videoDrivers = [ "nvidia" ];
@@ -9,6 +9,7 @@
       enable32Bit = true;
     };
     nvidia = {
+      package = config.boot.kernelPackages.nvidiaPackages.latest;
       modesetting.enable = true;
       open = true;
       nvidiaSettings = true;
