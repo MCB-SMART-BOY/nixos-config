@@ -2,6 +2,7 @@
   inputs,
   lib,
   mkSourceChecks,
+  overlays,
   self,
 }:
 
@@ -27,7 +28,7 @@ let
       throw "machine '${name}' must define ${sysFile}";
 
   systems = lib.unique (map macSys macNms);
-  pkgsBySystem = lib.genAttrs systems (system: import inputs.nixpkgs { inherit system; });
+  pkgsBySystem = lib.genAttrs systems (system: import inputs.nixpkgs { inherit system overlays; });
 
   mkMac =
     machineName:
@@ -46,6 +47,10 @@ let
             ;
         };
         modules = [
+          {
+            nixpkgs.overlays = overlays;
+            system.configurationRevision = self.rev or self.dirtyRev or null;
+          }
           macPath
           ../modules
         ];

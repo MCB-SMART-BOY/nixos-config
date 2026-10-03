@@ -5,12 +5,14 @@ let
 
   sourceChecks = import ./source-checks.nix { inherit lib self; };
   inherit (sourceChecks) mkSourceChecks;
+  overlays = [ (import ../overlays/security-fixes.nix) ];
 
   machines = import ./machines.nix {
     inherit
       inputs
       lib
       mkSourceChecks
+      overlays
       self
       ;
   };

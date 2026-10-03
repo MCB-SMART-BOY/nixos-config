@@ -82,7 +82,7 @@ let
     ffmpeg
     linux-wallpaperengine
     mangohud
-    protonup-qt
+    protonplus
     lutris
   ];
 

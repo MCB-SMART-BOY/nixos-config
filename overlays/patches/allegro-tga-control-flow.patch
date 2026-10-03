@@ -1,0 +1,67 @@
+diff --git a/src/tga.c b/src/tga.c
+--- a/src/tga.c
++++ b/src/tga.c
+@@ -196,8 +196,8 @@ static unsigned char *rle_tga_read24(unsigned char *b, int w, PACKFILE *f)
+ 	 c += count;
+          if (c > w)
+             return NULL;
+-	 color = single_tga_read24(f);
+ 	 if (pack_feof(f))
+ 	    return NULL;
++	 color = single_tga_read24(f);
+ 	 while (count--) {
+ 	    WRITE3BYTES(b, color);
+@@ -468,37 +468,45 @@ BITMAP *load_tga_pf(PACKFILE *f, RGB *pal)
+ 	 case 1:
+ 	 case 3:
+-	    if (compressed)
++	    if (compressed) {
+ 	       if (!rle_tga_read8(bmp->line[yc], image_width, f))
+ 		  goto error;
+-	    else
++	    }
++	    else {
+ 	       if (!raw_tga_read8(bmp->line[yc], image_width, f))
+ 		  goto error;
++	    }
+ 	    break;
+ 
+ 	 case 2:
+ 	    if (bpp == 32) {
+-	       if (compressed)
++	       if (compressed) {
+ 		  if (!rle_tga_read32((unsigned int *)bmp->line[yc], image_width, f))
+ 		     goto error;
+-	       else
++	       }
++	       else {
+ 		  if (!raw_tga_read32((unsigned int *)bmp->line[yc], image_width, f))
+ 		     goto error;
++	       }
+ 	    }
+ 	    else if (bpp == 24) {
+-	       if (compressed)
++	       if (compressed) {
+ 		  if (!rle_tga_read24(bmp->line[yc], image_width, f))
+ 		     goto error;
+-	       else
++	       }
++	       else {
+ 		  if (!raw_tga_read24(bmp->line[yc], image_width, f))
+ 		     goto error;
++	       }
+ 	    }
+ 	    else {
+-	       if (compressed)
++	       if (compressed) {
+ 		  if (!rle_tga_read16((unsigned short *)bmp->line[yc], image_width, f))
+ 		     goto error;
+-	       else
++	       }
++	       else {
+ 		  if (!raw_tga_read16((unsigned short *)bmp->line[yc], image_width, f))
+ 		     goto error;
++	       }
+ 	    }
+ 	    break;
+       }
